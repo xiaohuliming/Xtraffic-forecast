@@ -1,0 +1,18 @@
+{
+  "model_dir": "/Users/xhlm/Desktop/Study/\u79d1\u7814\u5b9e\u4e60/outputs/impact_guided_next_stage/dual_branch_sttis_incident_ft_seed_23_normal_veto_quickgrid",
+  "cache_path": "/Users/xhlm/Desktop/Study/\u79d1\u7814\u5b9e\u4e60/outputs/impact_guided_next_stage/full_candidate_stgnn_learned_normal_dual/full_candidate_samples.h5",
+  "transforms": [
+    "original",
+    "bias_-0.4",
+    "bias_-0.2",
+    "bias_0.2",
+    "bias_0.4"
+  ],
+  "betas": [
+    0.95,
+    1.0,
+    1.05,
+    1.1
+  ],
+  "max_samples": 0
+}

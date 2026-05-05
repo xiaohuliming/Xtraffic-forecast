@@ -1,0 +1,23 @@
+{
+  "cache_path": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/full_candidate_stgnn_learned_normal_dual/full_candidate_samples.h5",
+  "output_dir": "outputs/impact_guided_next_stage/dual_branch_gate_full",
+  "epochs": 5,
+  "batch_size": 192,
+  "hidden_dim": 96,
+  "graph_layers": 2,
+  "graph_mode": "undirected",
+  "graph_sigma": 3.0,
+  "dropout": 0.1,
+  "lr": 0.001,
+  "weight_decay": 0.0001,
+  "heatmap_aux_weight": 0.0,
+  "event_aux_weight": 0.05,
+  "node_aux_weight": 0.03,
+  "use_normal_delta": true,
+  "use_normal_delta_abs": true,
+  "use_dual_hist_residual": true,
+  "seed": 7,
+  "max_train_samples": 20000,
+  "max_eval_samples": 0,
+  "device": "mps"
+}

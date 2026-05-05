@@ -1,0 +1,20 @@
+{
+  "model_dirs": [
+    "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/dual_branch_sttis_incident_ft_seed_23_normal_veto_impact_aux_focus_quickgrid",
+    "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/dual_branch_sttis_incident_ft_seed_23_normal_veto_hierarchical_impact_aux_focus_quickgrid"
+  ],
+  "labels": [
+    "focused_impact_veto",
+    "hierarchical_impact_veto"
+  ],
+  "cache_path": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/full_candidate_stgnn_learned_normal_dual/full_candidate_samples.h5",
+  "split": "test",
+  "samples": 27499,
+  "positive_margin": 0.1,
+  "score_bin_width": 0.0025,
+  "severity_quantiles": [
+    1.557269811630249,
+    2.5780270099639893
+  ],
+  "device": "mps"
+}

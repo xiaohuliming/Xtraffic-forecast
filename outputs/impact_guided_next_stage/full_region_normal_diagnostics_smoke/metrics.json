@@ -1,0 +1,52 @@
+{
+  "rows": [
+    {
+      "region": "Alameda",
+      "train": 16.0,
+      "val": 16.0,
+      "test": 16.0,
+      "all_values": 21544.0,
+      "all_normal_diff_raw_mae": 0.3882216075694654,
+      "all_normal_diff_robust_mae": 0.06627793919407121,
+      "all_local_target_robust_mae": 1.0749544695412585,
+      "all_full_target_robust_mae": 1.0615579270094777,
+      "all_target_change_pct": -1.2462427862175252,
+      "affected_values": 5764.0,
+      "affected_normal_diff_raw_mae": 0.3867118671319288,
+      "affected_normal_diff_robust_mae": 0.08534566732349701,
+      "affected_local_target_robust_mae": 1.3679535526272988,
+      "affected_full_target_robust_mae": 1.3649262872361045,
+      "affected_target_change_pct": -0.22129884347169998,
+      "unaffected_values": 15780.0,
+      "unaffected_normal_diff_raw_mae": 0.3887730606910696,
+      "unaffected_normal_diff_robust_mae": 0.05931302301481801,
+      "unaffected_local_target_robust_mae": 0.967929916478533,
+      "unaffected_full_target_robust_mae": 0.950745812477721,
+      "unaffected_target_change_pct": -1.7753458910878754
+    },
+    {
+      "region": "weighted",
+      "train": NaN,
+      "val": NaN,
+      "test": NaN,
+      "all_values": 21544.0,
+      "all_normal_diff_raw_mae": 0.3882216075694654,
+      "all_normal_diff_robust_mae": 0.06627793919407121,
+      "all_local_target_robust_mae": 1.0749544695412585,
+      "all_full_target_robust_mae": 1.0615579270094777,
+      "all_target_change_pct": -1.2462427862175252,
+      "affected_values": 5764.0,
+      "affected_normal_diff_raw_mae": 0.3867118671319288,
+      "affected_normal_diff_robust_mae": 0.08534566732349701,
+      "affected_local_target_robust_mae": 1.3679535526272988,
+      "affected_full_target_robust_mae": 1.3649262872361045,
+      "affected_target_change_pct": -0.22129884347169998,
+      "unaffected_values": 15780.0,
+      "unaffected_normal_diff_raw_mae": 0.3887730606910696,
+      "unaffected_normal_diff_robust_mae": 0.05931302301481801,
+      "unaffected_local_target_robust_mae": 0.967929916478533,
+      "unaffected_full_target_robust_mae": 0.950745812477721,
+      "unaffected_target_change_pct": -1.7753458910878754
+    }
+  ]
+}

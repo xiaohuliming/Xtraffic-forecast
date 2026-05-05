@@ -1,0 +1,27 @@
+{
+  "model_dir": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/dual_branch_sttis_incident_ft_seed_23_final_convexgate",
+  "cache_path": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/full_candidate_stgnn_learned_normal_dual/full_candidate_samples.h5",
+  "margins": [
+    0.0,
+    0.05,
+    0.1,
+    0.2,
+    0.4,
+    0.8,
+    1.2
+  ],
+  "amounts": [
+    0.25,
+    0.5,
+    1.0
+  ],
+  "betas": [
+    0.95,
+    1.0,
+    1.05,
+    1.1
+  ],
+  "max_samples": 0,
+  "selection_metric": "affected_mae",
+  "all_val_tolerance": 0.002
+}

@@ -1,0 +1,31 @@
+{
+  "data_dir": "archive",
+  "output_dir": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/normal_stgnn_forecaster",
+  "regions": [
+    "Alameda",
+    "ContraCosta",
+    "Orange"
+  ],
+  "input_steps": 12,
+  "horizon_steps": 12,
+  "sample_stride": 6,
+  "min_valid_fraction": 0.9,
+  "candidate_pm_radius": 5.0,
+  "anchor_pm_radius": 2.0,
+  "baseline_mask_extra_steps": 12,
+  "min_baseline_count": 8,
+  "graph_topk": 8,
+  "graph_sigma": 1.5,
+  "graph_directional": false,
+  "epochs": 5,
+  "batch_size": 8,
+  "hidden_dim": 64,
+  "graph_layers": 2,
+  "dropout": 0.1,
+  "lr": 0.001,
+  "weight_decay": 0.0001,
+  "max_train_samples": 12000,
+  "max_eval_samples": 4096,
+  "seed": 7,
+  "device": "mps"
+}

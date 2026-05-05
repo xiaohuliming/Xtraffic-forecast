@@ -1,0 +1,2 @@
+epoch,train_loss,train_final_loss,train_selector_loss,train_source_prior,train_posthoc_better_rate,val_gate_mean,val_posthoc_better_rate,val_gate_pos_mean,val_gate_neg_mean,val_gate_pos_neg_gap,val_auc
+1,1.2803263737756039,0.9751967687394706,0.5971884763189148,0.6535370319069453,0.5103570369526668,0.7501908300491049,0.5087972534913697,0.7501962794603809,0.7501851904370834,1.1089023297494727e-05,0.5004007965652842

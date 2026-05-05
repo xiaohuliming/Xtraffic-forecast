@@ -1,0 +1,18 @@
+{
+  "split": "test",
+  "batch_size": 512,
+  "runs": [
+    {
+      "label": "seed7",
+      "adapter_dir": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/groupaware_impact_correction_adapter_tailtarget_seed_7"
+    },
+    {
+      "label": "seed11",
+      "adapter_dir": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/groupaware_impact_correction_adapter_tailtarget_seed_11"
+    },
+    {
+      "label": "seed23",
+      "adapter_dir": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/groupaware_impact_correction_adapter_tailtarget_smoke_seed_23"
+    }
+  ]
+}

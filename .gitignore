@@ -1,0 +1,20 @@
+.DS_Store
+.mplconfig/
+__pycache__/
+*.pyc
+
+# Raw XTraffic data and generated caches are too large for GitHub.
+archive/
+*.npy
+*.h5
+
+# Model checkpoints and rendered figures are regenerated locally.
+*.pt
+*.png
+
+# Keep outputs ignored by default; selected summaries/CSV metrics are force-added.
+outputs/**
+
+# Local papers/reference PDFs stay local unless explicitly added later.
+论文/
+*.pdf

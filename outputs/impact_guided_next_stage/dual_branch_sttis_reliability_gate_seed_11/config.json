@@ -1,0 +1,22 @@
+{
+  "model_dir": "outputs/impact_guided_next_stage/dual_branch_sttis_proposal_gate_seed_11",
+  "output_dir": "outputs/impact_guided_next_stage/dual_branch_sttis_reliability_gate_seed_11",
+  "epochs": 3,
+  "batch_size": 192,
+  "lr": 0.0001,
+  "weight_decay": 0.0,
+  "reliability_loss_weight": 0.03,
+  "preference_temperature": 0.2,
+  "preference_margin": 0.1,
+  "train_reliability_scale": 0.75,
+  "proposal_feature_count": 5,
+  "max_train_samples": 20000,
+  "max_eval_samples": 0,
+  "seed": 11,
+  "device": "mps",
+  "model_class": "DualBranchSTTISReliabilityGate",
+  "training_variant": "reliability_gate_finetune",
+  "cache_path": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/full_candidate_stgnn_learned_normal_dual/full_candidate_samples.h5",
+  "reliability_scale": 1.0,
+  "residual_beta": 1.0
+}

@@ -1,0 +1,63 @@
+{
+  "metrics": {
+    "train": {
+      "all_candidates_model_robust_mae": 0.8687029304302438,
+      "all_candidates_baseline_robust_mae": 0.8717599475244202,
+      "all_candidates_improvement_pct": 0.3506718911390167,
+      "affected_candidates_model_robust_mae": 1.146219037776619,
+      "affected_candidates_baseline_robust_mae": 1.1498455548178557,
+      "affected_candidates_improvement_pct": 0.31539166508419375,
+      "unaffected_candidates_model_robust_mae": 0.6662013298198209,
+      "unaffected_candidates_baseline_robust_mae": 0.6688428372955736,
+      "unaffected_candidates_improvement_pct": 0.3949369460893722,
+      "affected_node_rate": 0.3353658536585366
+    },
+    "val": {
+      "all_candidates_model_robust_mae": 0.9694359553302193,
+      "all_candidates_baseline_robust_mae": 0.9703281880524597,
+      "all_candidates_improvement_pct": 0.09195164411652997,
+      "affected_candidates_model_robust_mae": 1.6064930497299317,
+      "affected_candidates_baseline_robust_mae": 1.6069825994625693,
+      "affected_candidates_improvement_pct": 0.030463909988902037,
+      "unaffected_candidates_model_robust_mae": 0.6392117065462564,
+      "unaffected_candidates_baseline_robust_mae": 0.6403126955053753,
+      "unaffected_candidates_improvement_pct": 0.1719455145661215,
+      "affected_node_rate": 0.2838002436053593
+    },
+    "test": {
+      "all_candidates_model_robust_mae": 0.8366146089003429,
+      "all_candidates_baseline_robust_mae": 0.8369680172272733,
+      "all_candidates_improvement_pct": 0.04222483053787477,
+      "affected_candidates_model_robust_mae": 1.2932578319340795,
+      "affected_candidates_baseline_robust_mae": 1.2928766810478856,
+      "affected_candidates_improvement_pct": -0.02948083848840269,
+      "unaffected_candidates_model_robust_mae": 0.6537061618192145,
+      "unaffected_candidates_baseline_robust_mae": 0.654353817306351,
+      "unaffected_candidates_improvement_pct": 0.09897634429682062,
+      "affected_node_rate": 0.24474414914716383
+    }
+  },
+  "region_metrics": [
+    {
+      "region": "Alameda",
+      "samples": 192,
+      "all_candidates_model_robust_mae": 0.8366146089003429,
+      "all_candidates_baseline_robust_mae": 0.8369680172272733,
+      "all_candidates_improvement_pct": 0.04222483053787477,
+      "affected_candidates_model_robust_mae": 1.2932578319340795,
+      "affected_candidates_baseline_robust_mae": 1.2928766810478856,
+      "affected_candidates_improvement_pct": -0.02948083848840269,
+      "unaffected_candidates_model_robust_mae": 0.6537061618192145,
+      "unaffected_candidates_baseline_robust_mae": 0.654353817306351,
+      "unaffected_candidates_improvement_pct": 0.09897634429682062,
+      "affected_node_rate": 0.24474414914716383
+    }
+  ],
+  "samples": {
+    "train": 192,
+    "val": 192,
+    "test": 192
+  },
+  "residual_beta": 1.0,
+  "cache_path": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/learned_normal_dual_smoke_alameda/full_candidate_samples.h5"
+}

@@ -1,0 +1,35 @@
+{
+  "model_dir": "/Users/xhlm/Desktop/Study/\u79d1\u7814\u5b9e\u4e60/outputs/impact_guided_next_stage/dual_branch_sttis_proposal_gate_seed_11",
+  "cache_path": "/Users/xhlm/Desktop/Study/\u79d1\u7814\u5b9e\u4e60/outputs/impact_guided_next_stage/full_candidate_stgnn_learned_normal_dual/full_candidate_samples.h5",
+  "transforms": [
+    "original",
+    "fixed_05",
+    "shrink_0.0",
+    "shrink_0.25",
+    "shrink_0.5",
+    "shrink_0.75",
+    "shrink_1.25",
+    "bias_-0.4",
+    "bias_-0.2",
+    "bias_0.2",
+    "bias_0.4",
+    "temp_0.75",
+    "temp_1.25",
+    "temp_1.5",
+    "magdiff_0.05",
+    "magdiff_0.10",
+    "magdiff_0.20",
+    "magdiff_0.40",
+    "disagree_down_0.05",
+    "disagree_down_0.10",
+    "disagree_down_0.20"
+  ],
+  "betas": [
+    0.9,
+    0.95,
+    1.0,
+    1.05,
+    1.1
+  ],
+  "max_samples": 0
+}

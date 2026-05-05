@@ -1,0 +1,91 @@
+{
+  "metrics": {
+    "train": {
+      "all_candidates_model_robust_mae": 0.6708373095426948,
+      "all_candidates_baseline_robust_mae": 0.7568154080799632,
+      "all_candidates_improvement_pct": 11.360511112662776,
+      "affected_candidates_model_robust_mae": 1.0270131518092085,
+      "affected_candidates_baseline_robust_mae": 1.1386817390426889,
+      "affected_candidates_improvement_pct": 9.806830425449895,
+      "unaffected_candidates_model_robust_mae": 0.5248827373209042,
+      "unaffected_candidates_baseline_robust_mae": 0.600333329916572,
+      "unaffected_candidates_improvement_pct": 12.56811655054253,
+      "affected_node_rate": 0.22748324205772144
+    },
+    "val": {
+      "all_candidates_model_robust_mae": 0.7297384797347668,
+      "all_candidates_baseline_robust_mae": 0.8272501030143089,
+      "all_candidates_improvement_pct": 11.787441660536784,
+      "affected_candidates_model_robust_mae": 1.1856539946355482,
+      "affected_candidates_baseline_robust_mae": 1.3240686561504758,
+      "affected_candidates_improvement_pct": 10.453737491026084,
+      "unaffected_candidates_model_robust_mae": 0.5397396131452954,
+      "unaffected_candidates_baseline_robust_mae": 0.6202052568816798,
+      "unaffected_candidates_improvement_pct": 12.974034457714268,
+      "affected_node_rate": 0.23427743925374256
+    },
+    "test": {
+      "all_candidates_model_robust_mae": 0.7250124921455334,
+      "all_candidates_baseline_robust_mae": 0.8328134204049883,
+      "all_candidates_improvement_pct": 12.944187211468376,
+      "affected_candidates_model_robust_mae": 1.1382420133689675,
+      "affected_candidates_baseline_robust_mae": 1.2938370202139187,
+      "affected_candidates_improvement_pct": 12.025858312450021,
+      "unaffected_candidates_model_robust_mae": 0.5311336861655322,
+      "unaffected_candidates_baseline_robust_mae": 0.6165106128767638,
+      "unaffected_candidates_improvement_pct": 13.848411516039512,
+      "affected_node_rate": 0.2498172636655194
+    }
+  },
+  "region_metrics": [
+    {
+      "region": "Alameda",
+      "samples": 9256,
+      "all_candidates_model_robust_mae": 0.7221041242045324,
+      "all_candidates_baseline_robust_mae": 0.8465507723070393,
+      "all_candidates_improvement_pct": 14.7004352454091,
+      "affected_candidates_model_robust_mae": 1.1696750936803144,
+      "affected_candidates_baseline_robust_mae": 1.3749433015134769,
+      "affected_candidates_improvement_pct": 14.929212543325407,
+      "unaffected_candidates_model_robust_mae": 0.5178693511516081,
+      "unaffected_candidates_baseline_robust_mae": 0.6054356321825085,
+      "unaffected_candidates_improvement_pct": 14.463351077510337,
+      "affected_node_rate": 0.24981424608678424
+    },
+    {
+      "region": "ContraCosta",
+      "samples": 4002,
+      "all_candidates_model_robust_mae": 0.7191817751209331,
+      "all_candidates_baseline_robust_mae": 0.8162207748729732,
+      "all_candidates_improvement_pct": 11.888817675235245,
+      "affected_candidates_model_robust_mae": 1.1016501259903642,
+      "affected_candidates_baseline_robust_mae": 1.2468607808844558,
+      "affected_candidates_improvement_pct": 11.646100119620979,
+      "unaffected_candidates_model_robust_mae": 0.5413653422511902,
+      "unaffected_candidates_baseline_robust_mae": 0.6160084669010164,
+      "unaffected_candidates_improvement_pct": 12.11722381436363,
+      "affected_node_rate": 0.2490647557827072
+    },
+    {
+      "region": "Orange",
+      "samples": 14241,
+      "all_candidates_model_robust_mae": 0.7285298372570751,
+      "all_candidates_baseline_robust_mae": 0.8304735043190836,
+      "all_candidates_improvement_pct": 12.275366586871849,
+      "affected_candidates_model_robust_mae": 1.1327706512708653,
+      "affected_candidates_baseline_robust_mae": 1.2646599993081125,
+      "affected_candidates_improvement_pct": 10.42883843162613,
+      "unaffected_candidates_model_robust_mae": 0.535346483583638,
+      "unaffected_candidates_baseline_robust_mae": 0.6229793577233381,
+      "unaffected_candidates_improvement_pct": 14.066738015197194,
+      "affected_node_rate": 0.2500587883552026
+    }
+  ],
+  "samples": {
+    "train": 138528,
+    "val": 29210,
+    "test": 27499
+  },
+  "residual_beta": 1.0,
+  "cache_path": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/full_candidate_stgnn_learned_normal_dual/full_candidate_samples.h5"
+}

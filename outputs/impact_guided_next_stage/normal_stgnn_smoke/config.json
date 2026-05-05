@@ -1,0 +1,29 @@
+{
+  "data_dir": "archive",
+  "output_dir": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/normal_stgnn_smoke",
+  "regions": [
+    "Alameda"
+  ],
+  "input_steps": 12,
+  "horizon_steps": 12,
+  "sample_stride": 144,
+  "min_valid_fraction": 0.9,
+  "candidate_pm_radius": 5.0,
+  "anchor_pm_radius": 2.0,
+  "baseline_mask_extra_steps": 12,
+  "min_baseline_count": 8,
+  "graph_topk": 4,
+  "graph_sigma": 1.5,
+  "graph_directional": false,
+  "epochs": 1,
+  "batch_size": 2,
+  "hidden_dim": 32,
+  "graph_layers": 1,
+  "dropout": 0.1,
+  "lr": 0.001,
+  "weight_decay": 0.0001,
+  "max_train_samples": 64,
+  "max_eval_samples": 32,
+  "seed": 7,
+  "device": "mps"
+}

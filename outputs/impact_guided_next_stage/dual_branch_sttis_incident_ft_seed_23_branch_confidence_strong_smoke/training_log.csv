@@ -1,0 +1,2 @@
+epoch,train_loss,val_loss,val_residual_loss,val_confidence_loss,val_convex_gate_loss,val_hard_rate,val_incident_better_rate,val_gate_mean,val_base_gate_mean,val_confidence_delta_mean
+1,0.6818202510476112,0.7587665282189846,0.600383035838604,0.6930519454181194,0.09886544430628419,0.5695937275886536,0.4512095917016268,0.43427228927612305,0.4374733082950115,-0.009140102687524632

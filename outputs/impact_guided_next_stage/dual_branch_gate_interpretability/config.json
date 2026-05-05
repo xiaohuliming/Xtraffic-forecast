@@ -1,0 +1,10 @@
+{
+  "model_dir": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/dual_branch_gate_full_no_aux",
+  "cache_path": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/full_candidate_stgnn_learned_normal_dual/full_candidate_samples.h5",
+  "split": "test",
+  "batch_size": 256,
+  "max_samples": 0,
+  "sample_count": 27499,
+  "residual_beta": 1.05,
+  "device": "mps"
+}

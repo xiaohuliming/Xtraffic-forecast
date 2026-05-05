@@ -1,0 +1,36 @@
+{
+  "model_dir": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/dual_branch_sttis_incident_ft_seed_23_normal_veto_binary_hp_smoke",
+  "cache_path": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/full_candidate_stgnn_learned_normal_dual/full_candidate_samples.h5",
+  "transforms": [
+    "continuous_0",
+    "continuous_0.25",
+    "continuous_0.5",
+    "continuous_1",
+    "hard_t0.02_a0.25",
+    "hard_t0.02_a0.5",
+    "hard_t0.02_a1",
+    "hard_t0.05_a0.25",
+    "hard_t0.05_a0.5",
+    "hard_t0.05_a1",
+    "hard_t0.1_a0.25",
+    "hard_t0.1_a0.5",
+    "hard_t0.1_a1",
+    "hard_t0.2_a0.25",
+    "hard_t0.2_a0.5",
+    "hard_t0.2_a1"
+  ],
+  "temperatures": [
+    0.75,
+    1.0,
+    1.5
+  ],
+  "betas": [
+    0.95,
+    1.0,
+    1.05,
+    1.1
+  ],
+  "max_samples": 0,
+  "selection_metric": "affected_mae",
+  "all_val_tolerance": 0.002
+}

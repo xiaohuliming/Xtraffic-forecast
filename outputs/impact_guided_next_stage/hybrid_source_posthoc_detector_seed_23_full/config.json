@@ -1,0 +1,31 @@
+{
+  "source_model_dir": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/dual_branch_sttis_incident_ft_seed_23_normal_veto_hierarchical_pretrain_afffocus3_groupaware",
+  "detector_dir": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/posthoc_normal_better_detector_seed_23_full",
+  "output_dir": "outputs/impact_guided_next_stage/hybrid_source_posthoc_detector_seed_23_full",
+  "batch_size": 512,
+  "max_samples": 0,
+  "posthoc_scales": "0.0,0.05,0.1,0.15,0.2",
+  "posthoc_temperatures": "1.0,2.0",
+  "betas": "1.05,1.1",
+  "all_val_tolerance": 0.002,
+  "seed": 23,
+  "device": "mps",
+  "cache_path": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/full_candidate_stgnn_learned_normal_dual/full_candidate_samples.h5",
+  "source_beta": 1.1,
+  "val_samples": 29210,
+  "test_samples": 27499,
+  "val_severity_quantiles": [
+    1.394840876261393,
+    2.388265927632649
+  ],
+  "test_severity_quantiles": [
+    1.557269811630249,
+    2.5780270099639893
+  ],
+  "selected": {
+    "mode": "true_non_high_non_long_posthoc",
+    "posthoc_scale": 0.15,
+    "posthoc_temperature": 2.0,
+    "beta": 1.1
+  }
+}

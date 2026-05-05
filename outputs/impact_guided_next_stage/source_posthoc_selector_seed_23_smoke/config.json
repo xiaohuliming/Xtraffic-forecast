@@ -1,0 +1,53 @@
+{
+  "source_model_dir": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/dual_branch_sttis_incident_ft_seed_23_normal_veto_hierarchical_pretrain_afffocus3_groupaware",
+  "detector_dir": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/posthoc_normal_better_detector_seed_23_full",
+  "output_dir": "outputs/impact_guided_next_stage/source_posthoc_selector_seed_23_smoke",
+  "epochs": 1,
+  "batch_size": 64,
+  "eval_batch_size": 256,
+  "max_train_samples": 4000,
+  "max_eval_samples": 3000,
+  "max_elements_per_batch": 32768,
+  "lr": 0.0003,
+  "weight_decay": 0.0001,
+  "hidden_dim": 96,
+  "dropout": 0.1,
+  "posthoc_scale": 0.2,
+  "posthoc_temperature": 2.0,
+  "train_beta": 1.1,
+  "selector_target_margin": 0.0,
+  "selector_loss_weight": 0.5,
+  "final_loss_weight": 1.0,
+  "source_prior_weight": 0.01,
+  "positive_weight": 2.0,
+  "affected_weight": 6.0,
+  "severity_focus_weight": 2.0,
+  "recovery_focus_weight": 2.0,
+  "event_focus_temperature": 1.0,
+  "event_focus_max": 5.0,
+  "sweep_selector_scales": "0.0,0.5,1.0",
+  "sweep_selector_temperatures": "1.0,2.0",
+  "sweep_betas": "1.05,1.1",
+  "all_val_tolerance": 0.002,
+  "seed": 23,
+  "device": "mps",
+  "cache_path": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/full_candidate_stgnn_learned_normal_dual/full_candidate_samples.h5",
+  "source_beta": 1.1,
+  "feature_dim": 35,
+  "train_samples": 4000,
+  "val_samples": 3000,
+  "test_samples": 3000,
+  "val_severity_quantiles": [
+    1.3913944164911904,
+    2.35493803024292
+  ],
+  "test_severity_quantiles": [
+    1.542418877283732,
+    2.560750961303711
+  ],
+  "selected": {
+    "selector_scale": 0.0,
+    "selector_temperature": 1.0,
+    "beta": 1.1
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "region": "Alameda",
+  "samples": {
+    "train": 64,
+    "val": 23,
+    "test": 30
+  },
+  "metrics": {
+    "train": {
+      "model_mae": 3.4673549321049815,
+      "blend_mae": 3.5134783961579648,
+      "mae_improvement_pct": 1.312757867059035,
+      "model_rmse": 10.070353228934263,
+      "blend_rmse": 10.26220133473759,
+      "model_mape": 18.369890279754173,
+      "blend_mape": 17.365199401212635,
+      "model_robust_mae": 0.6338341968677937,
+      "blend_robust_mae": 0.6264059486288659,
+      "robust_improvement_pct": -1.185852122762798,
+      "valid_values": 821765.0
+    },
+    "val": {
+      "model_mae": 4.457504756432528,
+      "blend_mae": 4.609995662125246,
+      "mae_improvement_pct": 3.3078318694646653,
+      "model_rmse": 13.68609429399947,
+      "blend_rmse": 13.979598470413283,
+      "model_mape": 21.314484915058674,
+      "blend_mape": 21.28963207593156,
+      "model_robust_mae": 0.8415587296129211,
+      "blend_robust_mae": 0.8543541974714137,
+      "robust_improvement_pct": 1.4976771807714733,
+      "valid_values": 301631.0
+    },
+    "test": {
+      "model_mae": 9.529465179624049,
+      "blend_mae": 9.302242572193366,
+      "mae_improvement_pct": -2.442664826973076,
+      "model_rmse": 24.542855982383205,
+      "blend_rmse": 24.299286666885806,
+      "model_mape": 23.630320095636442,
+      "blend_mape": 23.159897183922844,
+      "model_robust_mae": 1.3549297769697477,
+      "blend_robust_mae": 1.312225336451997,
+      "robust_improvement_pct": -3.2543526886331375,
+      "valid_values": 382549.0
+    }
+  },
+  "channel_mean": [
+    145.86558532714844,
+    0.05110439285635948,
+    63.027225494384766
+  ],
+  "channel_std": [
+    161.50503540039062,
+    0.05275384336709976,
+    7.950268745422363
+  ]
+}

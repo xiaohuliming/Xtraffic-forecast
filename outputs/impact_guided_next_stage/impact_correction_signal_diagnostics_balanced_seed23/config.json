@@ -1,0 +1,6 @@
+{
+  "adapter_dir": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/groupaware_impact_correction_adapter_tailtarget_smoke_seed_23",
+  "split": "test",
+  "batch_size": 1024,
+  "device": "cpu"
+}

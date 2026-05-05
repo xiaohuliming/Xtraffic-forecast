@@ -1,0 +1,2 @@
+epoch,train_loss,train_safe_rate,val_auc,val_safe_rate,val_score_mean,val_score_safe_mean,val_score_unsafe_mean
+1,0.640661892414093,0.5725,0.7199930125022037,0.5893333554267883,0.3955426514148712,0.40452879667282104,0.3826468288898468

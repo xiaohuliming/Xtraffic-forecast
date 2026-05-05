@@ -1,0 +1,18 @@
+{
+  "model_dirs": [
+    "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/dual_branch_sttis_incident_ft_seed_23_normal_veto_hierarchical_smoke"
+  ],
+  "labels": [
+    "hierarchical_smoke"
+  ],
+  "cache_path": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/full_candidate_stgnn_learned_normal_dual/full_candidate_samples.h5",
+  "split": "test",
+  "samples": 256,
+  "positive_margin": 0.1,
+  "score_bin_width": 0.0025,
+  "severity_quantiles": [
+    1.7278895378112793,
+    2.71268892288208
+  ],
+  "device": "cpu"
+}

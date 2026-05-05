@@ -1,0 +1,8 @@
+{
+  "source_model_dir": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/dual_branch_sttis_incident_ft_seed_7_normal_veto_hierarchical_pretrain_afffocus3_quickgrid",
+  "selection_dir": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/group_aware_posthoc_seed_7_hierarchical_pretrain_afffocus3",
+  "normal_veto_scale": 0.5,
+  "normal_veto_temperature": 1.0,
+  "residual_beta": 1.1,
+  "posthoc_selection_variant": "group_aware_severity_recovery"
+}

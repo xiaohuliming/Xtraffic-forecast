@@ -1,0 +1,2 @@
+epoch,train_loss,val_loss,val_residual_loss,val_veto_loss,val_regret_loss,val_sparsity_loss,val_normal_advantage_mean,val_positive_rate,val_affected_positive_rate,val_normal_veto_mean,val_affected_normal_veto_mean,val_effective_gate_mean,val_base_gate_mean
+1,0.678307980298996,0.7546044513583183,0.5808150395751,1.02448620647192,0.24677826277911663,0.018711452139541507,-0.06833321414887905,0.2545833308249712,0.2787919417023659,0.01873252377845347,0.018693541642278433,0.428650688380003,0.43683695048093796

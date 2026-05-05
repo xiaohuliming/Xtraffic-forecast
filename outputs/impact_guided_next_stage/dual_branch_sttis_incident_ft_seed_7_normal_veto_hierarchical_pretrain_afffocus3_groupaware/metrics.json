@@ -1,0 +1,45 @@
+{
+  "metrics": {
+    "test": {
+      "all_candidates_model_robust_mae": 0.7100331504592403,
+      "all_candidates_baseline_robust_mae": 0.8328134175155775,
+      "all_candidates_improvement_pct": 14.742830083431095,
+      "affected_candidates_model_robust_mae": 1.1077569187951373,
+      "affected_candidates_baseline_robust_mae": 1.293837023264936,
+      "affected_candidates_improvement_pct": 14.382035845614817,
+      "unaffected_candidates_model_robust_mae": 0.5234293285501191,
+      "unaffected_candidates_baseline_robust_mae": 0.6165106205771105,
+      "unaffected_candidates_improvement_pct": 15.098084107595536
+    }
+  },
+  "samples": {
+    "train": 138528,
+    "val": 29210,
+    "test": 27499
+  },
+  "eval_samples": {
+    "train": 138528,
+    "val": 29210,
+    "test": 27499
+  },
+  "normal_veto_scale": 0.5,
+  "normal_veto_temperature": 1.0,
+  "residual_beta": 1.1,
+  "cache_path": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/full_candidate_stgnn_learned_normal_dual/full_candidate_samples.h5",
+  "source_model_dir": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/dual_branch_sttis_incident_ft_seed_7_normal_veto_hierarchical_pretrain_afffocus3_quickgrid",
+  "selection_dir": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/group_aware_posthoc_seed_7_hierarchical_pretrain_afffocus3",
+  "selection_groups": [
+    "overall",
+    "severity_high",
+    "recovery_long_ge90"
+  ],
+  "selection_weights": [
+    0.5,
+    1.0,
+    1.0
+  ],
+  "selection_group_score": 1.2959690410850135,
+  "selection_overall_all_mae": 0.7166672756780688,
+  "selection_overall_affected_mae": 1.1587851573079548,
+  "selection_overall_unaffected_mae": 0.5324184565695512
+}

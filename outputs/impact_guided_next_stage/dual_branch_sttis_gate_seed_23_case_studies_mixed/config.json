@@ -1,0 +1,12 @@
+{
+  "model_dir": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/dual_branch_sttis_gate_no_aux_seed_23",
+  "cache_path": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/full_candidate_stgnn_learned_normal_dual/full_candidate_samples.h5",
+  "split": "test",
+  "batch_size": 512,
+  "max_samples": 0,
+  "num_cases": 4,
+  "selection": "mixed",
+  "cases_per_category": 2,
+  "residual_beta": 1.0,
+  "device": "mps"
+}

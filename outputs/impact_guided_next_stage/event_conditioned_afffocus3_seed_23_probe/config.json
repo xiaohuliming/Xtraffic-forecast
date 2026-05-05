@@ -1,0 +1,18 @@
+{
+  "model_dir": "outputs/impact_guided_next_stage/dual_branch_sttis_incident_ft_seed_23_normal_veto_hierarchical_pretrain_afffocus3_quickgrid",
+  "output_dir": "outputs/impact_guided_next_stage/event_conditioned_afffocus3_seed_23_probe",
+  "batch_size": 512,
+  "max_samples": 0,
+  "seed": 23,
+  "normal_veto_temperatures": "1.0",
+  "base_scales": "0.25,0.5",
+  "severity_boosts": "0.0,0.5,1.0",
+  "recovery_boosts": "0.0,0.5,1.0",
+  "event_temperatures": "1.0",
+  "event_boost_max": 3.0,
+  "betas": "1.05,1.1",
+  "selection_metric": "affected_mae",
+  "all_val_tolerance": 0.002,
+  "device": "mps",
+  "cache_path": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/full_candidate_stgnn_learned_normal_dual/full_candidate_samples.h5"
+}

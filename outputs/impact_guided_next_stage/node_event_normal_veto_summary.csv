@@ -1,0 +1,7 @@
+variant,selection,all_mae,affected_mae,unaffected_mae,scale,temperature,beta,affected_trigger_rate,unaffected_trigger_rate
+convexgate_original,checkpoint,0.7079086393228073,1.1049857505871823,0.5216082195760205,,,0.95,,
+element_continuous_normal_veto,checkpoint,0.7074902693140233,1.1027049437918595,0.5220636679301321,0.25,1.0,1.05,,
+node_event_normal_veto_smoke_sample,checkpoint,0.7093248800280126,1.1032154168756305,0.522990930848456,0.25,1.5,1.05,,
+node_event_val_selected_full_sweep,"{'transform': 'continuous_0.25', 'temperature': 1.5, 'beta': 1.05}",0.7075946254221045,1.1030149551463913,0.5220715327482616,continuous_0.25,1.5,1.05,0.0469079671374299,0.0505432452678676
+node_event_test_best_all_full_sweep,"{'transform': 'continuous_1', 'temperature': 1.0, 'beta': 1.05}",0.7072116029858533,1.1033293841637244,0.5213612788384379,continuous_1,1.0,1.05,0.1039970189464124,0.1162660833348981
+node_event_test_best_affected_full_sweep,"{'transform': 'continuous_0.5', 'temperature': 1.5, 'beta': 1.1}",0.707801751284582,1.102987297357904,0.5223888209896456,continuous_0.5,1.5,1.1,0.0938159342748599,0.1010864905357353

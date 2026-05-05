@@ -1,0 +1,20 @@
+{
+  "adapter_dir": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/groupaware_impact_correction_adapter_highfocus_anomgate05_seed_11",
+  "split": "test",
+  "thresholds": [
+    0.0,
+    0.3,
+    0.5,
+    0.7
+  ],
+  "floors": [
+    0.1,
+    0.25,
+    0.5
+  ],
+  "temperatures": [
+    0.25
+  ],
+  "batch_size": 512,
+  "device": "cpu"
+}

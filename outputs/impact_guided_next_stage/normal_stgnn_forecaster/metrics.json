@@ -1,0 +1,152 @@
+[
+  {
+    "region": "Alameda",
+    "samples": {
+      "train": 3282,
+      "val": 602,
+      "test": 752
+    },
+    "metrics": {
+      "train": {
+        "model_mae": 4.580739297056759,
+        "blend_mae": 5.549246552988411,
+        "mae_improvement_pct": 17.452950534520507,
+        "model_rmse": 12.828478723266691,
+        "blend_rmse": 15.449774793921344,
+        "model_mape": 16.79718758988021,
+        "blend_mape": 17.756022668848942,
+        "model_robust_mae": 0.6650222593310144,
+        "blend_robust_mae": 0.7796344778351589,
+        "robust_improvement_pct": 14.700763211805699,
+        "valid_values": 42013385.0
+      },
+      "val": {
+        "model_mae": 4.931417145956706,
+        "blend_mae": 5.899052046133973,
+        "mae_improvement_pct": 16.40322703732408,
+        "model_rmse": 15.072553655703334,
+        "blend_rmse": 17.666272485677393,
+        "model_mape": 17.461329961966452,
+        "blend_mape": 18.27278071371023,
+        "model_robust_mae": 0.8064067769708869,
+        "blend_robust_mae": 0.9209003328723323,
+        "robust_improvement_pct": 12.432784723221294,
+        "valid_values": 7794993.0
+      },
+      "test": {
+        "model_mae": 5.133521675630079,
+        "blend_mae": 5.926217189592786,
+        "mae_improvement_pct": 13.376079353871544,
+        "model_rmse": 14.779265742059893,
+        "blend_rmse": 16.938141511668977,
+        "model_mape": 20.38426364517377,
+        "blend_mape": 21.060916714763334,
+        "model_robust_mae": 0.8261816912282557,
+        "blend_robust_mae": 0.9297214044933512,
+        "robust_improvement_pct": 11.136638649458558,
+        "valid_values": 9700733.0
+      }
+    },
+    "output_dir": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/normal_stgnn_forecaster/Alameda"
+  },
+  {
+    "region": "ContraCosta",
+    "samples": {
+      "train": 4689,
+      "val": 754,
+      "test": 1033
+    },
+    "metrics": {
+      "train": {
+        "model_mae": 4.868761331831223,
+        "blend_mae": 5.536417603842516,
+        "mae_improvement_pct": 12.059355341040568,
+        "model_rmse": 13.204757835720239,
+        "blend_rmse": 15.051827717032808,
+        "model_mape": 17.761507929061583,
+        "blend_mape": 17.395563018575288,
+        "model_robust_mae": 0.6770705268587516,
+        "blend_robust_mae": 0.7512001155850047,
+        "robust_improvement_pct": 9.868154595333618,
+        "valid_values": 58435916.0
+      },
+      "val": {
+        "model_mae": 5.6786648747589075,
+        "blend_mae": 6.456503145843131,
+        "mae_improvement_pct": 12.047361451144287,
+        "model_rmse": 14.896602030419162,
+        "blend_rmse": 16.93875363646593,
+        "model_mape": 17.5050608161558,
+        "blend_mape": 17.33163765834853,
+        "model_robust_mae": 0.9419442153123317,
+        "blend_robust_mae": 1.039716130005434,
+        "robust_improvement_pct": 9.403712404903377,
+        "valid_values": 9407176.0
+      },
+      "test": {
+        "model_mae": 5.744063960925263,
+        "blend_mae": 6.194775738391803,
+        "mae_improvement_pct": 7.275675448156697,
+        "model_rmse": 15.68007689296702,
+        "blend_rmse": 16.80248648125413,
+        "model_mape": 21.76569137735359,
+        "blend_mape": 20.737023717420936,
+        "model_robust_mae": 0.9214429639269384,
+        "blend_robust_mae": 0.9858550466384273,
+        "robust_improvement_pct": 6.533626107724609,
+        "valid_values": 12884386.0
+      }
+    },
+    "output_dir": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/normal_stgnn_forecaster/ContraCosta"
+  },
+  {
+    "region": "Orange",
+    "samples": {
+      "train": 5496,
+      "val": 1114,
+      "test": 1289
+    },
+    "metrics": {
+      "train": {
+        "model_mae": 4.575794064386221,
+        "blend_mae": 5.643291555490584,
+        "mae_improvement_pct": 18.91622080141778,
+        "model_rmse": 13.425404055934973,
+        "blend_rmse": 16.318422140538534,
+        "model_mape": 17.153673954398055,
+        "blend_mape": 17.878684901855898,
+        "model_robust_mae": 0.6541581251135034,
+        "blend_robust_mae": 0.7784172530349466,
+        "robust_improvement_pct": 15.963049050746655,
+        "valid_values": 133344028.0
+      },
+      "val": {
+        "model_mae": 4.778411804198258,
+        "blend_mae": 6.00965643511059,
+        "mae_improvement_pct": 20.487770710467814,
+        "model_rmse": 13.698831781089886,
+        "blend_rmse": 16.989946386766064,
+        "model_mape": 17.567715148805952,
+        "blend_mape": 18.39674277092085,
+        "model_robust_mae": 0.7478663199863722,
+        "blend_robust_mae": 0.8894908751468809,
+        "robust_improvement_pct": 15.921979541063006,
+        "valid_values": 27326570.0
+      },
+      "test": {
+        "model_mae": 5.097208108913546,
+        "blend_mae": 5.926159255788372,
+        "mae_improvement_pct": 13.98799983421216,
+        "model_rmse": 14.685893120448211,
+        "blend_rmse": 16.771188155052954,
+        "model_mape": 19.422807825473868,
+        "blend_mape": 19.7069280784277,
+        "model_robust_mae": 0.7644571857172778,
+        "blend_robust_mae": 0.8607193848562525,
+        "robust_improvement_pct": 11.183923684378426,
+        "valid_values": 31328844.0
+      }
+    },
+    "output_dir": "/Users/xhlm/Desktop/Study/科研实习/outputs/impact_guided_next_stage/normal_stgnn_forecaster/Orange"
+  }
+]
