@@ -1,0 +1,16 @@
+setting,region,model,needs_labels,n,all,affected,unaffected
+B,Alameda,GraphWaveNet,No,9366,12.398,18.230,12.035
+B,Alameda,FourierDualNet (fixed_k=3),No,9366,12.201,17.975,11.842
+B,Alameda,FourierDualNet (learnable),No,9366,11.976,17.758,11.616
+B,ContraCosta,GraphWaveNet,No,4040,13.452,19.770,13.141
+B,ContraCosta,FourierDualNet (fixed_k=3),No,4040,13.167,19.521,12.854
+B,ContraCosta,FourierDualNet (learnable),No,4040,13.133,19.568,12.816
+B,Orange,GraphWaveNet,No,14368,13.013,18.206,12.759
+B,Orange,FourierDualNet (fixed_k=3),No,14368,13.020,18.256,12.764
+B,Orange,FourierDualNet (learnable),No,14368,12.996,18.284,12.738
+A,Alameda,IGSTGNN (bug-fixed),Yes,4561,13.074,19.194,12.632
+A,Alameda,"FourierDualNet (learnable, matched-window)",No,4561,12.298,17.896,11.894
+A,ContraCosta,IGSTGNN (bug-fixed),Yes,1138,13.720,19.780,13.310
+A,ContraCosta,"FourierDualNet (learnable, matched-window)",No,1138,13.748,19.920,13.331
+A,Orange,IGSTGNN (bug-fixed),Yes,9704,13.765,19.142,13.465
+A,Orange,"FourierDualNet (learnable, matched-window)",No,9704,13.296,18.301,13.016

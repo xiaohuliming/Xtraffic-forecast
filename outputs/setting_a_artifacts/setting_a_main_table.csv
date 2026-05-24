@@ -1,0 +1,4 @@
+Region,n_matched,n_igs_total,match_rate_%,IGS_all,IGS_affected,IGS_unaffected,FDN_all,FDN_affected,FDN_unaffected,Δ_all,Δ_affected,Δ_unaffected
+Alameda,4561,9360,48.7,13.074,19.194,12.632,12.298,17.896,11.894,-0.776,-1.297,-0.738
+ContraCosta,1138,4032,28.2,13.72,19.78,13.31,13.748,19.92,13.331,0.028,0.14,0.021
+Orange,9704,14352,67.6,13.765,19.142,13.465,13.296,18.301,13.016,-0.469,-0.84,-0.448
