@@ -507,7 +507,7 @@ if __name__ == "__main__":
 ```bash
 python scripts/analyze_gate.py --help 2>&1 | head -15
 ```
-Expected: argparse usage, no ImportError (validates `MultiRegionDataset`/`NUM_TOD_SLOTS` import path).
+Expected: argparse usage, no ImportError (validates the `MultiRegionDataset` import path).
 
 - [ ] **Step 4.3: Commit**
 
@@ -714,7 +714,7 @@ When this task triggers, return to brainstorming/writing-plans rather than guess
 **2. Placeholder scan**: no TBD/TODO. All code blocks complete. Task 8.6 frozen-gate control + Task 9 fallback B deliberately deferred (depend on observed failure mode) — flagged explicitly.
 
 **3. Type/contract consistency** (re-verified against source, not memory):
-- `MultiRegionDataset` + `NUM_TOD_SLOTS` import; `rdata.N/.C_meta/.T_h/.T_p/.edge_index` attributes ✓
+- `MultiRegionDataset` import (no `NUM_TOD_SLOTS` — uses `rdata.tod[ss+1]`); `rdata.N/.C_meta/.T_h/.T_p/.edge_index` attributes ✓
 - `build_adj_supports` copied verbatim — row-norm random walk, TWO supports (corrected from a wrong review guess) ✓
 - batch keys `y_true[...,0]`, `y_mask[...,0]`, `time_feat (B,T_h,2)`, `sample_start` ✓
 - checkpoint `ckpt_best.pt`, key `model_state`, dims from `state["N"/"C_x"/"T_h"/"T_p"]`, config from `state["config"]` ✓
