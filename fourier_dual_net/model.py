@@ -137,6 +137,50 @@ class CrossBranchAttention(nn.Module):
         return self.layer_norm(x_pert + ctx)   # residual + LN
 
 
+class GatedFusion(nn.Module):
+    """Gated fusion: y = output_scale * (alpha * y_main + (1-alpha) * y_pert).
+
+    alpha (B, N, T_p) conditioned on:
+      - spectral_energy_ratio (flow channel only, index 0),
+      - node_emb (zero-init), time_avg (ToD/DoW mean over history).
+    Init: last-layer weight AND bias = 0 -> alpha == 0.5 exactly; node_emb = 0;
+    output_scale = 2.0 -> y == y_main + y_pert at ep0 (bit-for-bit).
+    """
+
+    def __init__(self, num_nodes: int, T_p: int = 12, d_node: int = 8, hidden: int = 32):
+        super().__init__()
+        self.T_p = T_p
+        self.d_node = d_node
+        self.node_emb = nn.Embedding(num_nodes, d_node)
+        self.gate_mlp = nn.Sequential(
+            nn.Linear(1 + d_node + 2, hidden),
+            nn.ReLU(),
+            nn.Linear(hidden, T_p),
+        )
+        self.output_scale = nn.Parameter(torch.tensor(2.0))
+        with torch.no_grad():
+            self.gate_mlp[-1].bias.zero_()
+            self.gate_mlp[-1].weight.zero_()
+            self.node_emb.weight.zero_()
+
+    @staticmethod
+    def _energy_ratio(x_main: torch.Tensor, x_pert: torch.Tensor) -> torch.Tensor:
+        e_main = (x_main[..., 0:1] ** 2).mean(dim=(2, 3))
+        e_pert = (x_pert[..., 0:1] ** 2).mean(dim=(2, 3))
+        return e_main / (e_main + e_pert + 1e-6)
+
+    def forward(self, x_main, x_pert, y_main, y_pert, time_feat):
+        B, N, T_p = y_main.shape
+        assert T_p == self.T_p
+        energy = self._energy_ratio(x_main, x_pert)
+        node_e = self.node_emb.weight.unsqueeze(0).expand(B, N, self.d_node)
+        time_avg = time_feat.mean(dim=1).unsqueeze(1).expand(B, N, 2)
+        gate_in = torch.cat([energy.unsqueeze(-1), node_e, time_avg], dim=-1)
+        alpha = torch.sigmoid(self.gate_mlp(gate_in))
+        y = self.output_scale * (alpha * y_main + (1.0 - alpha) * y_pert)
+        return y, alpha
+
+
 class FourierDualNet(nn.Module):
     """Dual-branch traffic forecaster with specialised backbones.
 
