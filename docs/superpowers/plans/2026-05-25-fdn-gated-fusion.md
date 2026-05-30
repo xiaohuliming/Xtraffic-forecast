@@ -16,8 +16,8 @@
 
 An adversarial review flagged that the first plan draft got several of these wrong; one review claim was *itself* wrong and was re-verified directly against source. Ground truth:
 
-- **Data class**: `from dist_net.data import MultiRegionDataset, make_loader, NUM_TOD_SLOTS` (the class is `MultiRegionDataset`, NOT `RegionDataset`; `NUM_TOD_SLOTS == 288` is a module constant at `dist_net/data.py:12`).
-- **Region object**: `rdata = ds.regions[name]` is a `RegionData`. Access fields as **attributes** (it is NOT subscriptable): `rdata.N`, `rdata.C_meta`, `rdata.T_h` (=12), `rdata.T_p` (=12), `rdata.edge_index`, `rdata.region_idx`, `rdata.static_meta`, `rdata.tod`, `rdata.dow`. There is **no `C_x`** field (train hardcodes `C_x = 3`) and **no `slot_per_day`** (use `NUM_TOD_SLOTS`). Source: `dist_net/data.py:24-42`.
+- **Data class**: `from dist_net.data import MultiRegionDataset, make_loader` (the class is `MultiRegionDataset`, NOT `RegionDataset`). There is **no `NUM_TOD_SLOTS` / `slot_per_day` constant** — the value 288 is hardcoded inside `get_sample` (`dist_net/data.py:160`). For time-of-day bucketing, index the per-timestep slot array `rdata.tod` directly (see below) instead of recomputing `(t+1) % 288`.
+- **Region object**: `rdata = ds.regions[name]` is a `RegionData`. Access fields as **attributes** (it is NOT subscriptable): `rdata.N`, `rdata.C_meta`, `rdata.T_h` (=12), `rdata.T_p` (=12), `rdata.edge_index`, `rdata.region_idx`, `rdata.static_meta`, `rdata.tod` (int16, shape (T,), each timestep's tod slot 0..287), `rdata.dow`. There is **no `C_x`** field (train hardcodes `C_x = 3`). Source: `dist_net/data.py:42-107`. The per-timestep slot is `rdata.tod[t]`; sample's first predicted step is at absolute index `sample_start + 1`, so its tod slot is `rdata.tod[sample_start + 1]` (always in-range: `sample_start + T_p < T`).
 - **supports** (verified at `scripts/train_fourier_dual_net.py:77-87`): row-normalized random walk, **TWO** supports:
   ```python
   A = np.zeros((N, N), dtype=np.float32)
@@ -30,7 +30,7 @@ An adversarial review flagged that the first plan draft got several of these wro
   return [torch.from_numpy(A_fwd).to(device), torch.from_numpy(A_bwd).to(device)]
   ```
   (NOT symmetric-normalized, NOT single-support — a review agent guessed that wrong.) Not importable; copy verbatim.
-- **Batch keys** (from `RegionData.get_sample`): `x_hist, x_hist_mask, y_true, y_mask, y_baseline, time_enc, time_feat, static_meta, region_code, incident_feat, incident_mask, affected_mask, rel_feat, rel_mask, n_active_incidents, sample_start, sample_idx`. Flow target = `batch["y_true"][..., 0]`; mask = `batch["y_mask"][..., 0]`; `time_feat` is `(B, T_h, 2)`. The names `actual_future_flow/y_mask_flow/pred_raw_flow` exist ONLY in the saved npz.
+- **Batch keys** (from `RegionData.get_sample`, AST-verified): `x_hist, x_hist_mask, y_true, y_mask, y_baseline, time_enc, time_feat, static_meta, region_code, incident_feat, incident_mask, affected_mask, rel_feat, n_active_incidents, sample_start, sample_idx` (note: **no `rel_mask`**). Flow target = `batch["y_true"][..., 0]`; mask = `batch["y_mask"][..., 0]`; `time_feat` is `(B, T_h, 2)`. The names `actual_future_flow/y_mask_flow/pred_raw_flow` exist ONLY in the saved npz.
 - **In-loop tensor order**: model output is `(B, N, T_p)`; `batch["y_true"][...,0]` is `(B, N, T_p)`. The npz saves `(S, T_p, N)` after `.permute(0,2,1)`. analyze_gate.py keeps the in-loop `(B,N,T_p)` order throughout.
 - **Checkpoint**: file `ckpt_best.pt` (NOT `best.pt`); state under key `"model_state"` (NOT `"model"`); also `"config"` (=`vars(args)`), `"N"`, `"C_x"`, `"T_h"`, `"T_p"`, `"val_L_main"`, `"epoch"`. Saved only when val improves. Source: `scripts/train_fourier_dual_net.py:235-239`.
 - **`--smoke`** sets val=NaN → `NaN < inf` is False → **no checkpoint saved**. For a smoke that yields a checkpoint, use a real `--epochs 1` run.
@@ -378,7 +378,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "baselines" / "GraphWaveNet"))
 from fourier_dual_net.model import FourierDualNet
-from dist_net.data import MultiRegionDataset, make_loader, NUM_TOD_SLOTS
+from dist_net.data import MultiRegionDataset, make_loader
 
 
 def build_adj_supports(edge_index, N, device):
@@ -419,6 +419,7 @@ def main():
                                  graph_dir=args.graph_dir, split="test", lazy=False)
     rdata = test_ds.regions[args.region]
     supports = build_adj_supports(rdata.edge_index, N, device)
+    tod_slots = np.asarray(rdata.tod)        # (T,) per-timestep tod slot 0..287
 
     model = FourierDualNet(
         num_nodes=N, supports=supports, T_h=T_h, T_p=T_p,
@@ -454,7 +455,7 @@ def main():
     mask = np.concatenate(M);   ss = np.concatenate(SS);   energy = np.concatenate(ER)
     np.savez(args.out_dir / "alpha_test.npz", alpha=alpha, sample_start=ss, energy_ratio=energy)
 
-    tod = (ss + 1) % NUM_TOD_SLOTS
+    tod = tod_slots[ss + 1]                  # first predicted step's tod slot (exact)
     midday = (tod >= 10 * 12) & (tod < 15 * 12)
     rush = ((tod >= 6 * 12) & (tod < 10 * 12)) | ((tod >= 15 * 12) & (tod < 19 * 12))
 

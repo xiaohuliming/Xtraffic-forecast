@@ -215,9 +215,10 @@ If 3 of 4 sanity checks pass (with cross-region sign-consistency on check 2) →
 - `scripts/analyze_gate.py` — NEW. Rebuilds the model **from the checkpoint's saved `config`/dims**
   (`ckpt_best.pt`, key `model_state`), re-runs test inference with `return_components=True` to record
   `alpha`, computes the sanity checks. Must use the real data API: `MultiRegionDataset`; attribute access
-  `rdata.N/.T_h/.T_p/.edge_index`; the module constant `NUM_TOD_SLOTS` (=288) for time-of-day bucketing
-  (there is no `slot_per_day` attribute); a **copied** `build_adj_supports` (row-normalized random-walk,
-  **two** supports A_fwd + A_bwd — matching the train script exactly); real batch keys
+  `rdata.N/.T_h/.T_p/.edge_index/.tod`; for time-of-day bucketing index `rdata.tod[sample_start+1]`
+  (288 is hardcoded in `get_sample`, there is no `NUM_TOD_SLOTS`/`slot_per_day` constant); a **copied**
+  `build_adj_supports` (row-normalized random-walk, **two** supports A_fwd + A_bwd — matching the train
+  script exactly); real batch keys
   `batch["y_true"][...,0]` / `batch["y_mask"][...,0]` (NOT the npz-only `actual_future_flow`/`y_mask_flow`).
   Default `--data_dir data/processed`.
 
