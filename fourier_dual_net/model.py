@@ -204,7 +204,10 @@ class FourierDualNet(nn.Module):
                  use_time_emb: bool = True,
                  use_cross_attn: bool = False,
                  cross_attn_dim: int = 16, cross_attn_heads: int = 2,
-                 sensor_meta_dim: int | None = None):
+                 sensor_meta_dim: int | None = None,
+                 use_gated_fusion: bool = False,
+                 gate_d_node: int = 8,
+                 gate_hidden: int = 32):
         super().__init__()
         self.use_time_emb = use_time_emb
         self.use_cross_attn = use_cross_attn
@@ -242,6 +245,14 @@ class FourierDualNet(nn.Module):
             skip_channels=nhid * 8, end_channels=nhid * 16,
             blocks=pert_blocks, layers=pert_layers,
         )
+
+        self.use_gated_fusion = use_gated_fusion
+        self._last_alpha = None     # cached live tensor for optional L1 penalty
+        if use_gated_fusion:
+            self.gated_fusion = GatedFusion(
+                num_nodes=num_nodes, T_p=T_p,
+                d_node=gate_d_node, hidden=gate_hidden,
+            )
 
     @staticmethod
     def _to_gwnet(x: torch.Tensor) -> torch.Tensor:
@@ -284,10 +295,20 @@ class FourierDualNet(nn.Module):
 
         y_main = self._from_gwnet(self.main_branch(self._to_gwnet(x_main_input)))
         y_pert = self._from_gwnet(self.pert_branch(self._to_gwnet(x_pert_input)))
-        y = y_main + y_pert
+
+        alpha = None
+        if self.use_gated_fusion:
+            assert time_feat is not None, "use_gated_fusion=True requires time_feat"
+            y, alpha = self.gated_fusion(x_main_flow, x_pert_flow, y_main, y_pert, time_feat)
+        else:
+            y = y_main + y_pert
+        self._last_alpha = alpha     # live tensor (or None) for the L1 fallback
 
         if return_components:
-            return y, {"y_main": y_main, "y_pert": y_pert,
-                       "x_main": x_main_flow, "x_pert": x_pert_flow,
-                       "mask": self.decomp.get_mask()}
+            comp = {"y_main": y_main, "y_pert": y_pert,
+                    "x_main": x_main_flow, "x_pert": x_pert_flow,
+                    "mask": self.decomp.get_mask()}
+            if alpha is not None:
+                comp["alpha"] = alpha
+            return y, comp
         return y
