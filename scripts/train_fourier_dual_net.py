@@ -55,6 +55,12 @@ def parse_args() -> argparse.Namespace:
                    help="Pert branch attends to Main signal at input level (direction B)")
     p.add_argument("--cross_attn_dim", type=int, default=16)
     p.add_argument("--cross_attn_heads", type=int, default=2)
+    p.add_argument("--use_gated_fusion", action="store_true",
+                   help="Enable D3 gated fusion (per-node, per-horizon alpha)")
+    p.add_argument("--gate_d_node", type=int, default=8)
+    p.add_argument("--gate_hidden", type=int, default=32)
+    p.add_argument("--gate_l1_lambda", type=float, default=0.0,
+                   help="L1 penalty lambda*mean|alpha-0.5| (fallback; 0 disables)")
     p.add_argument("--epochs", type=int, default=30)
     p.add_argument("--batch_size", type=int, default=32)
     p.add_argument("--lr", type=float, default=1e-3)
@@ -99,7 +105,8 @@ def masked_mae(pred: torch.Tensor, target: torch.Tensor,
 def evaluate(model, loader, device, sensor_meta_tensor=None) -> dict[str, float]:
     model.eval()
     total, n = 0.0, 0
-    need_time = model.use_time_emb or model.requires_sensor_meta
+    need_time = (model.use_time_emb or model.requires_sensor_meta
+                 or getattr(model, "use_gated_fusion", False))
     for batch in loader:
         x_hist = batch["x_hist"].to(device)
         y_true = batch["y_true"][..., 0].to(device)
@@ -158,6 +165,9 @@ def main() -> None:
         use_cross_attn=args.use_cross_attn,
         cross_attn_dim=args.cross_attn_dim,
         cross_attn_heads=args.cross_attn_heads,
+        use_gated_fusion=args.use_gated_fusion,
+        gate_d_node=args.gate_d_node,
+        gate_hidden=args.gate_hidden,
         sensor_meta_dim=sensor_meta_dim,
     ).to(device)
     # Pre-load static sensor_meta tensor for conditioned mask
@@ -199,11 +209,14 @@ def main() -> None:
                 x_hist = batch["x_hist"].to(device)
                 y_true = batch["y_true"][..., 0].to(device)
                 y_mask = batch["y_mask"][..., 0].to(device)
-                need_time = model.use_time_emb or model.requires_sensor_meta
+                need_time = (model.use_time_emb or model.requires_sensor_meta
+                             or getattr(model, "use_gated_fusion", False))
                 time_feat = batch["time_feat"].to(device) if need_time else None
                 sm = sensor_meta_tensor if model.requires_sensor_meta else None
                 pred = model(x_hist, time_feat=time_feat, sensor_meta=sm)
                 loss = masked_mae(pred, y_true, y_mask)
+                if args.gate_l1_lambda > 0 and getattr(model, "_last_alpha", None) is not None:
+                    loss = loss + args.gate_l1_lambda * (model._last_alpha - 0.5).abs().mean()
                 optimizer.zero_grad(set_to_none=True)
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0)
@@ -264,7 +277,8 @@ def main() -> None:
             aff = batch["affected_mask"].numpy()
             ss = batch["sample_start"].numpy()
             rc = batch["region_code"].numpy()
-            need_time = model.use_time_emb or model.requires_sensor_meta
+            need_time = (model.use_time_emb or model.requires_sensor_meta
+                         or getattr(model, "use_gated_fusion", False))
             time_feat = batch["time_feat"].to(device) if need_time else None
             sm = sensor_meta_tensor if model.requires_sensor_meta else None
             pred = model(x_hist, time_feat=time_feat, sensor_meta=sm).permute(0, 2, 1).cpu().numpy()
