@@ -1,0 +1,20 @@
+# Seed noise band — FDN learnable_K3 vs GraphWaveNet, seeds {42, 1, 2}
+# all-MAE [affected, unaffected in brackets]
+
+== Alameda ==
+FDN: seeds[11.976, 12.035, 12.050]  all = 12.020 ± 0.039   affected = 17.805 ± 0.041   unaffected = 11.660 ± 0.039
+GWN: seeds[12.398, 12.363, 12.446]  all = 12.402 ± 0.042   affected = 18.230 ± 0.041   unaffected = 12.039 ± 0.042
+gap (FDN - GWN) all-MAE = -0.382  =  9.4 x pooled seed std (0.041)
+
+== ContraCosta ==
+FDN: seeds[13.133, 13.021, 13.017]  all = 13.057 ± 0.066   affected = 19.414 ± 0.139   unaffected = 12.744 ± 0.062
+GWN: seeds[13.452, 13.568, 13.421]  all = 13.480 ± 0.077   affected = 19.868 ± 0.191   unaffected = 13.165 ± 0.072
+gap (FDN - GWN) all-MAE = -0.423  =  5.9 x pooled seed std (0.072)
+
+== D3 reclassification (Alameda) ==
+D3 gated fusion (seed 42) all-MAE = 12.066
+FDN baseline seed distribution: 12.020 ± 0.039
+D3 deviation from baseline mean: +0.046 = 1.2 sigma
+=> 'significant harm' downgraded to: NO GAIN, degradation within seed noise.
+   (the earlier paired window-level test compared those two specific checkpoints;
+    across seeds the difference is not distinguishable from training noise)
