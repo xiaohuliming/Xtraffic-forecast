@@ -1,0 +1,23 @@
+# Benchmark transfer test — FDN vs GWN, equal budget, seeds {42,1,2}, 2026-06-13
+
+== metrla ==
+FDN: all=3.077+-0.008  15min=2.722  30min=3.116  60min=3.579
+GWN: all=3.083+-0.005  15min=2.720  30min=3.116  60min=3.605
+gap FDN-GWN = -0.006  (0.9x pooled seed std, -0.2%)
+gap at 60min = -0.026
+
+== pems04 ==
+FDN: all=19.655+-0.129  15min=18.284  30min=19.628  60min=21.828
+GWN: all=20.340+-0.093  15min=18.603  30min=20.256  60min=23.061
+gap FDN-GWN = -0.686  (6.1x pooled seed std, -3.4%)
+gap at 60min = -1.233
+
+== pems08 ==
+FDN: all=15.554+-0.102  15min=14.209  30min=15.492  60min=17.727
+GWN: all=16.062+-0.046  15min=14.472  30min=15.954  60min=18.641
+gap FDN-GWN = -0.509  (6.4x pooled seed std, -3.2%)
+gap at 60min = -0.914
+
+VERDICT: spectral-routing gain TRANSFERS on flow data (PEMS04 -0.69/6.1sigma,
+PEMS08 -0.51/6.4sigma; both grow with horizon), absent on speed (METR-LA tie).
+Relative gains 3.2-3.4% match XTraffic's 3.1%. Methods-paper path CONFIRMED.

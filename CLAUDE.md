@@ -3,12 +3,13 @@
 详细记录见《项目总结报告_2026-06-10.md》(单一事实来源,含全部数字与出处)。
 本文件只做快速导航,新会话先读这里。
 
-## 一句话现状 (2026-06-13)
+## 一句话现状 (2026-06-13 晚,基准移植已裁决)
 
-label-free 的 FourierDualNet (FDN) 是 XTraffic 上的 SOTA;事故标签被证明无增益;
-5 次架构增强全部无增益;审计实验全部关账。**进行中的下一步:把 FDN 移植到标准基准
-(METR-LA / PEMS-BAY / PEMS04/08) 验证频谱路由增益是否可迁移 — 结果决定论文定位**
-(赢 → 方法论文 "learnable spectral routing";不赢 → XTraffic 基准研究论文)。
+**方法论文路线确认**:频谱路由增益在标准 flow 基准上迁移成功 — PEMS04 −0.69 (6.1σ)、
+PEMS08 −0.51 (6.4σ),且随 horizon 增大;METR-LA (speed) 平局 = 干净的边界条件。
+相对增益 3.2-3.4% 与 XTraffic 的 3.1% 一致。数据 outputs/diagnostics/
+benchmark_transfer_results.txt。**下一步:写论文**(learnable spectral routing 为方法,
+XTraffic 标签分析为应用章),先与老师对齐。
 
 ## 已定结论(不要重新讨论)
 
