@@ -39,3 +39,4 @@ outputs/**
 !outputs/setting_a_artifacts/*.png
 !outputs/paper_artifacts/figures/
 !outputs/paper_artifacts/figures/**
+data/benchmarks/
