@@ -1,0 +1,30 @@
+# DECISIVE equal-param ablation on GWN: routing vs capacity (2026-06-13)
+
+== pems04 ==
+GWN      (P=311,368):   all=20.333+-0.089  60min=23.052
+DualGWN  (2P=622,736):  all=19.841+-0.111  60min=22.169
+SpectralGWN(2P+7=622,743): all=19.664+-0.155  60min=21.841
+capacity (dual-gwn)  = -0.493
+routing  (spec-dual) = -0.176  (1.3x pooled seed std)
+old headline (spec-gwn, the unfair 2P-vs-P number) = -0.669
+  => decomposition: capacity 74% / routing 26% of the old win
+
+== pems08 ==
+GWN      (P=308,628):   all=16.059+-0.057  60min=18.632
+DualGWN  (2P=617,256):  all=15.668+-0.087  60min=17.955
+SpectralGWN(2P+7=617,263): all=15.570+-0.115  60min=17.746
+capacity (dual-gwn)  = -0.392
+routing  (spec-dual) = -0.097  (1.0x pooled seed std)
+old headline (spec-gwn, the unfair 2P-vs-P number) = -0.489
+  => decomposition: capacity 80% / routing 20% of the old win
+
+== pooled routing effect (spectral-dual, 6 seed-points, both datasets) ==
+mean=-0.137  std=0.058  t=-5.80  (n=6)
+sign: 6/6 runs spectral<dual
+
+VERDICT: routing has a SMALL but consistent equal-param benefit on GWN
+(~-0.15 MAE, ~5/6 seeds negative); the bulk of yesterday's 0.69/0.51 'win'
+was pure capacity (dual ~-0.49/-0.39). Routing is real but ~1/4 of the headline.
+Combined with STID null (routing=0 with time-emb), periodicity-injection story
+survives but the magnitude is modest -> honest framing: a lightweight
+periodicity-injection module, NOT a large general SOTA-grade gain.

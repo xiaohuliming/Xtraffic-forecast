@@ -3,15 +3,20 @@
 详细记录见《项目总结报告_2026-06-10.md》(单一事实来源,含全部数字与出处)。
 本文件只做快速导航,新会话先读这里。
 
-## 一句话现状 (2026-06-13 深夜,机制定位已修正)
+## 一句话现状 (2026-06-13 深夜,定位已定:回归 XTraffic)
 
-频谱路由在 flow 基准赢 GWN (PEMS04 −0.69/6.1σ, PEMS08 −0.51/6.4σ),speed (METR-LA) 平。
-**但强骨干等参数消融揭示真实机制**:在 STID(自带 tod/dow embedding)上,SpectralSTID
-对等参数 DualSTID 零增益 (+0.03/+0.02);DualSTID 对单 STID 的 −0.21 纯是参数翻倍。
-=> 频谱路由 = **给周期盲骨干补周期建模**,不是通用插件。GWN 无 time embedding 故有大增益,
-STID 已有故冗余;与 METR-LA speed 平局是同一边界的两个印证。数据 outputs/diagnostics/
-spectral_stid_ablation.txt + benchmark_transfer_results.txt。
-**下一步:对这个重构做对抗式审查(怕过度合理化),再定论文定位 → 与老师对齐。**
+**论文定位 = XTraffic 应用研究**(label-free 击败用标签的 IGSTGNN + bug 取证 + ICSF 复现失败
++ 5 连败消融 + 显著性/多种子)。对标 IGSTGNN 能中 KDD,同赛道、证据更完整。
+频谱路由是其中一个**标注边界的分析点**,不是方法论文主菜。
+
+**频谱路由的诚实结论**(经等参数消融定案,勿再夸大):基准上 FDN 赢 GWN 的旧 headline
+(PEMS04 −0.69 / PEMS08 −0.51) **是 2P-vs-P 不公平对比**(FDN=2×GWN+7 参数)。等参数三变体
+(gwn/dual/spectral) 拆开:容量占 74-80%,路由仅 20-26%。路由净效应 pooled −0.137 MAE
+(6/6 种子负, t=−5.8),真实但小(~0.7%)。STID(有 time emb)路由=0,METR-LA(speed)=0。
+=> 频谱路由 = 轻量周期注入,仅在「周期主导信号 + 周期盲骨干」交集有效。
+数据:outputs/diagnostics/{gwn_routing_vs_capacity, spectral_stid_ablation, benchmark_transfer_results}.txt。
+教训:任何"X 赢 Y"先查参数是否对齐,再下结论(14.3 节改正)。
+**下一步:与老师对齐选刊与篇幅,然后开写 XTraffic 论文。**
 
 ## 已定结论(不要重新讨论)
 
