@@ -1,0 +1,22 @@
+# Spectral routing on STID (stronger backbone) — equal-param ablation, 2026-06-13
+
+== pems04 ==
+stid      (params 120,300): all=18.702+-0.021  60min=20.242
+dual      (params 240,600): all=18.491+-0.021  60min=19.924
+spectral  (params 240,607): all=18.519+-0.018  60min=19.971
+spectral - dual (EQUAL PARAMS) = +0.028  (1.5x seed std)  => NO routing gain
+
+== pems08 ==
+stid      (params 115,916): all=14.315+-0.012  60min=15.726
+dual      (params 231,832): all=14.106+-0.019  60min=15.455
+spectral  (params 231,839): all=14.122+-0.034  60min=15.451
+spectral - dual (EQUAL PARAMS) = +0.017  (0.6x seed std)  => NO routing gain
+
+VERDICT: on STID (which has explicit tod/dow time embeddings), spectral routing
+gives NO gain over a plain dual backbone of equal params (both ~ -0.21 vs single
+STID, that delta is pure capacity). Contrast GWN (no time embedding) where FDN's
+routing won +0.69. => Spectral routing's value is supplying PERIODIC modeling that a
+backbone lacks; it is redundant once the backbone already models periodicity.
+This REFRAMES the paper: spectral routing is a periodicity-injection mechanism for
+periodicity-blind backbones (GWN-class), NOT a universal plug-in. METR-LA (speed) tie
++ STID redundancy are two independent confirmations of the same boundary.

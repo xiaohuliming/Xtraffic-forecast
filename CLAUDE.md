@@ -3,13 +3,15 @@
 详细记录见《项目总结报告_2026-06-10.md》(单一事实来源,含全部数字与出处)。
 本文件只做快速导航,新会话先读这里。
 
-## 一句话现状 (2026-06-13 晚,基准移植已裁决)
+## 一句话现状 (2026-06-13 深夜,机制定位已修正)
 
-**方法论文路线确认**:频谱路由增益在标准 flow 基准上迁移成功 — PEMS04 −0.69 (6.1σ)、
-PEMS08 −0.51 (6.4σ),且随 horizon 增大;METR-LA (speed) 平局 = 干净的边界条件。
-相对增益 3.2-3.4% 与 XTraffic 的 3.1% 一致。数据 outputs/diagnostics/
-benchmark_transfer_results.txt。**下一步:写论文**(learnable spectral routing 为方法,
-XTraffic 标签分析为应用章),先与老师对齐。
+频谱路由在 flow 基准赢 GWN (PEMS04 −0.69/6.1σ, PEMS08 −0.51/6.4σ),speed (METR-LA) 平。
+**但强骨干等参数消融揭示真实机制**:在 STID(自带 tod/dow embedding)上,SpectralSTID
+对等参数 DualSTID 零增益 (+0.03/+0.02);DualSTID 对单 STID 的 −0.21 纯是参数翻倍。
+=> 频谱路由 = **给周期盲骨干补周期建模**,不是通用插件。GWN 无 time embedding 故有大增益,
+STID 已有故冗余;与 METR-LA speed 平局是同一边界的两个印证。数据 outputs/diagnostics/
+spectral_stid_ablation.txt + benchmark_transfer_results.txt。
+**下一步:对这个重构做对抗式审查(怕过度合理化),再定论文定位 → 与老师对齐。**
 
 ## 已定结论(不要重新讨论)
 
