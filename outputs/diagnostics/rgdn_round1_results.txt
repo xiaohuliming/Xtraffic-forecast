@@ -1,0 +1,47 @@
+RGDN round-1  region=Alameda seed=42  noise band=0.080
+single seed is suggestive only; confirm with seeds 42/1/2 + significance_tests.py
+
+variant    params      all  affected  unaffected
+v0a      315,648   11.811    17.511      11.456
+v0b      315,648   11.711    17.711      11.337
+v1       308,660   11.884    18.028      11.502
+v2       298,136   11.779    17.810      11.404
+
+comparisons on 'all' MAE (negative = improvement):
+  deseason (v0b-v0a)       -0.100   below band (improves)
+  headline RGDN (v1-v0b)   +0.174   above band (worse)
+  injection (v1-v2)        +0.105   above band (worse)
+  total vs raw (v1-v0a)    +0.074   within noise band
+
+=== interpretation (single seed 42, Alameda, params matched to ~316k) ===
+
+1. De-seasonalization is the only real gain. v0b beats v0a by 0.100 on all MAE at
+   identical params 315,648. The gain comes from a single GWN predicting only the
+   deviation from the cache climatology baseline. No dual structure is involved.
+
+2. The RGDN dual residual-guided mechanism does not help. v1 is 0.174 worse than v0b
+   on all MAE, while v1 even has slightly fewer params 308,660. The asymmetric dual
+   plus injection underperforms the simple de-seasonalized single GWN.
+
+3. The neighbor-residual injection actively hurts. v1 with injection is 0.105 worse
+   than v2 without it. The core novel element of the design degrades accuracy.
+
+4. The dual split alone is roughly neutral. v2 dual no-injection vs v0b single is
+   +0.068 on all, inside the seed noise band, so splitting into two branches buys
+   nothing over one de-seasonalized GWN.
+
+5. Who de-seasonalization helps. v0b improves unaffected nodes by 0.119 but worsens
+   affected nodes by 0.200 vs v0a. The climatology baseline fits normal regimes;
+   incident-affected nodes deviate from it, so adding the baseline back helps normal
+   nodes and slightly hurts affected ones.
+
+caveats. Single seed 42 only, suggestive not definitive. The v1-worse direction is
+about 2x the noise band so fairly clear, but seeds 1 and 2 plus significance_tests.py
+would confirm. The first launch of v1 was killed mid-training by an environmental
+process kill at ep17; the rerun completed all of v1 and v2 cleanly (DONE 04:23).
+
+bottom line. The architectural hypothesis is not supported on Alameda. De-seasonalization
+is a small clean win achievable with a single GWN, which matches the project pattern that
+added structure does not beat simple label-free baselines. Next step options: confirm
+v0b vs v1 with seeds 1 and 2 before closing, or accept the negative and keep
+de-seasonalization as a minor element while dropping the RGDN mechanism.
