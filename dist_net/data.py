@@ -154,6 +154,11 @@ class RegionData:
         y_baseline_t = self.baseline_median[dk, td]      # (T_p, N, 3)
         y_baseline = np.transpose(y_baseline_t, (1, 0, 2)).astype(np.float32)
 
+        # x_baseline lookup via (day_kind, tod) for each history step (mirror y_baseline)
+        hist_idx = np.arange(hist_lo, hist_hi)
+        x_baseline_t = self.baseline_median[self.day_kind[hist_idx], self.tod[hist_idx]]  # (T_h,N,3)
+        x_baseline = np.transpose(x_baseline_t, (1, 0, 2)).astype(np.float32)             # (N,T_h,3)
+
         time_enc = self.time_enc[hist_lo:hist_hi].astype(np.float32)  # (T_h, 5)
 
         # ToD / DoW normalized to [0,1] — used by FDN++ Main branch as time embedding input
@@ -178,6 +183,7 @@ class RegionData:
             "y_true":         y_true,                            # (N, T_p, 3)
             "y_mask":         y_mask,                            # (N, T_p, 3) bool
             "y_baseline":     y_baseline,                        # (N, T_p, 3)
+            "x_baseline":     x_baseline,                        # (N, T_h, 3)
             "time_enc":       time_enc,                          # (T_h, 5)
             "time_feat":      time_feat.astype(np.float32),     # (T_h, 2) tod/288, dow/7
             "static_meta":    self.static_meta.astype(np.float32),  # (N, C_meta)
