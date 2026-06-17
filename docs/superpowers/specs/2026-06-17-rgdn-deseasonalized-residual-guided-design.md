@@ -28,11 +28,11 @@ label-free,残差天然就是事故等异常扰动的代理。
 ## 3. 端到端数据流
 
 ```
-历史流量 flow_hist (B,N,T_h)            未来时间戳 tod,dow
+历史流量 flow_hist (B,N,T_h)            未来 [day_kind,tod]
        │                                     │
-       │ 查气候态表 B[node,tod,dow]            │ 查表
+       │ 查 baseline_median[day_kind,tod]     │ 查表(已在batch里=y_baseline)
        ▼                                     ▼
- baseline_hist ─减─ res_hist          baseline_future (B,N,T_p)  已知骨架
+ baseline_hist=x_baseline ─减─ res_hist  baseline_future=y_baseline  已知骨架
                        │                              │
         ┌──────────────┴───────────────┐             │
    注入: 一步自适应邻接图卷         残差支线 GWN          │
@@ -54,19 +54,23 @@ label-free,残差天然就是事故等异常扰动的代理。
 
 ## 4. 组件细节
 
-### 4.1 气候态基线 ClimatologyBaseline
+### 4.1 气候态基线:直接复用缓存,不重算
 
-- 来源:`rdata.flow_series[:, :, 0]` 为连续 flow 通道,`rdata.flow_mask[:, :, 0]` 为有效位。
-- 训练边界与 STAEformer 脚本一致:`hi = max(sample_start[split==0]) + T_h + T_p`,
-  气候态只用 `flow_series[:hi]` 统计,避免泄漏。
-- 每个时刻 t 需要 tod 与 dow,必须沿用管线现有约定。实现时先核对 `dist_net/data.py`
-  里 time_feat 的推法,气候态用同一套 tod 与 dow 索引,未来 T_p 步的 tod 与 dow 由
-  sample_start 加偏移推出。这是实现前必须验证的一条。
-- 聚合:对每个节点 n 与每个 (tod,dow) 桶,取训练段有效 flow 的均值,得表 shape (N,288,7)。
-- 空桶回退:空桶用该节点训练段均值,仍空用全局训练段均值。
-- 预计算后冻结,零参数,每区缓存一份。
-- 残差标准化:`res = flow − baseline`,再除以训练段残差的 masked 标准差 sd_res 得标准化
-  残差;网络输出乘回 sd_res 得 Δ̂ 原始单位。
+读 `dist_net/data.py` 与 `scripts/build_full_county_cache.py` 后确认,管线已内置气候态基线,
+直接复用即可,这一块零新建模代码且无泄漏。
+
+- `RegionData.baseline_median` 形状 (2,288,N,3),按 [day_kind, tod] 索引,day_kind 为工作日
+  与周末两档,tod 为 288 个 5 分钟槽。`baseline_scale` 同形状,为 MAD 稳健尺度。
+- 缓存构建已保证两点:基线只用年度前 70% 即训练段拟合,`train_valid[train_cutoff:]=False`,
+  无泄漏;且对事故窗口做了 masking,基线是去掉事故影响的正常模式,正合"正常状态流量"。空桶
+  已回退为节点或全局中位数,尺度空桶回退为 1.0。
+- 未来基线 `y_baseline` (N,T_p,3) 已由 get_sample 放进每个 batch,即"已知骨架"。
+- 历史基线:给 get_sample 增补一个 x_baseline (N,T_h,3),按 [day_kind, tod] 同样查
+  baseline_median 得到。仅新增一个 key,向后兼容,其他模型忽略即可。
+- 残差标准化:`res = flow − baseline`,除以训练段残差的 masked 标量标准差 sd_res 得标准化残差;
+  网络输出乘回 sd_res 得 Δ̂ 原始单位;`ŷ = y_baseline + Δ̂`。per-bin 的 baseline_scale 留作后续增强。
+- 基线键是 (day_kind, tod) 两档日型而非完整 7 天,这是管线既有约定,沿用以复用验证过的基础设施,
+  完整 dow 留作后续消融。
 
 ### 4.2 残差支线 ResidualBranch
 
@@ -144,12 +148,12 @@ label-free,残差天然就是事故等异常扰动的代理。
 
 ## 8. 实现前必须核对的点
 
-1. tod 与 dow 的推法:气候态统计与未来步查表都要用 `dist_net/data.py` 同一套时间约定,
-   未来 T_p 步的 tod 与 dow 由 sample_start 加偏移推出。
-2. 气候态桶的稀疏度:确认训练段周数足够填满 (tod,dow) 桶,记录空桶比例与回退命中率。
-3. 参数对齐:V0 单 GWN 的 P 数出来后,再定两支 nhid,跑前打印全部变体参数。
-4. gwnet 在 gcn_bool=False 下退化为纯 TCN 的行为正确,supports 与 addaptadj 在该模式下
-   不被使用。
+1. 基线复用已确认:管线用 (day_kind, tod) 键,baseline_median 已 train-only 即前 70% 且事故
+   masked,无泄漏。未来基线用 batch["y_baseline"],历史基线给 get_sample 增补 x_baseline,
+   均按 [day_kind, tod] 查 baseline_median。不再自算气候态。
+2. 参数对齐:V0 单 GWN 的 P 数出来后,再定两支 nhid,跑前打印全部变体参数核对到个位百分比。
+3. gwnet 在 gcn_bool=False 下退化为纯 TCN 的行为正确,nodevec 与 gconv 在该模式下不创建、
+   走 residual_convs,确认无图参数。
 
 ## 9. 风险与诚实预期
 
