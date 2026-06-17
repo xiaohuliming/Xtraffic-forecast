@@ -89,7 +89,7 @@ def main():
     p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--weight_decay", type=float, default=1e-4)
     p.add_argument("--nhid_single", type=int, default=32)
-    p.add_argument("--nhid_main", type=int, default=26)
+    p.add_argument("--nhid_main", type=int, default=24)   # param-matched: V1=308,660 vs single P=315,648 (-2.2%)
     p.add_argument("--nhid_res", type=int, default=22)
     p.add_argument("--c_inject", type=int, default=4)
     p.add_argument("--dropout", type=float, default=0.3)
