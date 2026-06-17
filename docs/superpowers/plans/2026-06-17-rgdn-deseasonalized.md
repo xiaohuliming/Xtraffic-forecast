@@ -27,10 +27,10 @@
 | 文件 | 职责 | 改动 |
 |---|---|---|
 | `fourier_dual_net/deseason.py` | 纯 numpy:基线查表 + 训练段残差标准差 | 新建 |
-| `tests/fourier_dual_net/test_deseason.py` | deseason 的本地 numpy 单测 | 新建 |
+| `tests/fdn/test_deseason.py` | deseason 的本地 numpy 单测 | 新建 |
 | `dist_net/data.py` | get_sample 增补 `x_baseline` 历史基线 key | 改 |
 | `fourier_dual_net/rgdn.py` | InjectionGraphConv + RGDN 模型,变体开关 | 新建 |
-| `tests/fourier_dual_net/test_rgdn.py` | RGDN 的 torch 单测,5080 跑 | 新建 |
+| `tests/fdn/test_rgdn.py` | RGDN 的 torch 单测,5080 跑 | 新建 |
 | `scripts/train_rgdn.py` | 训练/评测,`--variant`,sd_res 统计,`--smoke`,npz 产出 | 新建 |
 
 ---
@@ -39,11 +39,11 @@
 
 **Files:**
 - Create: `fourier_dual_net/deseason.py`
-- Test: `tests/fourier_dual_net/test_deseason.py`
+- Test: `tests/fdn/test_deseason.py`
 
 - [ ] **Step 1: 写失败测试** [LOCAL]
 
-写 `tests/fourier_dual_net/test_deseason.py`:
+写 `tests/fdn/test_deseason.py`:
 
 ```python
 import sys
@@ -83,7 +83,7 @@ def test_train_residual_std_train_only_and_masked():
 
 - [ ] **Step 2: 跑测试确认失败** [LOCAL]
 
-Run: `python3 -m pytest tests/fourier_dual_net/test_deseason.py -q`
+Run: `python3 -m pytest tests/fdn/test_deseason.py -q`
 Expected: FAIL,`ModuleNotFoundError` 或 `ImportError: cannot import name 'lookup_baseline'`。
 
 - [ ] **Step 3: 实现 deseason.py** [LOCAL]
@@ -120,13 +120,13 @@ def train_residual_std(flow_series: np.ndarray, flow_mask: np.ndarray,
 
 - [ ] **Step 4: 跑测试确认通过** [LOCAL]
 
-Run: `python3 -m pytest tests/fourier_dual_net/test_deseason.py -q`
+Run: `python3 -m pytest tests/fdn/test_deseason.py -q`
 Expected: PASS,2 passed。
 
 - [ ] **Step 5: commit**
 
 ```bash
-git add fourier_dual_net/deseason.py tests/fourier_dual_net/test_deseason.py
+git add fourier_dual_net/deseason.py tests/fdn/test_deseason.py
 git commit -m "feat: numpy de-seasonalization helpers + local tests
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -179,7 +179,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 **Files:**
 - Create: `fourier_dual_net/rgdn.py`
-- Test: `tests/fourier_dual_net/test_rgdn.py`（5080 跑）
+- Test: `tests/fdn/test_rgdn.py`（5080 跑）
 
 - [ ] **Step 1: 写 rgdn.py** [LOCAL 写 + py_compile]
 
@@ -305,7 +305,7 @@ Expected: 无输出即通过。
 
 - [ ] **Step 3: 写 torch 单测** [LOCAL 写]
 
-写 `tests/fourier_dual_net/test_rgdn.py`:
+写 `tests/fdn/test_rgdn.py`:
 
 ```python
 """RGDN torch tests. Run on the 5080 (needs torch)."""
@@ -382,7 +382,7 @@ def test_gradient_flows_v1():
 - [ ] **Step 4: commit（行为验证在 Task 5）**
 
 ```bash
-git add fourier_dual_net/rgdn.py tests/fourier_dual_net/test_rgdn.py
+git add fourier_dual_net/rgdn.py tests/fdn/test_rgdn.py
 git commit -m "feat: RGDN model + injection graph conv, variant-flag driven
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -641,12 +641,12 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 把本地已提交的改动推到 5080。优先 git:在 5080 的 `C:/Users/asus/traffic_fourier` 上
 `git pull`(或 push 本地分支后 pull)。若无 git 远端,scp 这几个文件:
 `fourier_dual_net/deseason.py`、`fourier_dual_net/rgdn.py`、`scripts/train_rgdn.py`、
-`dist_net/data.py`、`tests/fourier_dual_net/test_deseason.py`、`tests/fourier_dual_net/test_rgdn.py`。
+`dist_net/data.py`、`tests/fdn/test_deseason.py`、`tests/fdn/test_rgdn.py`。
 
 - [ ] **Step 2: 跑 torch 单测** [5080]
 
 Run（5080,直接前台,<1 分钟）:
-`C:\Python313\python.exe -X utf8 -m pytest tests/fourier_dual_net/test_rgdn.py tests/fourier_dual_net/test_deseason.py -q`
+`C:\Python313\python.exe -X utf8 -m pytest tests/fdn/test_rgdn.py tests/fdn/test_deseason.py -q`
 Expected: 全部 PASS。重点过 `test_main_branch_has_no_graph_params_when_gcn_off` 与
 `test_all_variants_forward_shape_and_finite`。
 
