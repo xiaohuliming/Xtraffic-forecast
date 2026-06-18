@@ -32,6 +32,7 @@ def _flags(variant):
         "v2":  dict(deseason=True, dual=True, main_gcn=False, inject=False),
         "v3":  dict(deseason=True, dual=True, main_gcn=True, inject=False),
         "v4":  dict(deseason=False, dual=True, main_gcn=False, inject=True),
+        "v1g": dict(deseason=True, dual=True, main_gcn=False, inject=True, inject_gate=True),
     }[variant]
 
 
@@ -46,7 +47,7 @@ def test_injection_adp_rows_sum_to_one():
 
 def test_all_variants_forward_shape_and_finite():
     dev = torch.device("cpu")
-    for v in ["v0a", "v0b", "v1", "v2", "v3", "v4"]:
+    for v in ["v0a", "v0b", "v1", "v2", "v3", "v4", "v1g"]:
         m = RGDN(N, _supports(dev), T_h, T_p, device=dev, **_flags(v))
         y = m(*_batch(dev))
         assert y.shape == (B, N, T_p), (v, y.shape)
@@ -67,3 +68,15 @@ def test_gradient_flows_v1():
     y.sum().backward()
     g = m.inject_mod.e1.grad
     assert g is not None and torch.isfinite(g).all()
+
+
+def test_inject_gate_param_and_grad():
+    dev = torch.device("cpu")
+    m = RGDN(N, _supports(dev), T_h, T_p, device=dev, **_flags("v1g"))
+    assert m.use_inject_gate and float(m.inject_gate) == 1.0   # learnable, starts at 1
+    y = m(*_batch(dev))
+    y.sum().backward()
+    assert m.inject_gate.grad is not None and torch.isfinite(m.inject_gate.grad).all()
+    # v1 (no gate) must NOT have the gate param
+    m1 = RGDN(N, _supports(dev), T_h, T_p, device=dev, **_flags("v1"))
+    assert not m1.use_inject_gate and not hasattr(m1, "inject_gate")

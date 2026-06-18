@@ -47,12 +47,13 @@ class InjectionGraphConv(nn.Module):
 
 class RGDN(nn.Module):
     def __init__(self, num_nodes, supports, T_h, T_p, device=None,
-                 deseason=True, dual=True, main_gcn=False, inject=True,
+                 deseason=True, dual=True, main_gcn=False, inject=True, inject_gate=False,
                  nhid_single=32, nhid_main=26, nhid_res=22, c_inject=4, dropout=0.3):
         super().__init__()
         self.deseason = bool(deseason)
         self.dual = bool(dual)
         self.inject = bool(inject) and self.dual
+        self.use_inject_gate = bool(inject_gate) and self.inject
         self.T_p = T_p
         self.register_buffer("sd_res", torch.tensor(1.0))
         self.register_buffer("flow_mu", torch.tensor(0.0))
@@ -63,6 +64,8 @@ class RGDN(nn.Module):
             return
 
         self.inject_mod = InjectionGraphConv(num_nodes, c_out=c_inject) if self.inject else None
+        if self.use_inject_gate:
+            self.inject_gate = nn.Parameter(torch.ones(1))         # learnable injection strength
         main_in = 1 + 2 + (c_inject if self.inject else 0)          # res + tod/dow + injection
         self.main_branch = _make_gwn(num_nodes, supports, device, main_in, T_p, nhid_main,
                                      main_gcn, dropout)
@@ -92,7 +95,10 @@ class RGDN(nn.Module):
         tf = time_feat.unsqueeze(1).expand(B, N, T_h, 2)
         feats = [sig.unsqueeze(-1), tf]
         if self.inject:
-            inj = self.inject_mod(sig).permute(0, 2, 3, 1)          # (B,N,T_h,c_inject)
+            inj = self.inject_mod(sig)
+            if self.use_inject_gate:
+                inj = inj * self.inject_gate
+            inj = inj.permute(0, 2, 3, 1)                           # (B,N,T_h,c_inject)
             feats.append(inj)
         y_main = self._from_gwnet(self.main_branch(self._to_gwnet(torch.cat(feats, dim=-1))))
         return self._reseason(y_main + y_res, y_baseline)

@@ -32,6 +32,7 @@ VARIANTS = {
     "v2":  dict(deseason=True,  dual=True,  main_gcn=False, inject=False),
     "v3":  dict(deseason=True,  dual=True,  main_gcn=True,  inject=False),
     "v4":  dict(deseason=False, dual=True,  main_gcn=False, inject=True),
+    "v1g": dict(deseason=True,  dual=True,  main_gcn=False, inject=True, inject_gate=True),
 }
 
 
