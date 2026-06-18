@@ -45,3 +45,25 @@ is a small clean win achievable with a single GWN, which matches the project pat
 added structure does not beat simple label-free baselines. Next step options: confirm
 v0b vs v1 with seeds 1 and 2 before closing, or accept the negative and keep
 de-seasonalization as a minor element while dropping the RGDN mechanism.
+
+=== gated injection follow-up (v1g, learnable scalar gate init 1.0) ===
+
+v1g all=11.922 affected=18.097 unaffected=11.537 params=308,661. The learnable injection
+gate, free to drop to 0 and turn injection off, settled at 0.898, and v1g landed at 11.922,
+worse than v2 11.779 and no better than v1 11.884.
+
+So the injection is not an ignorable add-on the model would switch off if it could; the
+model commits to it. The diagnostics explain why (scripts/diagnose_rgdn_injection.py): the
+injection adjacency degenerates to near-uniform, entropy ratio 0.987, so the injection is a
+crude global-average residual shortcut; the model becomes dependent on it, zeroing it at
+inference collapses v1; and a learnable gate does not escape the trap, gate stays at 0.90.
+The neighbor-residual injection is an optimization trap offering an inferior spatial path
+versus the residual branch, and it cannot be salvaged by gating.
+
+final conclusion. Drop the residual-guided injection. The clean architecture is the
+de-seasonalized single GWN v0b or the dual no-injection v2, which tie. The only real gain in
+this whole family is de-seasonalization, predicting the deviation from the cache climatology
+baseline, about 0.10 MAE on all, and it needs no extra structure. Consistent with the
+project pattern that added structure does not beat simple label-free baselines. Single seed
+42; multi-seed would tighten the bands but the direction is clear and the mechanism is
+explained.
