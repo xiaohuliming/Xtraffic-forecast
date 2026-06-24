@@ -20,13 +20,31 @@ docs/superpowers。单种子,方向清楚(headline ~2-4σ),多种子可收紧但
 下面是 RGDN 之前的主线状态(仍有效)。证据链完整,桌面有完整汇报
 `~/Desktop/XTraffic项目完整汇报_2026-06-17.md`(11 节,所有数字核自落盘)。
 **论文定位 = XTraffic 应用/复现性研究**:命题=事故标签无增益。最强证据=STAEformer
-(ICCV'23 SOTA, label-free, 1.56M 参数) 在 XTraffic 上 Alameda 11.39 / CC 12.12,
-**超过用全套标签的 IGSTGNN**,也超过我们的 FDN(11.98)。Orange STAEformer 后台重跑中
-(990 节点慢,首次因网络切换中断)。
+(ICCV'23 SOTA, label-free) 在 XTraffic 上三区域 all,全部 seed 42,数据
+outputs/baselines/staeformer/{区域}/summary.json:Alameda 11.391 (aff 17.161 / unaff 11.031,
+1.56M 参) / ContraCosta 12.116 (aff 18.337 / unaff 11.809, 1.54M 参) / Orange 12.500
+(aff 18.107 / unaff 12.226, 2.01M 参)。**三区域全部低于 IGSTGNN 论文 Table 4 自报数**
+(11.391<12.69, 12.116<13.43, 12.500<13.13),且我们测试集事件锚定更难,结论更硬;也超过
+我们的 FDN(11.98)。Orange 这格 2026-06-23 在云 5090 跑完(5080 当年 OOM),三区域齐全。
 IGSTGNN 原论文(论文/2602.02528v1.pdf)三漏洞已核:基线过弱(没放 STAEformer)、
 无去标签对照(我们 ICSF 移植零增益证伪)、代码 bug 让主表存疑。
-**两个待批准的决定性实验(等老师拍板):** (1) 全滑窗协议复跑直接对标其 Table 4 的 12.69;
-(2) STAEformer ± ICSF 标签注入,证"连最强模型加标签也零增益"。
+**决定性实验 (1) 全滑窗协议复跑已完成 (2026-06-25, 云 5090, stride=1 seed42 patience6):**
+3 模型 x 3 区域,标准滑窗 12 进 12 出、整条时序 70/10/20 时序切分、masked MAE all
+(train/val/test 窗口=73567/10510/21020,三模型共用同一 loader 窗口逐元素对齐)。数据
+outputs/{baselines/graphwavenet_fullwindow, fourier_dual_net/learnable_K3_fullwindow,
+baselines/staeformer_fullwindow}/{区域}/summary.json:
+  Alameda  GWN 11.052 / FDN 10.735 / STAE 10.382
+  ContraCosta GWN 11.314 / FDN 11.132 / STAE 10.750
+  Orange   GWN 11.641 / FDN 11.293 / STAE 10.856
+**结论坐实:全 9 格远低于 IGSTGNN Table 4 自报(Alameda 12.69 / CC 13.43 / Orange 13.13)。**
+连最弱的 GWN(无标签, 316k 参)都在三区域全胜 IGSTGNN;STAEformer 领先 IGSTGNN ~2.3-2.7 MAE;
+FDN 三区域全部赢 GWN(-0.317/-0.182/-0.348),STAE<FDN<GWN 单调一致。注意此协议数比事件锚定低
+(全滑窗含大量正常车流,事件锚定测试窗更难),两协议不可直接互比,但各自内部排序一致。诚实边界:
+这是标准全滑窗协议对照,非逐字复现 IGSTGNN 切分(其单文件 incidents_data.npy 的切分预处理脚本
+不在其放出的仓库里, 无法逐字重现)。代码:dist_net/data.py 的 FullWindowRegionData +
+三训练脚本 --protocol full_window;队列 scripts/run_fullwindow_queue.sh;日志 outputs/fullwindow_run.log。
+注意 full_window 下 summary.json 的 affected/unaffected=NaN(无标签按设计),只取 all。
+**仍待批准的决定性实验 (2):** STAEformer ± ICSF 标签注入,证"连最强模型加标签也零增益"。
 频谱路由是标注边界的分析点,不是主菜(等参数下容量占 74-80%,路由仅 0.7%)。
 
 **频谱路由的诚实结论**(经等参数消融定案,勿再夸大):基准上 FDN 赢 GWN 的旧 headline

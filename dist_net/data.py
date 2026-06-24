@@ -198,6 +198,42 @@ class RegionData:
         }
 
 
+class FullWindowRegionData(RegionData):
+    """Standard full-sliding-window protocol (NOT event-anchored).
+
+    Replaces the event-anchored sample_start/split from samples.h5 with an
+    exhaustive sliding window over the whole series, chronologically split into
+    train/val/test by fraction. Event-dependent per-sample fields are zeroed so
+    the same batch schema (and label-free training scripts) work unchanged.
+    The headline metric under this protocol is `all` MAE, directly comparable to
+    standard benchmarks (METR-LA/PEMS) and to IGSTGNN's Table-4-style numbers.
+    """
+
+    def __init__(self, region_name: str, data_dir: str | Path,
+                 graph_dir: str | Path, lazy: bool = False,
+                 stride: int = 1, train_frac: float = 0.7, val_frac: float = 0.1):
+        super().__init__(region_name, data_dir, graph_dir, lazy=lazy)
+        T_h, T_p, T = self.T_h, self.T_p, self.T
+        # anchor t needs history [t-T_h+1, t] and future [t+1, t+T_p]
+        starts = np.arange(T_h - 1, T - T_p, max(1, stride), dtype=np.int64)
+        n = len(starts)
+        i_tr = int(n * train_frac)
+        i_va = int(n * (train_frac + val_frac))
+        split = np.empty(n, dtype=np.int64)
+        split[:i_tr] = 0
+        split[i_tr:i_va] = 1
+        split[i_va:] = 2
+
+        self.sample_start = starts
+        self.split = split
+        self.affected_mask = np.zeros((n, self.N), dtype=np.bool_)
+        self.n_active_incidents = np.zeros(n, dtype=np.int32)
+        self.incident_feat = np.zeros((n, self.M_max, self.C_e), dtype=np.float32)
+        self.incident_mask = np.zeros((n, self.M_max), dtype=np.bool_)
+        self.active_event_idx = np.full((n, self.M_max), -1, dtype=np.int32)
+        self.has_rel_feat = False  # get_sample returns zero rel_feat
+
+
 class MultiRegionDataset(Dataset):
     """Combined dataset across regions with a split filter.
 
@@ -207,14 +243,16 @@ class MultiRegionDataset(Dataset):
     """
 
     def __init__(self, region_names: list[str], data_dir: str | Path,
-                 graph_dir: str | Path, split: str = "train", lazy: bool = False):
+                 graph_dir: str | Path, split: str = "train", lazy: bool = False,
+                 region_data_cls: type = RegionData, region_data_kwargs: dict | None = None):
         self.split = split
         split_code = SPLIT_TO_CODE[split]
         self.regions: dict[str, RegionData] = {}
         self.index_table: list[tuple[str, int]] = []  # global_idx -> (region_name, local_idx)
 
         for region_name in region_names:
-            rdata = RegionData(region_name, data_dir, graph_dir, lazy=lazy)
+            rdata = region_data_cls(region_name, data_dir, graph_dir, lazy=lazy,
+                                    **(region_data_kwargs or {}))
             self.regions[region_name] = rdata
             local_indices = np.where(rdata.split == split_code)[0]
             for li in local_indices:

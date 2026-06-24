@@ -31,7 +31,7 @@ import torch
 from torch.optim import Adam
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
-from dist_net.data import MultiRegionDataset, make_loader
+from dist_net.data import MultiRegionDataset, FullWindowRegionData, RegionData, make_loader
 from fourier_dual_net.model import FourierDualNet
 
 
@@ -69,6 +69,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--dropout", type=float, default=0.3)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--device", default=None)
+    p.add_argument("--protocol", choices=["event", "full_window"], default="event",
+                   help="event = event-anchored (samples.h5); full_window = standard sliding window")
+    p.add_argument("--stride", type=int, default=1, help="full_window only: anchor stride")
+    p.add_argument("--train_frac", type=float, default=0.7, help="full_window only")
+    p.add_argument("--val_frac", type=float, default=0.1, help="full_window only")
+    p.add_argument("--patience", type=int, default=0,
+                   help="early-stop if val doesn't improve for N epochs (0 = off)")
     p.add_argument("--smoke", action="store_true",
                    help="single epoch, 20 train batches, for quick sanity check")
     return p.parse_args()
@@ -128,22 +135,27 @@ def main() -> None:
     print(f"device: {device}", flush=True)
     print(f"region: {args.region}  decomp_mode={args.decomp_mode}  K={args.K}", flush=True)
 
+    if args.protocol == "full_window":
+        rd_cls = FullWindowRegionData
+        rd_kw = {"stride": args.stride, "train_frac": args.train_frac, "val_frac": args.val_frac}
+    else:
+        rd_cls, rd_kw = RegionData, {}
+
     tag = args.tag or f"{args.decomp_mode}_K{args.K}"
+    if args.protocol == "full_window":
+        tag = tag + "_fullwindow"
     out_dir = args.out_dir / tag / args.region
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    train_ds = MultiRegionDataset(
-        region_names=[args.region], data_dir=args.data_dir,
-        graph_dir=args.graph_dir, split="train", lazy=False,
-    )
-    val_ds = MultiRegionDataset(
-        region_names=[args.region], data_dir=args.data_dir,
-        graph_dir=args.graph_dir, split="val", lazy=False,
-    )
-    test_ds = MultiRegionDataset(
-        region_names=[args.region], data_dir=args.data_dir,
-        graph_dir=args.graph_dir, split="test", lazy=False,
-    )
+    def mk(split):
+        return MultiRegionDataset(
+            region_names=[args.region], data_dir=args.data_dir,
+            graph_dir=args.graph_dir, split=split, lazy=False,
+            region_data_cls=rd_cls, region_data_kwargs=rd_kw,
+        )
+    train_ds = mk("train")
+    val_ds = mk("val")
+    test_ds = mk("test")
     rdata = train_ds.regions[args.region]
     N = int(rdata.N)
     C_x = 3
@@ -196,6 +208,7 @@ def main() -> None:
     max_batches = 20 if args.smoke else None
 
     best_val = float("inf")
+    no_improve = 0
     log_path = out_dir / "train.log"
     history = []
     with open(log_path, "w", encoding="utf-8") as lf:
@@ -245,12 +258,18 @@ def main() -> None:
             lf.flush()
             if val["L_main"] < best_val:
                 best_val = val["L_main"]
+                no_improve = 0
                 torch.save({
                     "epoch": epoch, "model_state": model.state_dict(),
                     "val_L_main": val["L_main"], "config": vars(args),
                     "N": N, "C_x": C_x, "T_h": T_h, "T_p": T_p,
                 }, out_dir / "ckpt_best.pt")
                 print(f"    saved best", flush=True)
+            else:
+                no_improve += 1
+                if args.patience and no_improve >= args.patience:
+                    print(f"    early stop: no val improvement for {args.patience} epochs", flush=True)
+                    break
 
     if args.smoke:
         print("\nsmoke run complete (no test inference)", flush=True)

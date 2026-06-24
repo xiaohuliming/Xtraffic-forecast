@@ -25,7 +25,7 @@ import torch
 from torch.optim import Adam
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
-from dist_net.data import MultiRegionDataset, make_loader
+from dist_net.data import MultiRegionDataset, FullWindowRegionData, RegionData, make_loader
 from STAEformer import STAEformer
 
 
@@ -58,18 +58,37 @@ def main():
     p.add_argument("--weight_decay", type=float, default=1e-4)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--device", default=None)
+    p.add_argument("--protocol", choices=["event", "full_window"], default="event",
+                   help="event = event-anchored windows (samples.h5); "
+                        "full_window = standard sliding window over whole series")
+    p.add_argument("--stride", type=int, default=1, help="full_window only: anchor stride")
+    p.add_argument("--train_frac", type=float, default=0.7, help="full_window only")
+    p.add_argument("--val_frac", type=float, default=0.1, help="full_window only")
+    p.add_argument("--patience", type=int, default=0,
+                   help="early-stop if val doesn't improve for N epochs (0 = off)")
     args = p.parse_args()
 
     torch.manual_seed(args.seed)
     device = torch.device(args.device) if args.device else \
         torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    out_dir = args.out_dir / args.region
-    out_dir.mkdir(parents=True, exist_ok=True)
-    print(f"device: {device}  region: {args.region}  seed: {args.seed}", flush=True)
 
-    train_ds = MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split="train")
-    val_ds = MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split="val")
-    test_ds = MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split="test")
+    if args.protocol == "full_window":
+        rd_cls = FullWindowRegionData
+        rd_kw = {"stride": args.stride, "train_frac": args.train_frac, "val_frac": args.val_frac}
+        out_base = args.out_dir.with_name(args.out_dir.name + "_fullwindow")
+    else:
+        rd_cls, rd_kw, out_base = RegionData, {}, args.out_dir
+    out_dir = out_base / args.region
+    out_dir.mkdir(parents=True, exist_ok=True)
+    print(f"device: {device}  region: {args.region}  seed: {args.seed}  protocol: {args.protocol}",
+          flush=True)
+
+    def mk(split):
+        return MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split=split,
+                                  region_data_cls=rd_cls, region_data_kwargs=rd_kw)
+    train_ds = mk("train")
+    val_ds = mk("val")
+    test_ds = mk("test")
     rdata = train_ds.regions[args.region]
     N, T_h, T_p = int(rdata.N), int(rdata.T_h), int(rdata.T_p)
 
@@ -109,6 +128,7 @@ def main():
         return tot / max(n, 1)
 
     best = float("inf")
+    no_improve = 0
     for ep in range(1, args.epochs + 1):
         t0 = time.time()
         s, n = 0.0, 0
@@ -131,9 +151,15 @@ def main():
         print(f"==> ep{ep:02d} train L={s/max(n,1):.4f}  val L={v:.4f}  ({time.time()-t0:.0f}s)", flush=True)
         if v < best:
             best = v
+            no_improve = 0
             torch.save({"model_state": model.state_dict(), "config": vars(args),
                         "mu": mu, "sd": sd, "N": N, "T_h": T_h, "T_p": T_p}, out_dir / "ckpt_best.pt")
             print("    saved best", flush=True)
+        else:
+            no_improve += 1
+            if args.patience and no_improve >= args.patience:
+                print(f"    early stop: no val improvement for {args.patience} epochs", flush=True)
+                break
 
     print(f"\nbest val: {best:.4f}\n=== test inference ===", flush=True)
     st = torch.load(out_dir / "ckpt_best.pt", map_location=device, weights_only=False)
