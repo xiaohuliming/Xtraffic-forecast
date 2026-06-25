@@ -17,8 +17,8 @@ rgdn.py + scripts/{train_rgdn,collect_rgdn_results,diagnose_rgdn_injection}.py;s
 docs/superpowers。单种子,方向清楚(headline ~2-4σ),多种子可收紧但结论已定。
 **下一步:与老师对齐,把 RGDN 负结果 + 去季节化小增益并入 XTraffic 应用论文,或决定补多种子坐实。**
 
-下面是 RGDN 之前的主线状态(仍有效)。证据链完整,桌面有完整汇报
-`~/Desktop/XTraffic项目完整汇报_2026-06-17.md`(11 节,所有数字核自落盘)。
+下面是 RGDN 之前的主线状态(仍有效)。证据链完整,完整汇报已纳入项目根目录
+`XTraffic项目完整汇报_2026-06-17.md`(11 节,所有数字核自落盘,桌面留有同步副本)。
 **论文定位 = XTraffic 应用/复现性研究**:命题=事故标签无增益。最强证据=STAEformer
 (ICCV'23 SOTA, label-free) 在 XTraffic 上三区域 all,全部 seed 42,数据
 outputs/baselines/staeformer/{区域}/summary.json:Alameda 11.391 (aff 17.161 / unaff 11.031,
