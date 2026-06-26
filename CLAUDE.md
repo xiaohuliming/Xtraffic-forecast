@@ -44,7 +44,14 @@ FDN 三区域全部赢 GWN(-0.317/-0.182/-0.348),STAE<FDN<GWN 单调一致。注
 不在其放出的仓库里, 无法逐字重现)。代码:dist_net/data.py 的 FullWindowRegionData +
 三训练脚本 --protocol full_window;队列 scripts/run_fullwindow_queue.sh;日志 outputs/fullwindow_run.log。
 注意 full_window 下 summary.json 的 affected/unaffected=NaN(无标签按设计),只取 all。
-**仍待批准的决定性实验 (2):** STAEformer ± ICSF 标签注入,证"连最强模型加标签也零增益"。
+**决定性实验 (2) STAEformer ± ICSF 已完成 (2026-06-26, 云 5090, 事件协议 seed42 patience6):**
+把 IGSTGNN 的 ICSF 忠实移植注入最强 label-free 骨干 STAEformer 的归一化 flow 通道最后一帧,
+同窗 A/B。数据 outputs/baselines/staeformer_icsf/{区域}/{base,icsf}/summary.json:
+Alameda base 11.283 / icsf 11.309 (Δ+0.026); ContraCosta 11.968 / 11.968 (Δ+0.000);
+Orange 12.436 / 12.375 (Δ−0.061)。**三个 Δ 极小且符号混杂(一差一平一略好),最大 0.061,
+全在种子噪声带内,单种子无法与零区分 => 事故标签对最强模型也零增益,与 GWN±ICSF 一致。**
+诚实:不夸大成"加标签必然更差"。代码 scripts/train_staeformer_icsf.py(c_in=1 注入,镜像
+train_gwn_icsf.py);队列 scripts/run_staeformer_icsf_queue.sh;日志 outputs/staeformer_icsf_run.log。
 频谱路由是标注边界的分析点,不是主菜(等参数下容量占 74-80%,路由仅 0.7%)。
 
 **频谱路由的诚实结论**(经等参数消融定案,勿再夸大):基准上 FDN 赢 GWN 的旧 headline
