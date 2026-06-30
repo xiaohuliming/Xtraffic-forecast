@@ -1,0 +1,38 @@
+\begin{table}[t]
+\centering
+\caption{Gate and branch interpretability on the test split.}
+\label{tab:gate_interpretability}
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lccc}
+\toprule
+Fusion / branch setting & All MAE & Affected MAE & Unaffected MAE \\
+\midrule
+Normal baseline & 0.8328 & 1.2938 & 0.6165 \\
+Normal-style residual only & 0.8057 & 1.2478 & 0.5983 \\
+Incident-graph residual only & 0.9012 & 1.3562 & 0.6876 \\
+Fixed gate = 0.5 & 0.7442 & 1.1706 & 0.5442 \\
+Learned gate & \textbf{0.7181} & \textbf{1.1234} & \textbf{0.5279} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{Alignment between learned gate weights and locally better residual branch.}
+\label{tab:gate_selection_alignment}
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{llc}
+\toprule
+Subset & Local branch condition & Mean incident-branch gate \\
+\midrule
+All & incident branch lower error & 0.3821 \\
+All & normal-style branch lower error & 0.3528 \\
+Affected & incident branch lower error & 0.3921 \\
+Affected & normal-style branch lower error & 0.3511 \\
+Unaffected & incident branch lower error & 0.3777 \\
+Unaffected & normal-style branch lower error & 0.3535 \\
+\bottomrule
+\end{tabular}
+\end{table}

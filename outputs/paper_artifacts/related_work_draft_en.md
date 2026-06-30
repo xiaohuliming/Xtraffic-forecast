@@ -1,0 +1,29 @@
+# Related Work Draft
+
+## Spatio-Temporal Traffic Forecasting
+
+Traffic forecasting has been extensively studied as a spatio-temporal prediction problem. Classical deep forecasting models learn temporal dependencies from historical traffic sequences, while graph-based methods further incorporate road-network structure and sensor correlations. Representative spatio-temporal graph neural networks, such as DCRNN, STGCN, and Graph WaveNet, model traffic dynamics by combining temporal sequence encoders with graph convolution or adaptive adjacency learning \cite{li2018dcrnn,yu2018stgcn,wu2019graphwavenet}. These models have substantially improved regular-condition traffic forecasting, but their primary objective remains learning recurrent and spatially correlated traffic patterns from historical observations. When incidents introduce external disturbances, the future state may deviate from these regular patterns, making pure history-driven forecasting less reliable.
+
+Transformer-based and lightweight spatio-temporal models provide another line of progress. ST-TIS extends the Transformer with spatial-temporal information fusion and region sampling to reduce complexity while preserving joint spatial-temporal dependency learning \cite{li2023sttis}. Such models are attractive as normal traffic backbones because they can model complex dependencies efficiently. However, they are still mainly designed to capture regular dependencies rather than isolate incident-induced perturbations. Our framework is complementary to these backbones: a stronger traffic forecaster can be used as the normal branch, while the proposed residual branch focuses on incident impact.
+
+## Decomposition and Multi-Scale Time-Series Modeling
+
+Time-series decomposition has proven useful for separating trend, seasonality, and residual variation. FEDformer combines seasonal-trend decomposition with frequency-enhanced Transformer modules for long-term forecasting \cite{zhou2022fedformer}. MSD-Mixer further emphasizes multi-scale decomposition and sub-series modeling for time-series analysis \cite{zhong2024msdmixer}. These studies show that decomposing a complex sequence into easier-to-model components can improve forecasting quality.
+
+Our work adopts a decomposition view, but the decomposition target is different. Instead of decomposing a time series into trend and seasonality, we decompose incident-window traffic into a normal counterfactual component and an incident-induced residual. This decomposition is task-specific: the residual is not generic noise, but the traffic impact caused by an external incident. This allows the incident branch to concentrate on abnormal deviations from normal traffic dynamics.
+
+## Normal-State and Physics-Guided Traffic Modeling
+
+Another related direction is traffic state estimation and normal-state modeling. Physics-informed traffic models attempt to incorporate domain knowledge, such as traffic-flow laws, into deep learning systems. Balance and Brighten, for example, studies how physical knowledge can be better released through a twin-propeller network and distillation design for traffic state estimation \cite{jiang2025balance}. Such studies suggest that traffic prediction benefits from separating data-driven patterns from structured traffic-domain constraints.
+
+Our normal branch plays a related but distinct role. It does not explicitly solve a physics-informed estimation problem; instead, it provides a learned counterfactual reference for regular traffic. The incident branch then models the residual that cannot be explained by this normal reference. In future work, physics-informed or stronger normal-state estimators could replace the lightweight normal STGNN and further improve the counterfactual baseline.
+
+## Incident-Aware Traffic Forecasting
+
+Incident-aware traffic forecasting has recently become more feasible because datasets now align incident records with traffic time series. XTraffic provides large-scale spatio-temporally aligned traffic and incident data, enabling post-incident forecasting, incident classification, and causal analysis \cite{gou2024xtraffic}. The dataset also highlights a key challenge: traffic states do not always reveal incident type accurately, and incident categories may not directly correspond to traffic impact magnitude.
+
+IGSTGNN directly addresses incident-guided forecasting by modeling incident impact through Incident-Context Spatial Fusion and Temporal Incident Impact Decay \cite{fan2026igstgnn}. This design explicitly incorporates incident information and motivates the importance of temporal impact dissipation. Our work shares the view that incidents should be modeled as external disturbances, but differs in two ways. First, we avoid making incident type or explicit incident recognition the central supervision target. Instead, we model the latent impact as a residual from normal traffic. Second, our temporal decay head is learned as a node-level horizon gate over the residual branch, rather than imposing a fixed decay form. This makes the decay mechanism directly tied to residual correction and allows impact persistence to vary across candidate nodes and incidents.
+
+## Position of This Work
+
+The proposed method connects these directions through a normal-impact decomposition. From traffic forecasting, it inherits spatio-temporal graph modeling. From decomposition-based time-series forecasting, it borrows the idea of separating complex signals into meaningful components. From incident-aware forecasting, it treats incidents as external disturbances with spatial spread and temporal persistence. The central difference is that we define the incident effect as a latent residual mediated by a learned normal counterfactual branch. This formulation lets the model improve incident-window forecasting without relying on accurate incident-type inference or ground-truth affected-node selection at inference time.

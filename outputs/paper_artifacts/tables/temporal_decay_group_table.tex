@@ -1,0 +1,20 @@
+\begin{table}[t]
+\centering
+\small
+\caption{Temporal-decay gains by incident severity and recovery duration.}
+\label{tab:decay_groups}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lcccccc}
+\toprule
+Dimension & Group & Samples & No decay & Decay & Gain (\%) & H12 gain (\%) \\
+\midrule
+Severity & severity <= 1.557 & 9167 & 0.8539 & 0.8553 & -0.16 & -0.30 \\
+Severity & 1.557 < severity <= 2.578 & 9167 & 0.9826 & 0.9811 & 0.15 & 0.06 \\
+Severity & severity > 2.578 & 9165 & 1.3345 & 1.3206 & 1.05 & 1.22 \\
+Recovery & recovery < 30 min & 12563 & 0.9591 & 0.9572 & 0.19 & 0.27 \\
+Recovery & 30 <= recovery < 90 min & 3380 & 1.0520 & 1.0545 & -0.24 & -0.51 \\
+Recovery & recovery >= 90 min & 11556 & 1.2339 & 1.2224 & 0.94 & 1.05 \\
+\bottomrule
+\end{tabular}%
+}%
+\end{table}
