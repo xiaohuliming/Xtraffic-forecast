@@ -3,6 +3,23 @@
 详细记录见《项目总结报告_2026-06-10.md》(单一事实来源,含全部数字与出处)。
 本文件只做快速导航,新会话先读这里。
 
+## 最新进展 (2026-06-27):自适应去季节化 v0c = 连败六次后第一个架构侧真增益
+
+**新会话先读 `去季节化方向_交接_2026-06-26.md`(第三到六节)+ `XTraffic项目完整汇报_2026-06-17.md`
+第 4.8 节。** 沿去季节化深挖,诊断 v0b 害事故节点(affected +0.200,因把周期基线加回正在偏离的事故
+节点是错的),对症出 **v0c 自适应去季节化**:逐节点按近期异常幅度 r 在周期基线与 persistence(末帧观测)
+间选锚点,α=exp(−relu(r−r0)/τ),正常节点 α≈1 精确退化回 v0b,事故节点 α→0 锚当前水平,残差头照常叠加。
+代码 fourier_dual_net/rgdn.py 的 AdaptiveAlpha + 单支 adaptive/const_alpha 分支,scripts/train_rgdn.py
+变体 v0c/v0d。**结果(seeds 42/1/2 均值,等参数 +2 参,label-free):Alameda v0c 11.452 vs v0b 11.681
+(−0.229,≈2.9σ,逐种子零重叠);ContraCosta v0c 12.297 vs v0b 12.453(−0.157,零重叠)。** 消融 v0d 常数
+混合拿一半(−0.122),自适应异常加权再拿一半(−0.108),两块都真实。诊断 α_aff≈0.81<α_unaff≈0.89,真分化、
+非退化门控。效率:v0c 用 1/5 参数在 Alameda 逼近 STAEformer(11.391)。数据 outputs/diagnostics/
+adaptive_deseason_results.txt + outputs/rgdn/{区域}/。**待办:Orange v0b/v0c 在云 5090 跑(~12h,看门狗自动
+关机);STAEformer+框架代码已写好 scripts/train_staeformer_deseason.py 待跑(预判去季节那半在有 time emb 的
+STAEformer 上蒸发,持续锚那半可能留);正式配对显著性需拉 700MB/跑 npz。** 远端:seetacloud autodl,
+connect.westd.seetacloud.com:21065 root,密码每迁移变;208 核,单跑只用 18% GPU,故多跑并发(GPU→96%)。
+下面是更早的历史状态(仍有效)。
+
 ## 最新交接 (2026-06-26):两个决定性实验已关账,转入"去季节化"新方向
 
 **新会话先读 `去季节化方向_交接_2026-06-26.md`。** 两个决定性实验已完成并提交:全滑窗 9 宫格
