@@ -80,3 +80,25 @@ BOTTOM LINE
   ~half) + anomaly-adaptive persistence weighting (v0c-v0d, ~other half). Affected nodes help more
   than unaffected in both regions, matching the project thesis (periodic prior handles the bulk,
   the hard part is incident deviation). Orange (3rd region, ~12h) still to run.
+
+================================================================================
+ORANGE (3rd region) 2026-06-30, v0b vs v0c, seeds 42/1/2 -> THREE-REGION COMPLETE
+================================================================================
+  v0b  all 12.744  aff 18.527  unaff 12.461
+  v0c  all 12.495  aff 18.024  unaff 12.225
+  Delta all -0.249  aff -0.503  unaff -0.237
+  per-seed v0c (12.490-12.501) all below v0b (12.724-12.755): zero overlap, largest gap yet.
+  alpha diag: a_aff 0.83 < a_unaff 0.90; r0 ~0.02 (collapsed like Alameda), tau ~4.3.
+  vs STAEformer Orange 12.500: v0c 12.495 slightly ahead, with ~1/6 the params (325k vs 2.01M).
+
+THREE-REGION SUMMARY (v0c adaptive de-seasonalization vs v0b plain de-seasonalization, all-MAE means)
+  region        v0b     v0c     delta
+  Alameda     11.681  11.452   -0.229
+  ContraCosta 12.453  12.297   -0.157
+  Orange      12.744  12.495   -0.249
+  v0c wins 3/3 regions, every region clean multi-seed with zero per-seed overlap, equiparam,
+  label-free. affected improves more than unaffected in all three (Alameda -0.407, CC -0.310,
+  Orange -0.503), matching the thesis that the hard part is incident deviation.
+  vs STAEformer (all-MAE): Alameda v0c 11.452 / STAE 11.391; CC 12.297 / 12.116; Orange 12.495
+  / 12.500. v0c ties or edges STAEformer on 2 of 3 (Alameda within noise, Orange ahead),
+  behind on CC, using ~1/5 to 1/6 the parameters.

@@ -39,11 +39,13 @@ unchanged; only the anchor moves. `alpha = 1` reduces exactly to plain de-season
 |---|---:|---:|---:|
 | Alameda | 11.681 | **11.452** | −0.229 |
 | Contra Costa | 12.453 | **12.297** | −0.157 |
+| Orange | 12.744 | **12.495** | −0.249 |
 
-Seeds 42/1/2 means, equiparam single GraphWaveNet (+2 params), zero per-seed overlap.
-An ablation splits the gain ~half global persistence blend, ~half adaptive anomaly
-weighting. v0c reaches within noise of STAEformer on Alameda using one fifth the
-parameters. Third region (Orange) and a STAEformer-backbone version are in progress.
+Seeds 42/1/2 means, equiparam single GraphWaveNet (+2 params), **3/3 regions, zero per-seed
+overlap in every region**. An ablation splits the gain ~half global persistence blend,
+~half adaptive anomaly weighting. v0c ties or edges STAEformer on Alameda and Orange (within
+noise / slightly ahead) using one fifth to one sixth the parameters, and trails it on Contra
+Costa. A STAEformer-backbone version is in progress.
 
 ## Full report
 
