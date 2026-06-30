@@ -1,12 +1,13 @@
 # XTraffic 交通流量预测研究 — 项目状态与约定
 
-详细记录见《项目总结报告_2026-06-10.md》(单一事实来源,含全部数字与出处)。
+详细记录见《XTraffic项目完整汇报.md》(唯一权威报告与进度文档,含全部数字与出处)。
+旧档《项目总结报告_2026-06-10》与《去季节化方向_交接_2026-06-26》已并入并归档到 docs/archive/。
 本文件只做快速导航,新会话先读这里。
 
 ## 最新进展 (2026-06-27):自适应去季节化 v0c = 连败六次后第一个架构侧真增益
 
-**新会话先读 `去季节化方向_交接_2026-06-26.md`(第三到六节)+ `XTraffic项目完整汇报_2026-06-17.md`
-第 4.8 节。** 沿去季节化深挖,诊断 v0b 害事故节点(affected +0.200,因把周期基线加回正在偏离的事故
+**新会话先读 `XTraffic项目完整汇报.md` 第 4.8 节(自适应去季节化 v0c)与第十二部分(数据现实与设计决策)。**
+沿去季节化深挖,诊断 v0b 害事故节点(affected +0.200,因把周期基线加回正在偏离的事故
 节点是错的),对症出 **v0c 自适应去季节化**:逐节点按近期异常幅度 r 在周期基线与 persistence(末帧观测)
 间选锚点,α=exp(−relu(r−r0)/τ),正常节点 α≈1 精确退化回 v0b,事故节点 α→0 锚当前水平,残差头照常叠加。
 代码 fourier_dual_net/rgdn.py 的 AdaptiveAlpha + 单支 adaptive/const_alpha 分支,scripts/train_rgdn.py
@@ -22,7 +23,7 @@ connect.westd.seetacloud.com:21065 root,密码每迁移变;208 核,单跑只用 
 
 ## 最新交接 (2026-06-26):两个决定性实验已关账,转入"去季节化"新方向
 
-**新会话先读 `去季节化方向_交接_2026-06-26.md`。** 两个决定性实验已完成并提交:全滑窗 9 宫格
+**详见 `XTraffic项目完整汇报.md`(旧交接档已归档 docs/archive)。** 两个决定性实验已完成并提交:全滑窗 9 宫格
 (三模型全胜 IGSTGNN 主表)+ STAEformer±ICSF(零增益)。当前转入去季节化方向:用户选自适应机制
 + holiday(in-data,天气暂不外接),先 Alameda 多种子等参数跑真信号。去季节化唯一已知信号=v0b 比
 v0a all −0.100(单种子,affected +0.200/unaffected −0.119)。详细决策/设计/下一步全在交接文件。
@@ -43,7 +44,7 @@ docs/superpowers。单种子,方向清楚(headline ~2-4σ),多种子可收紧但
 **下一步:与老师对齐,把 RGDN 负结果 + 去季节化小增益并入 XTraffic 应用论文,或决定补多种子坐实。**
 
 下面是 RGDN 之前的主线状态(仍有效)。证据链完整,完整汇报已纳入项目根目录
-`XTraffic项目完整汇报_2026-06-17.md`(11 节,所有数字核自落盘,桌面留有同步副本)。
+`XTraffic项目完整汇报.md`(所有数字核自落盘)。
 **论文定位 = XTraffic 应用/复现性研究**:命题=事故标签无增益。最强证据=STAEformer
 (ICCV'23 SOTA, label-free) 在 XTraffic 上三区域 all,全部 seed 42,数据
 outputs/baselines/staeformer/{区域}/summary.json:Alameda 11.391 (aff 17.161 / unaff 11.031,
@@ -122,7 +123,8 @@ train_gwn_icsf.py);队列 scripts/run_staeformer_icsf_queue.sh;日志 outputs/st
 
 ## 关键文件
 
-- 项目总结报告_2026-06-10.md — 全部结果、13 节审计实验、14 节最新决策
+- XTraffic项目完整汇报.md — 唯一权威报告,全部结果、审计实验、决策、v0c 自适应去季节化
+- docs/archive/ — 旧档项目总结报告_2026-06-10 与去季节化方向_交接_2026-06-26,已并入主报告仅作历史保留
 - scripts/train_fourier_dual_net.py / train_graphwavenet.py / train_stid.py /
   train_gwn_icsf.py — 四个训练脚本,产物 schema 相同
 - scripts/significance_tests.py / incident_type_breakdown.py / diagnose_fdn_failures.py
