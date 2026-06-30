@@ -1,77 +1,99 @@
 # Xtraffic-forecast
 
-Traffic forecasting on the XTraffic 2023 California dataset (Alameda, Contra Costa, Orange).
-Headline method: **FourierDualNet (FDN)** — an FFT-decomposed dual-branch GraphWaveNet
-that splits the historical flow into a low-frequency *Main* component and a
-high-frequency *Pert* component, runs a dedicated backbone on each, and sums the
-two predictions. The model never reads incident labels.
+A reproducibility and application study on **XTraffic 2023** (California mainline sensors:
+Alameda 521 nodes, Contra Costa 496, Orange 990; 12-step → 12-step flow forecasting at
+5-minute granularity). XTraffic is the largest public incident-annotated traffic dataset,
+released to support **incident-aware** forecasting.
 
-This repo also vendors the head-to-head baselines:
-- `baselines/GraphWaveNet/` — single-branch reference.
-- `baselines/IGSTGNN/` — KDD'26 incident-aware SOTA (with our **dataloader threading-bug fix**;
-  see *Notes* below).
+## Main finding: incident labels give no measurable gain
 
-## Results
+On XTraffic, using incident labels does **not** improve flow forecasting. Any label-free
+model — from our lightweight FourierDualNet to the community-standard SOTA STAEformer —
+matches or clearly beats the incident-aware model IGSTGNN that uses the full label set.
 
-| Setting | Region | Model | Needs labels | MAE all ↓ | MAE affected ↓ | MAE unaffected ↓ |
-|---|---|---|:-:|---:|---:|---:|
-| B | Alameda | GraphWaveNet | No | 12.40 | 18.23 | 12.04 |
-| B | Alameda | **FourierDualNet (learnable)** | **No** | **11.98** | **17.76** | **11.62** |
-| A | Alameda | IGSTGNN (bug-fixed) | Yes | 13.07 | 19.19 | 12.63 |
-| A | Alameda | **FourierDualNet (matched-window)** | **No** | **12.30** | **17.90** | **11.89** |
-| B | ContraCosta | GraphWaveNet | No | 13.45 | 19.77 | 13.14 |
-| B | ContraCosta | **FourierDualNet (learnable)** | **No** | **13.13** | 19.57 | **12.82** |
-| A | ContraCosta | IGSTGNN (bug-fixed) | Yes | 13.72 | 19.78 | 13.31 |
-| A | ContraCosta | FourierDualNet (matched-window) | No | 13.75 | 19.92 | 13.33 |
-| B | Orange | GraphWaveNet | No | 13.01 | **18.21** | 12.76 |
-| B | Orange | **FourierDualNet (learnable)** | **No** | **13.00** | 18.28 | **12.74** |
-| A | Orange | IGSTGNN (bug-fixed) | Yes | 13.77 | 19.14 | 13.47 |
-| A | Orange | **FourierDualNet (matched-window)** | **No** | **13.30** | **18.30** | **13.02** |
+Strongest evidence: **STAEformer (ICCV'23, label-free) beats incident-aware IGSTGNN on all
+three regions**, all below IGSTGNN's own reported numbers, and faithfully porting IGSTGNN's
+incident module (ICSF) into both GraphWaveNet and STAEformer yields **zero gain**.
 
-**Setting B** = no incident labels (deployment-friendly), evaluated on the full FDN test set.
-**Setting A** = incident labels available, evaluated on the *intersection* of IGSTGNN and FDN
-prediction windows so the two models predict the same 12-step future.
-FDN never reads incident labels in either setting — the only difference is the eval window.
+| Region | STAEformer (no labels) | IGSTGNN self-reported (uses labels) |
+|---|---:|---:|
+| Alameda | **11.391** | 12.69 |
+| Contra Costa | **12.116** | 13.43 |
+| Orange | **12.500** | 13.13 |
 
-Full tables: [outputs/setting_a_artifacts/master_comparison_table.md](outputs/setting_a_artifacts/master_comparison_table.md).
+## Positive result: adaptive de-seasonalization (v0c)
+
+Sustained digging on the decomposition direction produced the project's first clean,
+reproducible, equiparameter, multi-seed, **label-free** architectural gain after six failed
+enhancement attempts.
+
+De-seasonalization predicts only the deviation from a cached climatology baseline and adds
+the baseline back. Its weakness is incident nodes: the future baseline assumes a return to
+the periodic norm, which is wrong while an incident persists. **v0c** fixes this with a
+per-node, per-step weight `alpha = exp(-relu(r - r0) / tau)` from the recent residual
+magnitude `r`: normal nodes keep the periodic baseline as their anchor, incident nodes
+switch the anchor toward persistence (the last observed level). The residual head is
+unchanged; only the anchor moves. `alpha = 1` reduces exactly to plain de-seasonalization.
+
+| Region | v0b plain de-season | v0c adaptive | Δ |
+|---|---:|---:|---:|
+| Alameda | 11.681 | **11.452** | −0.229 |
+| Contra Costa | 12.453 | **12.297** | −0.157 |
+
+Seeds 42/1/2 means, equiparam single GraphWaveNet (+2 params), zero per-seed overlap.
+An ablation splits the gain ~half global persistence blend, ~half adaptive anomaly
+weighting. v0c reaches within noise of STAEformer on Alameda using one fifth the
+parameters. Third region (Orange) and a STAEformer-backbone version are in progress.
+
+## Full report
+
+**[XTraffic项目完整汇报.md](XTraffic项目完整汇报.md)** is the single authoritative report and
+progress doc — full narrative, every number with its on-disk source, evolution path, the
+IGSTGNN audit, honest publishability assessment, and next steps. Superseded docs are kept
+under `docs/archive/`.
 
 ## Repo layout
 
 ```
-fourier_dual_net/        FDN model (FFT decomp + 2 GraphWaveNet backbones, optional cross-attn + conditioned mask)
-dist_net/                Earlier dual-branch design (kept for reference and ablation)
+fourier_dual_net/   FDN (FFT decomposition + 2 GraphWaveNet backbones) and rgdn.py
+                    (de-seasonalization + AdaptiveAlpha: v0a/v0b/v0c/v0d variants)
+dist_net/           event-anchored + full-window data pipeline (region cache, loaders)
 baselines/
-  GraphWaveNet/          single-branch GraphWaveNet
-  IGSTGNN/               vendored KDD'26 IGSTGNN with our dataloader bug-fix
-scripts/                 training, evaluation, plotting, and data-prep scripts
-docs/                    design docs
-outputs/                 result tables, plots, and breakdown JSONs (no raw predictions — see Data)
+  GraphWaveNet/     single-branch GraphWaveNet
+  STAEformer/       vendored ICCV'23 STAEformer (strongest label-free baseline)
+  IGSTGNN/          vendored KDD'26 IGSTGNN with our dataloader threading-bug fix
+scripts/            training, evaluation, plotting, and data-prep scripts
+tests/              model and de-seasonalization unit tests
+docs/               design docs; docs/archive/ holds superseded progress docs
+outputs/            result tables, diagnostics, and paper artifacts (no raw predictions)
 ```
+
+## Key scripts
+
+- `scripts/build_full_county_cache.py` — build the h5 flow cache and climatology baseline.
+- `scripts/train_rgdn.py` — de-seasonalization variants (v0a raw, v0b de-season, v0c adaptive,
+  v0d const-alpha, plus the older RGDN dual-branch variants).
+- `scripts/train_staeformer_xtraffic.py` / `scripts/train_staeformer_deseason.py` — STAEformer
+  baseline and the de-seasonalization wrapper around it (backbone-agnostic test).
+- `scripts/train_fourier_dual_net.py` / `scripts/train_graphwavenet.py` — FDN and GWN.
+- `scripts/significance_tests.py` — paired significance and seed noise bands.
 
 ## Data
 
-Raw XTraffic h5 caches, model checkpoints, and full `test_predictions.npz` arrays are not in
-this repo (totals ~3.6 GB of NPZ + 14 GB of converted IGSTGNN data). The pipeline can regenerate
-all of them:
-
-1. `scripts/build_full_county_cache.py` — build the h5 flow cache for a county.
-2. `scripts/train_fourier_dual_net.py` — train FDN; defaults match the numbers in this README.
-3. `scripts/train_graphwavenet.py` — train the single-branch baseline.
-4. `scripts/build_igstgnn_data_from_h5.py` — adapter to convert our h5 cache into the
-   dict-format IGSTGNN expects.
-5. `scripts/build_paper_artifacts.py` + `scripts/build_setting_a_artifacts.py` +
-   `scripts/build_final_master_table.py` — regenerate the markdown tables under `outputs/`.
+Raw XTraffic h5 caches, climatology baselines, model checkpoints, and full
+`test_predictions.npz` arrays are not in this repo (multiple GB). The pipeline regenerates
+them from the scripts above; defaults match the numbers in the full report.
 
 ## Notes on the IGSTGNN baseline
 
-Our reported IGSTGNN numbers use IGSTGNN's official code with a one-line fix to
+Our IGSTGNN numbers use IGSTGNN's official code with a one-line fix to
 `src/utils/dataloader.py`: the per-thread inner loop indexes `batch_samples[i-start_idx]`,
-which collapses every thread's view of the batch to the first `chunk_size` samples. With
+collapsing every thread's view of the batch to the first `chunk_size` samples. With
 `batch_size=48` and `num_threads=24`, the effective batch was 2 unique samples repeated 24×.
-The correct index is `batch_samples[i]`. After the fix, MAE improves by 0.28 / 0.65 on
-Alameda / ContraCosta. Diff is in `baselines/IGSTGNN/src/utils/dataloader.py`.
+The correct index is `batch_samples[i]`. All our comparisons use the fixed version, which is
+the setting most favorable to IGSTGNN.
 
 ## License
 
-The FDN code, scripts, and result artifacts in this repo are released under the same terms
-as the underlying baselines. The IGSTGNN vendor copy keeps its original `LICENSE`.
+The FDN code, scripts, and result artifacts in this repo are released under the same terms as
+the underlying baselines. Vendored baselines keep their original licenses.
