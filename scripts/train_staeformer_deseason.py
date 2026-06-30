@@ -1,9 +1,18 @@
 #!/usr/bin/env python3
-"""Train RGDN variants on one XTraffic region. Same pipeline / masked-MAE / npz schema
-as train_staeformer_xtraffic.py so numbers compare directly to FDN/GWN/STAEformer.
+"""STAEformer + adaptive de-seasonalization wrapper (route B, backbone-agnostic test).
 
-Variants: v0a single GWN raw | v0b single GWN de-seasonalized | v1 RGDN |
-v2 RGDN no-inject | v3 dual main-gcn-on | v4 RGDN no-deseason.
+Swaps the GWN backbone of the RGDN de-seasonalization framework for STAEformer to
+test whether the v0c gain transfers to the strongest label-free backbone. Variants:
+  s0a  raw STAEformer (= existing baseline, control)
+  s0b  + de-seasonalization (predict deviation from cache climatology, add baseline back)
+  s0c  + adaptive alpha (anchor = alpha*baseline + (1-alpha)*persistence, alpha from
+        recent residual magnitude)  <- the key one
+  s0d  + constant alpha (learned scalar blend, no r-dependence; ablation)
+
+Channel 0 of the STAEformer input is the de-seasonalized residual; tod/dow channels are
+kept so STAEformer's time embeddings still fire (this is the point: does de-season help
+a backbone that ALREADY has time embeddings?). Same masked-MAE / artifact schema as
+train_staeformer_xtraffic.py so numbers compare directly to the GWN-based v0a-d.
 """
 from __future__ import annotations
 import argparse
@@ -14,39 +23,72 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "baselines" / "GraphWaveNet"))
+sys.path.insert(0, str(ROOT / "baselines" / "STAEformer"))
 
 import numpy as np
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import Adam
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from dist_net.data import MultiRegionDataset, make_loader
-from fourier_dual_net.rgdn import RGDN
+from fourier_dual_net.rgdn import AdaptiveAlpha
 from fourier_dual_net.deseason import train_residual_std
+from STAEformer import STAEformer
 
 VARIANTS = {
-    "v0a": dict(deseason=False, dual=False, main_gcn=False, inject=False),
-    "v0b": dict(deseason=True,  dual=False, main_gcn=False, inject=False),
-    "v0c": dict(deseason=True,  dual=False, main_gcn=False, inject=False, adaptive=True),
-    "v0d": dict(deseason=True,  dual=False, main_gcn=False, inject=False, const_alpha=True),
-    "v1":  dict(deseason=True,  dual=True,  main_gcn=False, inject=True),
-    "v2":  dict(deseason=True,  dual=True,  main_gcn=False, inject=False),
-    "v3":  dict(deseason=True,  dual=True,  main_gcn=True,  inject=False),
-    "v4":  dict(deseason=False, dual=True,  main_gcn=False, inject=True),
-    "v1g": dict(deseason=True,  dual=True,  main_gcn=False, inject=True, inject_gate=True),
+    "s0a": dict(deseason=False, adaptive=False, const_alpha=False),
+    "s0b": dict(deseason=True,  adaptive=False, const_alpha=False),
+    "s0c": dict(deseason=True,  adaptive=True,  const_alpha=False),
+    "s0d": dict(deseason=True,  adaptive=False, const_alpha=True),
 }
 
 
-def build_adj_supports(edge_index, N, device):
-    A = np.zeros((N, N), dtype=np.float32)
-    A[edge_index[0], edge_index[1]] = 1.0
-    np.fill_diagonal(A, 1.0)
-    deg = A.sum(axis=1)
-    deg_inv = np.where(deg > 0, 1.0 / deg, 0.0)
-    return [torch.from_numpy(deg_inv[:, None] * A).to(device),
-            torch.from_numpy(deg_inv[:, None] * A.T).to(device)]
+class STAEformerDeseason(nn.Module):
+    def __init__(self, N, T_h, T_p, deseason=True, adaptive=False, const_alpha=False):
+        super().__init__()
+        self.deseason = bool(deseason)
+        self.adaptive = bool(adaptive) and self.deseason
+        self.const_alpha = bool(const_alpha) and self.deseason and not self.adaptive
+        self.backbone = STAEformer(num_nodes=N, in_steps=T_h, out_steps=T_p,
+                                   steps_per_day=288, input_dim=1, output_dim=1)
+        self.register_buffer("sd_res", torch.tensor(1.0))
+        self.register_buffer("flow_mu", torch.tensor(0.0))
+        self.register_buffer("flow_sd", torch.tensor(1.0))
+        self.last_alpha = None
+        if self.adaptive:
+            self.alpha_mod = AdaptiveAlpha()
+        if self.const_alpha:
+            self.alpha_logit = nn.Parameter(torch.tensor(2.2))   # sigmoid ~ 0.90 init
+
+    def forward(self, flow_hist, x_baseline, y_baseline, time_feat):
+        # flow_hist (B,N,T_h); x_baseline (B,N,T_h); y_baseline (B,N,T_p); time_feat (B,T_h,2)
+        B, N, T_h = flow_hist.shape
+        if self.deseason:
+            sig = (flow_hist - x_baseline) / self.sd_res
+        else:
+            sig = (flow_hist - self.flow_mu) / self.flow_sd
+        tod = time_feat[:, :, 0].unsqueeze(-1).expand(B, T_h, N)
+        dow = (time_feat[:, :, 1] * 7.0).round().clamp(0, 6).unsqueeze(-1).expand(B, T_h, N)
+        x = torch.stack([sig.permute(0, 2, 1), tod, dow], dim=-1)        # (B,T_h,N,3)
+        out = self.backbone(x).squeeze(-1).permute(0, 2, 1)             # (B,N,T_p)
+        if not self.deseason:
+            return out * self.flow_sd + self.flow_mu
+        if self.adaptive:
+            r = (flow_hist - x_baseline).abs().mean(dim=2) / self.sd_res
+            alpha = self.alpha_mod(r)
+            self.last_alpha = alpha.detach()
+            persist = flow_hist[:, :, -1:]
+            anchor = alpha.unsqueeze(-1) * y_baseline + (1.0 - alpha).unsqueeze(-1) * persist
+            return anchor + out * self.sd_res
+        if self.const_alpha:
+            alpha = torch.sigmoid(self.alpha_logit)
+            self.last_alpha = alpha.detach().expand(B, N)
+            persist = flow_hist[:, :, -1:]
+            anchor = alpha * y_baseline + (1.0 - alpha) * persist
+            return anchor + out * self.sd_res
+        return y_baseline + out * self.sd_res
 
 
 def masked_mae(pred, target, mask):
@@ -54,53 +96,21 @@ def masked_mae(pred, target, mask):
     return ((pred - target).abs() * mask).sum() / mask.sum().clamp(min=1.0)
 
 
-def make_model(variant, N, supports, T_h, T_p, device, args):
-    return RGDN(N, supports, T_h, T_p, device=device,
-                nhid_single=args.nhid_single, nhid_main=args.nhid_main,
-                nhid_res=args.nhid_res, c_inject=args.c_inject, dropout=args.dropout,
-                **VARIANTS[variant]).to(device)
-
-
-def train_stats(rdata, T_h, T_p):
-    flows = rdata.flow_series[:, :, 0]
-    fmask = rdata.flow_mask[:, :, 0].astype(bool)
-    tr_ss = rdata.sample_start[rdata.split == 0]
-    hi = int(tr_ss.max()) + T_h + T_p
-    seg, segm = flows[:hi], fmask[:hi]
-    mu, sd = float(seg[segm].mean()), float(seg[segm].std() + 1e-6)
-    sd_res = train_residual_std(rdata.flow_series, rdata.flow_mask,
-                                rdata.baseline_median, rdata.day_kind, rdata.tod, hi, ch=0)
-    return mu, sd, sd_res
-
-
-def forward_batch(model, batch, device):
-    x_hist = batch["x_hist"].to(device)
-    x_base = batch["x_baseline"].to(device)
-    y_base = batch["y_baseline"].to(device)
-    tf = batch["time_feat"].to(device)
-    return model(x_hist, x_base, y_base, tf)
-
-
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--region", default="Alameda", choices=["Alameda", "ContraCosta", "Orange"])
+    p.add_argument("--region", required=True, choices=["Alameda", "ContraCosta", "Orange"])
     p.add_argument("--variant", required=True, choices=list(VARIANTS))
     p.add_argument("--data_dir", default="outputs/dist_net/region_data")
     p.add_argument("--graph_dir", default="outputs/region_graphs")
-    p.add_argument("--out_dir", type=Path, default=Path("outputs/rgdn"))
+    p.add_argument("--out_dir", type=Path, default=Path("outputs/baselines/staeformer_deseason"))
     p.add_argument("--epochs", type=int, default=30)
     p.add_argument("--batch_size", type=int, default=16)
     p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--weight_decay", type=float, default=1e-4)
-    p.add_argument("--nhid_single", type=int, default=32)
-    p.add_argument("--nhid_main", type=int, default=24)   # param-matched: V1=308,660 vs single P=315,648 (-2.2%)
-    p.add_argument("--nhid_res", type=int, default=22)
-    p.add_argument("--c_inject", type=int, default=4)
-    p.add_argument("--dropout", type=float, default=0.3)
     p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--num_workers", type=int, default=8)
+    p.add_argument("--num_workers", type=int, default=0)
     p.add_argument("--device", default=None)
-    p.add_argument("--smoke", action="store_true", help="build all variants, print params, 1 fwd/bwd, exit")
+    p.add_argument("--smoke", action="store_true")
     args = p.parse_args()
 
     torch.manual_seed(args.seed)
@@ -111,22 +121,39 @@ def main():
     train_ds = MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split="train")
     rdata = train_ds.regions[args.region]
     N, T_h, T_p = int(rdata.N), int(rdata.T_h), int(rdata.T_p)
-    supports = build_adj_supports(rdata.edge_index, N, device)
-    mu, sd, sd_res = train_stats(rdata, T_h, T_p)
+
+    flows = rdata.flow_series[:, :, 0]
+    fmask = rdata.flow_mask[:, :, 0].astype(bool)
+    tr_ss = rdata.sample_start[rdata.split == 0]
+    hi = int(tr_ss.max()) + T_h + T_p
+    seg, segm = flows[:hi], fmask[:hi]
+    mu, sd = float(seg[segm].mean()), float(seg[segm].std() + 1e-6)
+    sd_res = train_residual_std(rdata.flow_series, rdata.flow_mask,
+                                rdata.baseline_median, rdata.day_kind, rdata.tod, hi, ch=0)
     print(f"N={N} T_h={T_h} T_p={T_p} flow mu={mu:.2f} sd={sd:.2f} sd_res={sd_res:.3f}", flush=True)
 
+    def make_model(variant):
+        m = STAEformerDeseason(N, T_h, T_p, **VARIANTS[variant]).to(device)
+        m.sd_res.fill_(sd_res); m.flow_mu.fill_(mu); m.flow_sd.fill_(sd)
+        return m
+
+    def forward_batch(model, batch):
+        flow_hist = batch["x_hist"][..., 0].to(device)          # (B,N,T_h)
+        x_base = batch["x_baseline"][..., 0].to(device)         # (B,N,T_h)
+        y_base = batch["y_baseline"][..., 0].to(device)         # (B,N,T_p)
+        tf = batch["time_feat"].to(device)                      # (B,T_h,2)
+        return model(flow_hist, x_base, y_base, tf)             # (B,N,T_p)
+
     if args.smoke:
-        sample = make_loader(train_ds, batch_size=4, shuffle=False)
-        batch = next(iter(sample))
-        assert batch["x_baseline"].shape == batch["x_hist"].shape, "x_baseline shape mismatch"
+        loader = make_loader(train_ds, batch_size=4, shuffle=False)
+        batch = next(iter(loader))
         for v in VARIANTS:
-            m = make_model(v, N, supports, T_h, T_p, device, args)
-            m.sd_res.fill_(sd_res); m.flow_mu.fill_(mu); m.flow_sd.fill_(sd)
-            nparam = sum(q.numel() for q in m.parameters() if q.requires_grad)
-            y = forward_batch(m, batch, device)
+            m = make_model(v)
+            np_ = sum(q.numel() for q in m.parameters() if q.requires_grad)
+            y = forward_batch(m, batch)
             loss = masked_mae(y, batch["y_true"][..., 0].to(device), batch["y_mask"][..., 0].to(device))
             loss.backward()
-            print(f"  {v:4s} params={nparam:,} out={tuple(y.shape)} loss={loss.item():.3f} "
+            print(f"  {v} params={np_:,} out={tuple(y.shape)} loss={loss.item():.3f} "
                   f"finite={bool(torch.isfinite(y).all())}", flush=True)
         print("SMOKE_OK", flush=True)
         return
@@ -136,18 +163,15 @@ def main():
     out_dir = args.out_dir / args.region / f"{args.variant}_seed{args.seed}"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    model = make_model(args.variant, N, supports, T_h, T_p, device, args)
-    model.sd_res.fill_(sd_res); model.flow_mu.fill_(mu); model.flow_sd.fill_(sd)
+    model = make_model(args.variant)
     nparam = sum(q.numel() for q in model.parameters() if q.requires_grad)
     print(f"variant {args.variant} params={nparam:,}", flush=True)
 
     opt = Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     train_loader = make_loader(train_ds, batch_size=args.batch_size, shuffle=True, seed=args.seed,
                                num_workers=args.num_workers)
-    val_loader = make_loader(val_ds, batch_size=args.batch_size, shuffle=False,
-                             num_workers=args.num_workers)
-    test_loader = make_loader(test_ds, batch_size=args.batch_size, shuffle=False,
-                              num_workers=args.num_workers)
+    val_loader = make_loader(val_ds, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
+    test_loader = make_loader(test_ds, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
     nb = (len(train_ds) + args.batch_size - 1) // args.batch_size
     sched = CosineAnnealingLR(opt, T_max=max(args.epochs, 1) * max(nb, 1), eta_min=args.lr * 1e-2)
 
@@ -155,7 +179,7 @@ def main():
         model.eval(); tot, n = 0.0, 0
         with torch.no_grad():
             for batch in loader:
-                y = forward_batch(model, batch, device)
+                y = forward_batch(model, batch)
                 t = batch["y_true"][..., 0].to(device); msk = batch["y_mask"][..., 0].to(device)
                 tot += float(masked_mae(y, t, msk).item()) * y.size(0); n += y.size(0)
         model.train(); return tot / max(n, 1)
@@ -164,7 +188,7 @@ def main():
     for ep in range(1, args.epochs + 1):
         t0 = time.time(); s, n = 0.0, 0
         for batch in train_loader:
-            y = forward_batch(model, batch, device)
+            y = forward_batch(model, batch)
             t = batch["y_true"][..., 0].to(device); msk = batch["y_mask"][..., 0].to(device)
             loss = masked_mae(y, t, msk)
             opt.zero_grad(set_to_none=True); loss.backward()
@@ -187,29 +211,20 @@ def main():
     actual_flow = np.empty((S, T_p, N), dtype=np.float32)
     y_mask_flow = np.empty((S, T_p, N), dtype=bool)
     affected = np.empty((S, N), dtype=bool)
-    sample_start = np.empty((S,), dtype=np.int64)
-    region_code = np.empty((S,), dtype=np.int64)
     alpha_all = np.empty((S, N), dtype=np.float32) if (model.adaptive or model.const_alpha) else None
     cursor = 0
     with torch.no_grad():
         for batch in test_loader:
-            y = forward_batch(model, batch, device).permute(0, 2, 1).cpu().numpy()   # (B,T_p,N)
+            y = forward_batch(model, batch).permute(0, 2, 1).cpu().numpy()    # (B,T_p,N)
             bs = y.shape[0]
             pred_flow[cursor:cursor + bs] = y
             actual_flow[cursor:cursor + bs] = batch["y_true"][..., 0].permute(0, 2, 1).numpy()
             y_mask_flow[cursor:cursor + bs] = batch["y_mask"][..., 0].permute(0, 2, 1).numpy()
             affected[cursor:cursor + bs] = batch["affected_mask"].numpy()
-            sample_start[cursor:cursor + bs] = batch["sample_start"].numpy()
-            region_code[cursor:cursor + bs] = batch["region_code"].numpy()
             if alpha_all is not None:
                 alpha_all[cursor:cursor + bs] = model.last_alpha.cpu().numpy()
             cursor += bs
 
-    np.savez_compressed(out_dir / "test_predictions.npz",
-                        region_code=region_code, sample_start=sample_start,
-                        region_node_idx=rdata.region_idx.astype(np.int64),
-                        pred_raw_flow=pred_flow, actual_future_flow=actual_flow,
-                        y_mask_flow=y_mask_flow, affected_mask=affected)
     diff = np.abs(pred_flow - actual_flow)
     aff3 = np.broadcast_to(affected[:, None, :], (S, T_p, N))
     res = {"all": float(diff[y_mask_flow].mean()),
@@ -217,19 +232,14 @@ def main():
            "unaffected": float(diff[y_mask_flow & ~aff3].mean()),
            "best_val": best, "seed": args.seed, "variant": args.variant, "params": nparam}
     if alpha_all is not None:
-        a_aff = float(alpha_all[affected].mean()) if affected.any() else float("nan")
-        a_unaff = float(alpha_all[~affected].mean()) if (~affected).any() else float("nan")
-        res["alpha_affected"] = a_aff
-        res["alpha_unaffected"] = a_unaff
+        res["alpha_affected"] = float(alpha_all[affected].mean()) if affected.any() else float("nan")
+        res["alpha_unaffected"] = float(alpha_all[~affected].mean()) if (~affected).any() else float("nan")
         if model.adaptive:
             res["alpha_r0"] = float(model.alpha_mod.r0.item())
             res["alpha_tau"] = float(F.softplus(model.alpha_mod.raw_tau).item() + 1e-3)
-            print(f"alpha: affected={a_aff:.3f} unaffected={a_unaff:.3f} "
-                  f"r0={res['alpha_r0']:.3f} tau={res['alpha_tau']:.3f}", flush=True)
         elif model.const_alpha:
             res["alpha_const"] = float(torch.sigmoid(model.alpha_logit).item())
-            print(f"alpha(const): {res['alpha_const']:.3f} "
-                  f"(affected={a_aff:.3f} unaffected={a_unaff:.3f})", flush=True)
+        print(f"alpha: aff={res['alpha_affected']:.3f} unaff={res['alpha_unaffected']:.3f}", flush=True)
     print(f"\ntest MAE all={res['all']:.3f} affected={res['affected']:.3f} "
           f"unaffected={res['unaffected']:.3f}", flush=True)
     (out_dir / "summary.json").write_text(json.dumps(res, indent=2))

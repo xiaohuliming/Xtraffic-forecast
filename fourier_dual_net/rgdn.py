@@ -6,6 +6,10 @@ the network predicts only the standardized deviation. Variants are flag-driven:
   dual:     two branches (else single GWN baseline)
   main_gcn: main branch uses graph conv (else node-local TCN)
   inject:   feed neighbor-residual summary into the main branch
+  adaptive: single-branch only; per-node alpha from recent residual magnitude blends
+            the future climatology anchor with persistence (route B). alpha->1 on
+            normal nodes recovers v0b exactly; alpha->0 on anomalous nodes anchors on
+            the current level instead of the wrong periodic baseline.
 """
 from __future__ import annotations
 
@@ -45,22 +49,48 @@ class InjectionGraphConv(nn.Module):
         return self.proj(summary.unsqueeze(1))                      # (B,c_out,N,T)
 
 
+class AdaptiveAlpha(nn.Module):
+    """Per-node anchor weight from recent residual magnitude. Physically grounded,
+    near-degenerate-proof: only (r0, tau) learnable, and alpha is pinned to 1 below r0.
+
+    alpha = exp(-relu(r - r0) / tau), r = mean_t |flow-baseline| / sd_res  (B,N).
+    relu pins alpha=1 exactly for normal nodes (r<=r0), so the unaffected gain is
+    untouched; only genuinely anomalous nodes (r>r0) drop alpha toward persistence.
+    """
+
+    def __init__(self, r0_init: float = 1.5, tau_init: float = 1.0):
+        super().__init__()
+        self.r0 = nn.Parameter(torch.tensor(float(r0_init)))
+        self.raw_tau = nn.Parameter(torch.tensor(float(tau_init)))
+
+    def forward(self, r: torch.Tensor) -> torch.Tensor:
+        tau = F.softplus(self.raw_tau) + 1e-3
+        return torch.exp(-F.relu(r - self.r0) / tau)              # (B,N) in (0,1]
+
+
 class RGDN(nn.Module):
     def __init__(self, num_nodes, supports, T_h, T_p, device=None,
                  deseason=True, dual=True, main_gcn=False, inject=True, inject_gate=False,
+                 adaptive=False, const_alpha=False,
                  nhid_single=32, nhid_main=26, nhid_res=22, c_inject=4, dropout=0.3):
         super().__init__()
         self.deseason = bool(deseason)
         self.dual = bool(dual)
         self.inject = bool(inject) and self.dual
         self.use_inject_gate = bool(inject_gate) and self.inject
+        self.adaptive = bool(adaptive) and self.deseason and not self.dual
+        self.const_alpha = bool(const_alpha) and self.deseason and not self.dual and not self.adaptive
         self.T_p = T_p
         self.register_buffer("sd_res", torch.tensor(1.0))
         self.register_buffer("flow_mu", torch.tensor(0.0))
         self.register_buffer("flow_sd", torch.tensor(1.0))
+        self.last_alpha = None                                    # diagnostic: (B,N) detached
 
         if not self.dual:
             self.single = _make_gwn(num_nodes, supports, device, 1, T_p, nhid_single, True, dropout)
+            self.alpha_mod = AdaptiveAlpha() if self.adaptive else None
+            if self.const_alpha:
+                self.alpha_logit = nn.Parameter(torch.tensor(2.2))   # sigmoid ~ 0.90 init
             return
 
         self.inject_mod = InjectionGraphConv(num_nodes, c_out=c_inject) if self.inject else None
@@ -88,6 +118,20 @@ class RGDN(nn.Module):
 
         if not self.dual:
             out = self._from_gwnet(self.single(self._to_gwnet(sig.unsqueeze(-1))))
+            if self.adaptive:
+                r = (flow - x_baseline[..., 0]).abs().mean(dim=2) / self.sd_res    # (B,N)
+                alpha = self.alpha_mod(r)                                          # (B,N)
+                self.last_alpha = alpha.detach()
+                persist = flow[:, :, -1:]                                          # (B,N,1) last obs
+                anchor = (alpha.unsqueeze(-1) * y_baseline[..., 0]
+                          + (1.0 - alpha).unsqueeze(-1) * persist)                 # (B,N,T_p)
+                return anchor + out * self.sd_res
+            if self.const_alpha:
+                alpha = torch.sigmoid(self.alpha_logit)                            # scalar
+                self.last_alpha = alpha.detach().expand(flow.shape[0], flow.shape[1])
+                persist = flow[:, :, -1:]
+                anchor = alpha * y_baseline[..., 0] + (1.0 - alpha) * persist      # (B,N,T_p)
+                return anchor + out * self.sd_res
             return self._reseason(out, y_baseline)
 
         B, N, T_h = sig.shape

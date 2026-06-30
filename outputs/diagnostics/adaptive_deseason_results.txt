@@ -1,0 +1,82 @@
+Route B adaptive de-seasonalization (v0c) vs fixed-baseline de-seasonalization (v0b)
+Region=Alameda, seeds 42/1/2, masked MAE, param-matched single GWN (v0b 315,648 / v0c 315,650)
+Run 2026-06-26 cloud 5090 (seetacloud, 6 jobs concurrent), epochs 30 best-val, num_workers 0.
+Noise band (seed std) reference = 0.080 (outputs/diagnostics/seed_noise_band.txt).
+
+per-seed test MAE
+variant seed   all   affected unaffected  best_val
+v0b      42  11.721   17.681   11.350     11.900
+v0b       1  11.638   17.592   11.268     11.911
+v0b       2  11.685   17.627   11.315     11.882
+v0c      42  11.467   17.241   11.108     11.526
+v0c       1  11.456   17.240   11.096     11.537
+v0c       2  11.432   17.198   11.073     11.491
+
+means
+          all    affected unaffected
+v0b     11.681   17.633   11.311
+v0c     11.452   17.226   11.092
+delta   -0.229   -0.407   -0.219   (v0c - v0b, negative = improvement)
+
+paired delta on 'all' per seed: -0.254 / -0.182 / -0.253  (mean -0.230, std 0.041, n=3)
+  every v0c seed (11.43-11.47) is below every v0b seed (11.64-11.72): zero overlap.
+  -0.229 mean vs 0.080 noise band ~= 2.9 sigma. paired t ~ -9.7 (df=2).
+  control check: new v0b seed42 11.721 == round1 v0b 11.711 (pipeline reproduces).
+
+alpha diagnostic (v0c)
+  seed42: alpha_affected 0.814  alpha_unaffected 0.892  r0 0.038  tau 4.01
+  seed1 : alpha_affected 0.813  alpha_unaffected 0.891  r0 0.033  tau 4.02
+  seed2 : alpha_affected 0.814  alpha_unaffected 0.891  r0 0.030  tau 4.05
+
+interpretation (HONEST)
+1. v0c is a clean, reproducible, equiparam, multi-seed WIN over v0b. First architecture-side
+   gain in the project after 6 straight enhancement failures. It is label-free.
+2. alpha DOES differentiate by anomaly: lower on affected (0.81) than unaffected (0.89), as
+   designed. So the mechanism is not a degenerate constant gate (unlike the D3/v1g traps).
+3. BUT the optimizer overrode the relu pin: r0 collapsed from init 1.5 to ~0.03 and tau grew
+   from 1.0 to ~4.0. So alpha = exp(-r/4) applies to ALL nodes, not just anomalous ones; even
+   normal nodes get ~11% persistence mixed into the anchor (alpha~0.89). The learned solution
+   is a GLOBAL persistence-blend that leans harder on persistence for anomalous nodes, not the
+   restricted "leave normal nodes at alpha=1" design. It generalized to a better solution.
+4. Consequence / caveat: an unknown share of the -0.229 may come from the global persistence
+   blend (a known residual/persistence-hybrid idea) rather than the anomaly-specific weighting.
+   The affected-vs-unaffected alpha gap (0.81 vs 0.89) is modest. Next ablation should
+   disentangle: a CONSTANT-alpha variant (learned scalar blend of baseline+persistence, no
+   r-dependence). If constant-alpha captures most of -0.229, the adaptive part is minor; if
+   adaptive clearly beats constant, the anomaly weighting is the real lever.
+
+next steps
+  A. constant-alpha ablation on Alameda (disentangle global blend vs anomaly weighting)
+  B. extend v0c vs v0b to ContraCosta + Orange, seeds 42/1/2 + significance_tests.py
+  C. optional: holiday-aware baseline on top (small, ~3% of days)
+
+================================================================================
+CONFIRM MATRIX 2026-06-27 (Alameda v0d ablation + ContraCosta v0b/v0c), seeds 42/1/2
+================================================================================
+
+ABLATION on Alameda (disentangle global persistence-blend vs anomaly-weighting):
+  v0b (no blend)              all 11.681  aff 17.633  unaff 11.311
+  v0d (CONSTANT alpha blend)  all 11.559  aff 17.428  unaff 11.194   alpha_const ~0.886
+  v0c (ADAPTIVE alpha)        all 11.452  aff 17.226  unaff 11.092
+  v0d - v0b all = -0.122   (the global constant persistence-blend captures ~half of v0c gain)
+  v0c - v0d all = -0.108   (anomaly-weighting adds another clean ~half ON TOP of v0d)
+  v0c - v0b all = -0.230
+  per-seed: v0c (11.432-11.467) all below v0d (11.552-11.567) all below v0b (11.638-11.721),
+            zero overlap at every step. The -0.230 splits ~half/half: constant blend -0.122,
+            adaptive anomaly-weighting -0.108. BOTH components are real and additive.
+
+GENERALIZATION to ContraCosta (does v0c beat v0b in a 2nd region?):
+  v0b   all 12.453  aff 18.733  unaff 12.144
+  v0c   all 12.297  aff 18.422  unaff 11.995
+  Delta all -0.157  aff -0.310  unaff -0.149
+  per-seed v0c (12.213-12.347) all below v0b (12.398-12.526): zero overlap, clean.
+  alpha diag: a_aff 0.853-0.859 < a_unaff 0.919-0.923; r0 ~0.45 (did NOT collapse to 0 like
+  Alameda's ~0.03), tau ~3.67. So on CC the relu pin partly held: normal nodes (r<0.45) stay
+  alpha=1, blend is more targeted. Regional difference in how alpha specializes, same net win.
+
+BOTTOM LINE
+  v0c (adaptive de-seasonalization) wins on 2/2 regions, clean multi-seed, equiparam, label-free.
+  Mechanism is decomposed and honest: de-seasonalization (v0b) + constant persistence-blend (v0d,
+  ~half) + anomaly-adaptive persistence weighting (v0c-v0d, ~other half). Affected nodes help more
+  than unaffected in both regions, matching the project thesis (periodic prior handles the bulk,
+  the hard part is incident deviation). Orange (3rd region, ~12h) still to run.
