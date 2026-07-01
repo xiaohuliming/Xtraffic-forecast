@@ -1,0 +1,29 @@
+RAD-GMixer (Regime-Adaptive Decomposition Graph Mixer), Alameda seeds 42/1/2, hidden=128,
+flow-only, label-free, GWN-free. Run 2026-07-01 cloud 5090. Same protocol as v0b/v0c/GWN.
+
+variant                  all     affected unaffected  params
+rad_v0 (no graph)        12.570  19.050   12.162      24,897
+rad_v1 (+local road)     12.486  18.994   12.081      74,433
+  graph effect rad_v1-rad_v0 = -0.083 (local road graph helps but tiny)
+
+comparison (same event-anchored protocol):
+  RAD rad_v1     12.486   (+1.034 vs GWN-v0c 11.452, +0.805 vs v0b 11.681)
+  RFN-v0 qov     12.288
+  GWN-raw v0a    11.811
+  v0b deseason   11.681
+  v0c adaptive   11.452   <- best in family
+  STAEformer     11.391
+
+CONCLUSION: RAD-GMixer is a clean NEGATIVE. It is the WEAKEST model tried -- worse than even the
+node-local RFN-v0 TCN (+0.28), far from GWN-v0c (+1.03). The multi-scale direct-linear temporal
+mixer (DLinear-style pooled+linear) is weaker than a causal TCN; it loses temporal detail and
+lands near pure-baseline level (anchor + a residual head too weak to help). affected is terrible
+(19.0 vs v0c 17.2). The constrained local road graph helps only -0.083, nowhere near GWN's
+adaptive graph (~0.5). Third confirmation that GWN's dilated-TCN + adaptive-graph is genuinely
+strong and NOT replaceable by a lightweight independent backbone.
+
+IMPLICATION: the v0c regime-adaptive-decomposition mechanism is real but BACKBONE-DEPENDENT -- it
+needs a strong backbone (GWN) to shine; lightweight independent backbones (RFN TCN, RAD mixer)
+cannot match GWN. The "independent new main model" bet (RFN, RAD) has failed twice. Consolidate
+around v0c (GWN + adaptive de-seasonalization) as the paper's contribution: a lightweight
+label-free mechanism that improves a strong backbone, framed honestly as backbone-dependent.
