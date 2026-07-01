@@ -1,0 +1,38 @@
+RegimeFlowNet RFN-v0, Alameda, seeds 42/1/2, masked MAE, de-seasonalized node-local
+multi-scale causal TCN. rfn_flow = flow residual only; rfn_qov = q/o/v residuals + deltas.
+Run 2026-06-30 cloud 5090 (seetacloud, fresh instance), epochs 30 best-val, num_workers 0.
+
+=== nhid=64 (~45k params) ===
+variant   all     affected unaffected  params
+rfn_flow  12.366  18.677   11.973      44,876
+rfn_qov   12.288  18.504   11.901      45,132
+  qov - flow (all) = -0.078, per-seed zero overlap (qov 12.284-12.291 < flow 12.362-12.369).
+
+interpretation
+1. qov HELPS: speed+occupancy as input cleanly improve flow prediction by 0.078. The premise
+   that speed/occupancy carry useful signal beyond flow is validated, small but clean.
+2. BUT RFN-v0 absolute level is far behind GWN-based models (same event-anchored protocol):
+   STAEformer 11.391 / v0c 11.452 / v0b 11.681 / GWN-raw 11.811 vs rfn_qov 12.288.
+   rfn_qov is +0.61 worse than plain de-season GWN (v0b), +0.84 worse than v0c. affected
+   especially weak (18.5 vs v0c 17.2) -- no graph, no regime gate.
+3. The node-local TCN is a weak backbone; the architecture deficit (+0.6) dwarfs the qov gain.
+
+=== nhid=176 (~321k params, GWN-matched) DONE 2026-07-01 ===
+variant   all     affected unaffected  params
+rfn_flow  12.350  18.645   11.959      320,508
+rfn_qov   12.204  18.363   11.821      321,212
+  qov - flow (all) = -0.146 (bigger than the 45k -0.078 -> qov helps MORE at higher capacity).
+
+CONCLUSION: capacity ruled out, the gap is ARCHITECTURAL.
+  Scaling params 7x (45k->321k): rfn_flow 12.366->12.350 (-0.016, negligible), rfn_qov
+  12.288->12.204 (-0.084). At matched params rfn_qov 12.204 is STILL +0.393 behind GWN-raw
+  (11.811) and +0.523 behind v0b de-season (11.681). Adding parameters does not close the gap
+  -> the node-local TCN with no graph is fundamentally weaker than GWN's graph-based spatial
+  modeling. GWN's graph is worth ~0.4-0.5 here; params cannot substitute for it.
+  Also: qov is validated and scales (-0.146 at matched params).
+
+IMPLICATION: RFN's next rung must be the GRAPH (v2 directed lagged road transition), not more
+capacity. But the climb is steep and honest: even a graph that fully matches GWN only reaches
+~11.8, then RFN needs de-season/regime/qov stacked to reach v0c (11.452) / STAEformer (11.391).
+Decision point: build v2 road graph (pivotal test: does the directed-lagged road graph close the
+~0.5 gap to GWN?), or graft the validated qov idea onto the GWN backbone instead.
