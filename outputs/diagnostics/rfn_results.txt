@@ -36,3 +36,24 @@ capacity. But the climb is steep and honest: even a graph that fully matches GWN
 ~11.8, then RFN needs de-season/regime/qov stacked to reach v0c (11.452) / STAEformer (11.391).
 Decision point: build v2 road graph (pivotal test: does the directed-lagged road graph close the
 ~0.5 gap to GWN?), or graft the validated qov idea onto the GWN backbone instead.
+
+================================================================================
+qov ON THE STRONG GWN BACKBONE (v0e = v0c+qov, v0f = v0b+qov), Alameda 42/1/2, 2026-07-01
+================================================================================
+  v0b (deseason)     all 11.681
+  v0f (v0b + qov)    all 11.753   (+0.072 WORSE than v0b)
+  v0c (adaptive)     all 11.452
+  v0e (v0c + qov)    all 11.525   (+0.073 WORSE than v0c)
+  STAEformer         all 11.391   (v0e is +0.134 behind)
+  v0e per-seed 11.512/11.526/11.536 (all above v0c's 11.432-11.467). alpha still differentiates
+  (a_aff 0.81 < a_unaff 0.89), so the adaptive mechanism is intact; qov input just hurts.
+
+CONCLUSION: qov as input HURTS on the strong GWN backbone (opposite of the weak RFN-v0 TCN where
+it helped -0.146). GWN already extracts enough from the flow channel; o/v are redundant and the
+extra input channels are used to OVERFIT -- v0e has LOWER val than v0c (11.478 vs 11.526) but
+HIGHER test (11.525 vs 11.467), a classic overfit signature. This matches the project's recurring
+law that strong label-free backbones do not benefit from add-ons (STID+routing=0, STAEformer+
+ICSF=0, now GWN+qov<0). qov's usefulness is BACKBONE-DEPENDENT: real only for a weak backbone.
+IMPLICATION: v0c (flow-only adaptive de-season) stays the headline positive result. The v0c+qov
+near-path is a clean negative. It also weakens the RFN case -- the "multivariate traffic state"
+advantage evaporates on a strong architecture, just as de-seasonalization does on STAEformer.
