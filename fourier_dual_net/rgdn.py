@@ -71,7 +71,7 @@ class AdaptiveAlpha(nn.Module):
 class RGDN(nn.Module):
     def __init__(self, num_nodes, supports, T_h, T_p, device=None,
                  deseason=True, dual=True, main_gcn=False, inject=True, inject_gate=False,
-                 adaptive=False, const_alpha=False,
+                 adaptive=False, const_alpha=False, qov_input=False,
                  nhid_single=32, nhid_main=26, nhid_res=22, c_inject=4, dropout=0.3):
         super().__init__()
         self.deseason = bool(deseason)
@@ -80,14 +80,17 @@ class RGDN(nn.Module):
         self.use_inject_gate = bool(inject_gate) and self.inject
         self.adaptive = bool(adaptive) and self.deseason and not self.dual
         self.const_alpha = bool(const_alpha) and self.deseason and not self.dual and not self.adaptive
+        self.qov_input = bool(qov_input) and self.deseason and not self.dual
         self.T_p = T_p
         self.register_buffer("sd_res", torch.tensor(1.0))
+        self.register_buffer("sd_qov", torch.ones(3))             # per-channel q/o/v residual std
         self.register_buffer("flow_mu", torch.tensor(0.0))
         self.register_buffer("flow_sd", torch.tensor(1.0))
         self.last_alpha = None                                    # diagnostic: (B,N) detached
 
         if not self.dual:
-            self.single = _make_gwn(num_nodes, supports, device, 1, T_p, nhid_single, True, dropout)
+            in_dim = 3 if self.qov_input else 1
+            self.single = _make_gwn(num_nodes, supports, device, in_dim, T_p, nhid_single, True, dropout)
             self.alpha_mod = AdaptiveAlpha() if self.adaptive else None
             if self.const_alpha:
                 self.alpha_logit = nn.Parameter(torch.tensor(2.2))   # sigmoid ~ 0.90 init
@@ -117,7 +120,11 @@ class RGDN(nn.Module):
             sig = (flow - self.flow_mu) / self.flow_sd
 
         if not self.dual:
-            out = self._from_gwnet(self.single(self._to_gwnet(sig.unsqueeze(-1))))
+            if self.qov_input:
+                sig_in = (x_hist - x_baseline) / self.sd_qov.view(1, 1, 1, 3)   # (B,N,T_h,3)
+            else:
+                sig_in = sig.unsqueeze(-1)                                      # (B,N,T_h,1)
+            out = self._from_gwnet(self.single(self._to_gwnet(sig_in)))
             if self.adaptive:
                 r = (flow - x_baseline[..., 0]).abs().mean(dim=2) / self.sd_res    # (B,N)
                 alpha = self.alpha_mod(r)                                          # (B,N)

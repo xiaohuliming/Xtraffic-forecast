@@ -31,6 +31,8 @@ VARIANTS = {
     "v0b": dict(deseason=True,  dual=False, main_gcn=False, inject=False),
     "v0c": dict(deseason=True,  dual=False, main_gcn=False, inject=False, adaptive=True),
     "v0d": dict(deseason=True,  dual=False, main_gcn=False, inject=False, const_alpha=True),
+    "v0e": dict(deseason=True,  dual=False, main_gcn=False, inject=False, adaptive=True, qov_input=True),
+    "v0f": dict(deseason=True,  dual=False, main_gcn=False, inject=False, qov_input=True),
     "v1":  dict(deseason=True,  dual=True,  main_gcn=False, inject=True),
     "v2":  dict(deseason=True,  dual=True,  main_gcn=False, inject=False),
     "v3":  dict(deseason=True,  dual=True,  main_gcn=True,  inject=False),
@@ -68,9 +70,10 @@ def train_stats(rdata, T_h, T_p):
     hi = int(tr_ss.max()) + T_h + T_p
     seg, segm = flows[:hi], fmask[:hi]
     mu, sd = float(seg[segm].mean()), float(seg[segm].std() + 1e-6)
-    sd_res = train_residual_std(rdata.flow_series, rdata.flow_mask,
-                                rdata.baseline_median, rdata.day_kind, rdata.tod, hi, ch=0)
-    return mu, sd, sd_res
+    sd_qov = np.array([train_residual_std(rdata.flow_series, rdata.flow_mask,
+                                          rdata.baseline_median, rdata.day_kind, rdata.tod, hi, ch=c)
+                       for c in range(3)], dtype=np.float32)
+    return mu, sd, float(sd_qov[0]), sd_qov
 
 
 def forward_batch(model, batch, device):
@@ -112,7 +115,8 @@ def main():
     rdata = train_ds.regions[args.region]
     N, T_h, T_p = int(rdata.N), int(rdata.T_h), int(rdata.T_p)
     supports = build_adj_supports(rdata.edge_index, N, device)
-    mu, sd, sd_res = train_stats(rdata, T_h, T_p)
+    mu, sd, sd_res, sd_qov = train_stats(rdata, T_h, T_p)
+    sd_qov_t = torch.from_numpy(sd_qov)
     print(f"N={N} T_h={T_h} T_p={T_p} flow mu={mu:.2f} sd={sd:.2f} sd_res={sd_res:.3f}", flush=True)
 
     if args.smoke:
@@ -122,6 +126,7 @@ def main():
         for v in VARIANTS:
             m = make_model(v, N, supports, T_h, T_p, device, args)
             m.sd_res.fill_(sd_res); m.flow_mu.fill_(mu); m.flow_sd.fill_(sd)
+            m.sd_qov.copy_(sd_qov_t.to(device))
             nparam = sum(q.numel() for q in m.parameters() if q.requires_grad)
             y = forward_batch(m, batch, device)
             loss = masked_mae(y, batch["y_true"][..., 0].to(device), batch["y_mask"][..., 0].to(device))
@@ -138,6 +143,7 @@ def main():
 
     model = make_model(args.variant, N, supports, T_h, T_p, device, args)
     model.sd_res.fill_(sd_res); model.flow_mu.fill_(mu); model.flow_sd.fill_(sd)
+    model.sd_qov.copy_(sd_qov_t.to(device))
     nparam = sum(q.numel() for q in model.parameters() if q.requires_grad)
     print(f"variant {args.variant} params={nparam:,}", flush=True)
 
