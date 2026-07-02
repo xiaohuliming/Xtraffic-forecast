@@ -9,6 +9,15 @@ test whether the v0c gain transfers to the strongest label-free backbone. Varian
         recent residual magnitude)  <- the key one
   s0d  + constant alpha (learned scalar blend, no r-dependence; ablation)
 
+RADS-O / NDR ladder (bounded bet, 2026-07-03; strict stop lines, see rads notes):
+  s0e  A0: horizon-wise gate g[n,h]=sigmoid(a_h - softplus(b_h)*d_n - softplus(c_h)*u_n),
+       no oracle supervision (ablation rung, backfill if A1 wins)
+  s0f  A1 "RADS-O": s0e + train-time oracle-gate distillation. Soft target
+       g* = |y-P|/(|y-B|+|y-P|), confidence-weighted Huber, flow-unit calibrated.
+  s0g  B "NDR-v0": s0f + dual residual heads (backbone output_dim=2): normal head on the
+       periodic anchor, disturbance head on the persistence anchor, fused by g;
+       oracle-supervised specialization loss with batch-normalized weights.
+
 Channel 0 of the STAEformer input is the de-seasonalized residual; tod/dow channels are
 kept so STAEformer's time embeddings still fire (this is the point: does de-season help
 a backbone that ALREADY has time embeddings?). Same masked-MAE / artifact schema as
@@ -42,25 +51,55 @@ VARIANTS = {
     "s0b": dict(deseason=True,  adaptive=False, const_alpha=False),
     "s0c": dict(deseason=True,  adaptive=True,  const_alpha=False),
     "s0d": dict(deseason=True,  adaptive=False, const_alpha=True),
+    "s0e": dict(deseason=True,  hgate=True,  oracle=False, dual=False),
+    "s0f": dict(deseason=True,  hgate=True,  oracle=True,  dual=False),
+    "s0g": dict(deseason=True,  hgate=True,  oracle=True,  dual=True),
 }
 
 
+class HorizonGate(nn.Module):
+    """Per-node per-horizon regime gate: g = sigmoid(a_h - softplus(b_h)*d - softplus(c_h)*u).
+    Monotone in deviation d and slope u by construction; ~3*T_p params."""
+
+    def __init__(self, T_p: int):
+        super().__init__()
+        self.a = nn.Parameter(torch.full((T_p,), 2.0))
+        self.b = nn.Parameter(torch.zeros(T_p))
+        self.c = nn.Parameter(torch.zeros(T_p))
+
+    def forward(self, d, u):                                             # d,u (B,N)
+        a = self.a.view(1, 1, -1)
+        bb = F.softplus(self.b).view(1, 1, -1)
+        cc = F.softplus(self.c).view(1, 1, -1)
+        return torch.sigmoid(a - bb * d.unsqueeze(-1) - cc * u.unsqueeze(-1))  # (B,N,T_p)
+
+
 class STAEformerDeseason(nn.Module):
-    def __init__(self, N, T_h, T_p, deseason=True, adaptive=False, const_alpha=False):
+    def __init__(self, N, T_h, T_p, deseason=True, adaptive=False, const_alpha=False,
+                 hgate=False, oracle=False, dual=False):
         super().__init__()
         self.deseason = bool(deseason)
-        self.adaptive = bool(adaptive) and self.deseason
-        self.const_alpha = bool(const_alpha) and self.deseason and not self.adaptive
+        self.hgate = bool(hgate) and self.deseason
+        self.adaptive = bool(adaptive) and self.deseason and not self.hgate
+        self.const_alpha = bool(const_alpha) and self.deseason and not self.adaptive and not self.hgate
+        self.oracle_sup = bool(oracle) and self.hgate
+        self.dual = bool(dual) and self.hgate
         self.backbone = STAEformer(num_nodes=N, in_steps=T_h, out_steps=T_p,
-                                   steps_per_day=288, input_dim=1, output_dim=1)
+                                   steps_per_day=288, input_dim=1,
+                                   output_dim=2 if self.dual else 1)
         self.register_buffer("sd_res", torch.tensor(1.0))
         self.register_buffer("flow_mu", torch.tensor(0.0))
         self.register_buffer("flow_sd", torch.tensor(1.0))
+        self.register_buffer("sd_node", torch.ones(N))          # per-node residual std (confidence)
         self.last_alpha = None
+        self.last_d = None
+        self.aux = None                                          # training-loss extras (hgate only)
         if self.adaptive:
             self.alpha_mod = AdaptiveAlpha()
         if self.const_alpha:
             self.alpha_logit = nn.Parameter(torch.tensor(2.2))   # sigmoid ~ 0.90 init
+        if self.hgate:
+            self.gate_mod = HorizonGate(T_p)
 
     def forward(self, flow_hist, x_baseline, y_baseline, time_feat):
         # flow_hist (B,N,T_h); x_baseline (B,N,T_h); y_baseline (B,N,T_p); time_feat (B,T_h,2)
@@ -72,9 +111,29 @@ class STAEformerDeseason(nn.Module):
         tod = time_feat[:, :, 0].unsqueeze(-1).expand(B, T_h, N)
         dow = (time_feat[:, :, 1] * 7.0).round().clamp(0, 6).unsqueeze(-1).expand(B, T_h, N)
         x = torch.stack([sig.permute(0, 2, 1), tod, dow], dim=-1)        # (B,T_h,N,3)
-        out = self.backbone(x).squeeze(-1).permute(0, 2, 1)             # (B,N,T_p)
+        raw = self.backbone(x)                                           # (B,T_p,N,out_dim)
         if not self.deseason:
-            return out * self.flow_sd + self.flow_mu
+            return raw.squeeze(-1).permute(0, 2, 1) * self.flow_sd + self.flow_mu
+        if self.hgate:
+            r = (flow_hist - x_baseline) / self.sd_res                   # (B,N,T_h) signed
+            d = r.abs().mean(dim=2)                                      # (B,N) deviation strength
+            u = (r[:, :, -1] - r[:, :, -2]).abs()                        # (B,N) recent slope
+            g = self.gate_mod(d, u)                                      # (B,N,T_p)
+            self.last_alpha = g.detach().mean(-1)
+            self.last_d = d.detach()
+            persist = flow_hist[:, :, -1:]                               # (B,N,1)
+            if self.dual:
+                Rn = raw[..., 0].permute(0, 2, 1)                        # (B,N,T_p)
+                Rd = raw[..., 1].permute(0, 2, 1)
+                yn = y_baseline + Rn * self.sd_res
+                yd = persist + Rd * self.sd_res
+                self.aux = {"g": g, "B": y_baseline, "P": persist, "yn": yn, "yd": yd}
+                return g * yn + (1.0 - g) * yd
+            out = raw.squeeze(-1).permute(0, 2, 1)
+            anchor = g * y_baseline + (1.0 - g) * persist
+            self.aux = {"g": g, "B": y_baseline, "P": persist}
+            return anchor + out * self.sd_res
+        out = raw.squeeze(-1).permute(0, 2, 1)                           # (B,N,T_p)
         if self.adaptive:
             r = (flow_hist - x_baseline).abs().mean(dim=2) / self.sd_res
             alpha = self.alpha_mod(r)
@@ -96,6 +155,48 @@ def masked_mae(pred, target, mask):
     return ((pred - target).abs() * mask).sum() / mask.sum().clamp(min=1.0)
 
 
+def per_node_residual_std(rdata, hi, ch=0, floor=1e-6):
+    flow = rdata.flow_series[:hi, :, ch]
+    mask = rdata.flow_mask[:hi, :, ch].astype(bool)
+    base = rdata.baseline_median[rdata.day_kind[:hi], rdata.tod[:hi]][:, :, ch]
+    res = np.where(mask, flow - base, np.nan)
+    with np.errstate(invalid="ignore"):
+        sd = np.nanstd(res, axis=0)
+    sd = np.where(np.isfinite(sd) & (sd > floor), sd, 1.0)
+    return sd.astype(np.float32)                                 # (N,)
+
+
+def compute_loss(model, y, batch, args, device):
+    """Fused MAE + (oracle-gate distillation, specialization) for the hgate variants.
+    Gate loss is flow-unit calibrated (x sd_node): without it the oracle gradient on the
+    ~36 gate params is two orders below the main-loss gradient and the supervision is inert."""
+    t = batch["y_true"][..., 0].to(device)
+    msk = batch["y_mask"][..., 0].to(device).float()
+    loss = masked_mae(y, t, msk)
+    parts = {"mae": float(loss.item())}
+    aux = model.aux
+    if aux is not None and model.oracle_sup and model.training:
+        g, Bq, P = aux["g"], aux["B"], aux["P"]
+        eB = (t - Bq).abs()
+        eP = (t - P).abs()
+        gstar = eP / (eB + eP + 1e-6)                            # y closer to B -> gstar -> 1
+        conf = ((eB - eP).abs() / (eB + eP + 1e-6)) \
+            * ((Bq - P).abs() / model.sd_node.view(1, -1, 1)).clamp(0, 1) * msk
+        huber = F.smooth_l1_loss(g, gstar, reduction="none", beta=0.25)
+        lg = (conf * model.sd_node.view(1, -1, 1) * huber).sum() / (conf.sum() + 1e-6)
+        loss = loss + args.lambda_gate * lg
+        parts["gate"] = float(lg.item())
+        if model.dual:
+            mg = (gstar * msk).sum() / (msk.sum() + 1e-6)
+            wN = gstar / (mg + 1e-6)
+            wD = (1.0 - gstar) / (1.0 - mg + 1e-6)
+            ls = ((wN * (aux["yn"] - t).abs() + wD * (aux["yd"] - t).abs()) * msk).sum() \
+                / (msk.sum() + 1e-6)
+            loss = loss + args.lambda_spec * ls
+            parts["spec"] = float(ls.item())
+    return loss, parts
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--region", required=True, choices=["Alameda", "ContraCosta", "Orange"])
@@ -109,6 +210,8 @@ def main():
     p.add_argument("--weight_decay", type=float, default=1e-4)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--num_workers", type=int, default=0)
+    p.add_argument("--lambda_gate", type=float, default=1.0)
+    p.add_argument("--lambda_spec", type=float, default=0.3)
     p.add_argument("--device", default=None)
     p.add_argument("--smoke", action="store_true")
     args = p.parse_args()
@@ -130,11 +233,13 @@ def main():
     mu, sd = float(seg[segm].mean()), float(seg[segm].std() + 1e-6)
     sd_res = train_residual_std(rdata.flow_series, rdata.flow_mask,
                                 rdata.baseline_median, rdata.day_kind, rdata.tod, hi, ch=0)
+    sd_node = per_node_residual_std(rdata, hi)
     print(f"N={N} T_h={T_h} T_p={T_p} flow mu={mu:.2f} sd={sd:.2f} sd_res={sd_res:.3f}", flush=True)
 
     def make_model(variant):
         m = STAEformerDeseason(N, T_h, T_p, **VARIANTS[variant]).to(device)
         m.sd_res.fill_(sd_res); m.flow_mu.fill_(mu); m.flow_sd.fill_(sd)
+        m.sd_node.copy_(torch.from_numpy(sd_node).to(device))
         return m
 
     def forward_batch(model, batch):
@@ -151,10 +256,10 @@ def main():
             m = make_model(v)
             np_ = sum(q.numel() for q in m.parameters() if q.requires_grad)
             y = forward_batch(m, batch)
-            loss = masked_mae(y, batch["y_true"][..., 0].to(device), batch["y_mask"][..., 0].to(device))
+            loss, parts = compute_loss(m, y, batch, args, device)
             loss.backward()
             print(f"  {v} params={np_:,} out={tuple(y.shape)} loss={loss.item():.3f} "
-                  f"finite={bool(torch.isfinite(y).all())}", flush=True)
+                  f"parts={parts} finite={bool(torch.isfinite(y).all())}", flush=True)
         print("SMOKE_OK", flush=True)
         return
 
@@ -189,8 +294,7 @@ def main():
         t0 = time.time(); s, n = 0.0, 0
         for batch in train_loader:
             y = forward_batch(model, batch)
-            t = batch["y_true"][..., 0].to(device); msk = batch["y_mask"][..., 0].to(device)
-            loss = masked_mae(y, t, msk)
+            loss, _parts = compute_loss(model, y, batch, args, device)
             opt.zero_grad(set_to_none=True); loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0)
             opt.step(); sched.step()
@@ -211,7 +315,9 @@ def main():
     actual_flow = np.empty((S, T_p, N), dtype=np.float32)
     y_mask_flow = np.empty((S, T_p, N), dtype=bool)
     affected = np.empty((S, N), dtype=bool)
-    alpha_all = np.empty((S, N), dtype=np.float32) if (model.adaptive or model.const_alpha) else None
+    alpha_all = np.empty((S, N), dtype=np.float32) \
+        if (model.adaptive or model.const_alpha or model.hgate) else None
+    d_all = np.empty((S, N), dtype=np.float32) if model.hgate else None
     cursor = 0
     with torch.no_grad():
         for batch in test_loader:
@@ -223,6 +329,8 @@ def main():
             affected[cursor:cursor + bs] = batch["affected_mask"].numpy()
             if alpha_all is not None:
                 alpha_all[cursor:cursor + bs] = model.last_alpha.cpu().numpy()
+            if d_all is not None:
+                d_all[cursor:cursor + bs] = model.last_d.cpu().numpy()
             cursor += bs
 
     diff = np.abs(pred_flow - actual_flow)
@@ -239,7 +347,26 @@ def main():
             res["alpha_tau"] = float(F.softplus(model.alpha_mod.raw_tau).item() + 1e-3)
         elif model.const_alpha:
             res["alpha_const"] = float(torch.sigmoid(model.alpha_logit).item())
+        elif model.hgate:
+            res["gate_a_mean"] = float(model.gate_mod.a.mean().item())
+            res["gate_b_sp_mean"] = float(F.softplus(model.gate_mod.b).mean().item())
+            res["gate_c_sp_mean"] = float(F.softplus(model.gate_mod.c).mean().item())
         print(f"alpha: aff={res['alpha_affected']:.3f} unaff={res['alpha_unaffected']:.3f}", flush=True)
+    if d_all is not None:
+        # deviation-bucket MAE: d is input-derived, so edges are model-independent and the
+        # same buckets can be recomputed for any baseline later for paired comparison
+        edges = np.quantile(d_all.reshape(-1), [0.2, 0.4, 0.6, 0.8])
+        d3 = np.broadcast_to(d_all[:, None, :], (S, T_p, N))
+        bmae, lo = [], -np.inf
+        for hi_edge in list(edges) + [np.inf]:
+            sel = y_mask_flow & (d3 > lo) & (d3 <= hi_edge)
+            bmae.append(float(diff[sel].mean()) if sel.any() else float("nan"))
+            lo = hi_edge
+        res["bucket_edges"] = [float(x) for x in edges]
+        res["bucket_mae"] = bmae
+        print(f"bucket MAE (low->high deviation): {[round(b,3) for b in bmae]}", flush=True)
+        np.savez_compressed(out_dir / "gate_diag.npz", d_all=d_all, gate_mean=alpha_all,
+                            affected_mask=affected)
     print(f"\ntest MAE all={res['all']:.3f} affected={res['affected']:.3f} "
           f"unaffected={res['unaffected']:.3f}", flush=True)
     (out_dir / "summary.json").write_text(json.dumps(res, indent=2))
