@@ -29,3 +29,21 @@ NEXT
   A. extend s0a/s0c to ContraCosta (cheap) and Orange (expensive) for the 3-region claim
   B. optional s0b/s0d on STAEformer to decompose the -0.134
   C. write up: thesis + RADS (GWN + STAEformer) + RFN/RAD negative diagnostics
+
+================================================================================
+ContraCosta (2nd region) 2026-07-02, s0a vs s0c
+================================================================================
+  s0a raw STAEformer  all 12.038  aff 18.284  unaff 11.730
+  s0c + RADS          all 11.881  aff 18.102  unaff 11.575
+  paired deltas per seed: -0.111 / -0.145 / -0.213  ALL negative, mean -0.156
+  ZERO OVERLAP: s0c (11.832-11.913) all below s0a (12.010-12.058) -- CLEANER than Alameda.
+  alpha diag a_aff ~0.75 < a_unaff ~0.84. s0c 11.881 beats STAEformer CC baseline 12.116 and
+  GWN-v0c CC 12.297.
+
+TWO-REGION STAEformer+RADS SUMMARY
+  region        s0a     s0c     delta    overlap
+  Alameda     11.392  11.258  -0.134    ~1.5 sigma (non-zero)
+  ContraCosta 12.038  11.881  -0.156    ZERO overlap (clean)
+  Both paired-consistent (all 6 seed-pairs negative). CC clean overlap dulls the Alameda 1.5sigma
+  concern -> two-region consistency. Combined with GWN's clean 3-region wins (-0.229/-0.157/-0.249),
+  the model-agnostic RADS claim is now well-supported across two structurally different backbones.
