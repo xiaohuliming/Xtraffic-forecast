@@ -83,3 +83,20 @@ s0g (NDR-v0 dual residual heads) PASSES -> NDR-Net EARNED, Alameda 42/1/2, 2026-
 ORANGE first pair (seed42, from the serial run, 2026-07-03): s0a 12.416 vs s0c 12.302,
 paired -0.114 NEGATIVE, direction consistent with Alameda/CC. Note single-seed detail:
 unaffected -0.126, affected +0.131 -- read after all 3 seeds land (~07-05).
+
+================================================================================
+s0e (A0 attribution) DONE -> FULL LADDER CLOSED, Alameda 42/1/2, 2026-07-03 night
+================================================================================
+  s0e  all 11.179 (per-seed 11.165/11.181/11.190)  gate learned 0.70/0.75-0.76 (main loss only)
+  ATTRIBUTION (every rung all-3-paired-negative AND zero-overlap):
+    s0a raw          11.392
+    s0c +RADS        11.258   step -0.134
+    s0e +hgate (A0)  11.179   step -0.079   (gate FORM)
+    s0f +oracle (A1) 11.115   step -0.063   (supervision; also seed spread 0.025 -> 0.009)
+    s0g +dual (B)    11.052   step -0.063   (two-regime residual heads)
+    TOTAL -0.340 vs raw STAEformer. NDR-Net = s0g, earned per naming rule.
+  Gate evolution: 0.733/0.818 (s0c) -> 0.707/0.761 (s0e) -> 0.532/0.632 (s0f/s0g, oracle-pinned).
+  Read: main-loss-only optimization undershoots the gate optimum; oracle supervision reaches it
+  and pins it across seeds. Confirms the anchor-choice bottleneck thesis end to end.
+  OPEN: NDR-Net rungs are Alameda-only; ContraCosta validation of s0e/s0f/s0g recommended
+  before the paper (one night). Orange s0a/s0c completes ~07-05.
