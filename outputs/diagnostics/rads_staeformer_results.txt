@@ -47,3 +47,20 @@ TWO-REGION STAEformer+RADS SUMMARY
   Both paired-consistent (all 6 seed-pairs negative). CC clean overlap dulls the Alameda 1.5sigma
   concern -> two-region consistency. Combined with GWN's clean 3-region wins (-0.229/-0.157/-0.249),
   the model-agnostic RADS claim is now well-supported across two structurally different backbones.
+
+================================================================================
+RADS-O (s0f = s0c + horizon gate + oracle-gate distillation), Alameda 42/1/2, 2026-07-03
+================================================================================
+  s0f  all 11.115  aff 16.849  unaff 10.759   (per-seed all: 11.110 / 11.118 / 11.119)
+  paired deltas vs s0c (11.261/11.310/11.203): -0.151 / -0.192 / -0.085  ALL negative
+  mean delta -0.143 -> STOP LINE PASSED DECISIVELY (threshold -0.06). Zero overlap.
+  Seed spread is extraordinary: 0.009 (s0c was 0.107) -- the oracle supervision pins the
+  gate to the same optimum across seeds: gate(aff/unaff)=0.532/0.632 IDENTICAL to 3 decimals
+  in all seeds; gate_b_sp~1.33 (deviation d drives it), gate_c_sp~0.01 (slope u unused).
+  vs raw STAEformer s0a 11.392: cumulative -0.277. NEW PROJECT BEST 11.115 (was 11.258).
+  affected improves too: 17.038 -> 16.849 (-0.189).
+  Mechanism read: the hand-tuned RADS alpha (0.73/0.82) was far from optimal; oracle
+  distillation moves the operating point to much heavier persistence blending (0.53/0.63)
+  and converges to it regardless of seed. Deviation-bucket MAE now logged (1.1/3.9/8.5/16.1/21.2).
+LADDER: A1 passed -> per agreed plan, rung B (s0g dual heads) is GO; s0e (A0) backfill
+for the paper ablation also pending.
