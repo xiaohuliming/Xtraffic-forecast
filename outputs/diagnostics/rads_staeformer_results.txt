@@ -100,3 +100,21 @@ s0e (A0 attribution) DONE -> FULL LADDER CLOSED, Alameda 42/1/2, 2026-07-03 nigh
   and pins it across seeds. Confirms the anchor-choice bottleneck thesis end to end.
   OPEN: NDR-Net rungs are Alameda-only; ContraCosta validation of s0e/s0f/s0g recommended
   before the paper (one night). Orange s0a/s0c completes ~07-05.
+
+================================================================================
+CC LADDER (2nd-region NDR-Net validation), ContraCosta 42/1/2, 2026-07-04
+================================================================================
+  s0a 12.038 -> s0c 11.881 (-0.156) -> s0e 11.857 (-0.024, MIXED signs: -0.019/-0.068/+0.014)
+  -> s0f 11.853 (-0.004, all-neg but ~zero) -> s0g 11.733 (-0.120, ALL NEG, ZERO OVERLAP).
+  COMPOSITE s0g vs s0c: -0.176/-0.162/-0.107, mean -0.148, zero overlap -> NDR-Net head holds
+  cross-region. End-to-end vs raw: CC -0.305 (Alameda -0.340). 11.733 = new CC best (old best
+  STAEformer 12.038 in this pipeline / 12.116 old baseline). Gate oracle-pinned 0.52/0.62 like
+  Alameda.
+  HONEST attribution nuance: per-rung contributions are REGION-DEPENDENT. On Alameda every rung
+  contributed (-0.079/-0.063/-0.063); on CC the hgate/oracle rungs are ~zero and the dual heads
+  carry -0.120. Mechanism read: oracle gate alone doesn't pay on CC, but it pins the gate that
+  the dual heads then exploit -- components synergize; the composite total is the stable claim,
+  per-component attribution varies. Paper framing: claim the composite NDR head (2-region,
+  zero-overlap); present the Alameda ladder as the attribution study; state the CC nuance.
+STAEformer-side scoreboard: Alameda raw 11.392 -> NDR 11.052; CC raw 12.038 -> NDR 11.733;
+Orange raw/RADS completing ~07-05 (NDR not run on Orange).
