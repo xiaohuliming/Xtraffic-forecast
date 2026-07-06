@@ -1,0 +1,43 @@
+P1: Can the RADS/NDR gate serve as a label-free incident detector? (analysis-only, no training)
+Data: gate_diag.npz from the Alameda ladder (s0e/s0f/s0g x seeds 42/1/2), event-anchored test
+split (9366 samples x 521 nodes, offsets 0/6/12 steps = +0/+30/+60min after event anchor),
+affected_mask as evaluation labels (NEVER used in training). Alignment verified per run via
+per-sample affected counts; d (input deviation) bit-identical across all 9 runs as expected.
+
+HEADLINE NUMBERS (mean over 3 seeds, identical across s0e/s0f/s0g to 3 decimals):
+  AUC(1-gate) = 0.683-0.685 at ALL offsets; AUC(raw deviation d) = 0.682-0.684.
+  prec@5% ~ 0.098 vs base rate 0.0475 (~2x lift).
+
+THREE FINDINGS THAT KILL THE DETECTOR CLAIM:
+  1. Gate adds NOTHING over raw d for ranking (identical AUC): u-term is unused (c_sp~0.01),
+     so gate is a monotone dressing of d; oracle training changes gate VALUES not RANKING.
+  2. NO temporal growth: AUC flat from +0min (0.682) to +60min (0.684) into the event. A real
+     event-detection signal must grow as the event unfolds; it does not.
+  3. Decisive decomposition (s0f_seed42):
+        AUC(raw d)                       0.682 / 0.684 / 0.683   (offsets 0/6/12)
+        AUC(static node identity only)   0.647 / 0.648 / 0.647
+        AUC(excess = d - node profile)   0.549 / 0.550 / 0.550
+        per-sample excess AUC @ offset12 0.523  (~chance)
+     => ~95% of the apparent detection is chronic node identity (which corridors are habitually
+     deviant); the event-dynamic component is nearly ZERO even 60 minutes into the incident.
+
+GATE VARIANCE DECOMPOSITION: between-node std 0.136 vs within-node (temporal) std 0.105
+(ratio 1.3; corr of dynamic gate with its static node profile r=0.72). The gate is ~half a
+persistent node-reliability trait, ~half genuine temporal response to flow deviations of ANY
+cause -- but that temporal half does not align with labeled incidents.
+
+VERDICT
+  - Leg 3 of the method proposal (gate as label-free incident detector, dual-task claim): DEAD.
+    Pre-registered kill line was AUC>=0.75 with temporal structure; observed 0.68 static-driven.
+  - BYPRODUCT (thesis gold): this is the most direct mechanistic evidence yet for the paper's
+    core claim. Labeled incidents are nearly invisible in flow deviations (per-sample excess
+    AUC 0.52, no signature even +60min). This EXPLAINS the whole causal chain: why label
+    injection cannot help forecasting (the labels carry no flow-dynamic information); why
+    affected-MAE is chronically high (hard corridors, not event-perturbed nodes); and what RADS
+    actually does (adapts to persistent node reliability + real-time deviations of any cause,
+    NOT incident detection). Paper should reframe the gate as a node-reliability/deviation
+    router, not a regime detector.
+  - Optional cheap ablation this suggests: static per-node learned gate (embedding only, no
+    input) vs input-adaptive gate, to price the 1.3:1 static/dynamic split.
+  - Method bet status: legs 1-2 (K-anchor bank + oracle routing for ACCURACY) unaffected but
+    now carry the method case alone (~40% prior). P2 go/no-go is now a pure advisor decision.
