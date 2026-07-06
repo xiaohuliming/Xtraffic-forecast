@@ -159,6 +159,16 @@ class RegionData:
         x_baseline_t = self.baseline_median[self.day_kind[hist_idx], self.tod[hist_idx]]  # (T_h,N,3)
         x_baseline = np.transpose(x_baseline_t, (1, 0, 2)).astype(np.float32)             # (N,T_h,3)
 
+        # Day-lag anchor: observed flow at the same clock time yesterday for each future step.
+        # Block read keeps h5 fancy-indexing legal; only first-day (train) samples clamp at 0.
+        lag_idx = np.clip(fut_idx - 288, 0, None)
+        blk_lo, blk_hi = int(lag_idx[0]), int(lag_idx[-1]) + 1
+        if self.flow_series is not None:
+            blk = self.flow_series[blk_lo:blk_hi, :, 0]
+        else:
+            blk = self._traffic_handle()["flow_series_imputed"][blk_lo:blk_hi, :, 0]
+        y_daylag = np.transpose(blk[lag_idx - blk_lo], (1, 0)).astype(np.float32)         # (N,T_p)
+
         time_enc = self.time_enc[hist_lo:hist_hi].astype(np.float32)  # (T_h, 5)
 
         # ToD / DoW normalized to [0,1] — used by FDN++ Main branch as time embedding input
@@ -184,6 +194,7 @@ class RegionData:
             "y_mask":         y_mask,                            # (N, T_p, 3) bool
             "y_baseline":     y_baseline,                        # (N, T_p, 3)
             "x_baseline":     x_baseline,                        # (N, T_h, 3)
+            "y_daylag":       y_daylag,                          # (N, T_p) flow same time yesterday
             "time_enc":       time_enc,                          # (T_h, 5)
             "time_feat":      time_feat.astype(np.float32),     # (T_h, 2) tod/288, dow/7
             "static_meta":    self.static_meta.astype(np.float32),  # (N, C_meta)

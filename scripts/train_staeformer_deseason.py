@@ -54,7 +54,39 @@ VARIANTS = {
     "s0e": dict(deseason=True,  hgate=True,  oracle=False, dual=False),
     "s0f": dict(deseason=True,  hgate=True,  oracle=True,  dual=False),
     "s0g": dict(deseason=True,  hgate=True,  oracle=True,  dual=True),
+    "s0h": dict(deseason=True,  abank=True,  oracle=True),
 }
+
+ANCHOR_NAMES = ["base", "persist", "up", "down", "decay", "daylag"]   # K=6 anchor bank (s0h)
+
+
+def build_road_graph(rdata, feat_names, K=8):
+    """Directed local road adjacency from static_meta (Fwy id, Abs PM order, direction one-hot).
+    A_up = K nearest lower-PM same-fwy-same-dir neighbors; A_down = higher-PM. Row-normalized."""
+    sm = rdata.static_meta
+    fi = {n: i for i, n in enumerate(feat_names)}
+    N = sm.shape[0]
+    fwy = sm[:, fi["Fwy"]] if "Fwy" in fi else np.zeros(N, np.float32)
+    pm = sm[:, fi["Abs PM"]] if "Abs PM" in fi else np.arange(N, dtype=np.float32)
+    dir_cols = [fi[c] for c in ("dir_N", "dir_E", "dir_S", "dir_W") if c in fi]
+    direction = sm[:, dir_cols].argmax(1) if dir_cols else np.zeros(N, np.int64)
+    A_up = np.zeros((N, N), np.float32)
+    A_down = np.zeros((N, N), np.float32)
+    groups = {}
+    for i in range(N):
+        groups.setdefault((round(float(fwy[i]), 4), int(direction[i])), []).append(i)
+    for members in groups.values():
+        idx = np.array(sorted(members, key=lambda j: pm[j]))
+        for rank, n in enumerate(idx):
+            for k in range(1, K + 1):
+                if rank - k >= 0:
+                    A_up[n, idx[rank - k]] = 1.0
+                if rank + k < len(idx):
+                    A_down[n, idx[rank + k]] = 1.0
+    for A in (A_up, A_down):
+        s = A.sum(1, keepdims=True)
+        np.divide(A, s, out=A, where=s > 0)
+    return A_up, A_down
 
 
 class HorizonGate(nn.Module):
@@ -76,13 +108,15 @@ class HorizonGate(nn.Module):
 
 class STAEformerDeseason(nn.Module):
     def __init__(self, N, T_h, T_p, deseason=True, adaptive=False, const_alpha=False,
-                 hgate=False, oracle=False, dual=False):
+                 hgate=False, oracle=False, dual=False, abank=False,
+                 road_up=None, road_down=None):
         super().__init__()
         self.deseason = bool(deseason)
-        self.hgate = bool(hgate) and self.deseason
-        self.adaptive = bool(adaptive) and self.deseason and not self.hgate
+        self.abank = bool(abank) and self.deseason
+        self.hgate = bool(hgate) and self.deseason and not self.abank
+        self.adaptive = bool(adaptive) and self.deseason and not self.hgate and not self.abank
         self.const_alpha = bool(const_alpha) and self.deseason and not self.adaptive and not self.hgate
-        self.oracle_sup = bool(oracle) and self.hgate
+        self.oracle_sup = bool(oracle) and (self.hgate or self.abank)
         self.dual = bool(dual) and self.hgate
         self.backbone = STAEformer(num_nodes=N, in_steps=T_h, out_steps=T_p,
                                    steps_per_day=288, input_dim=1,
@@ -100,8 +134,23 @@ class STAEformerDeseason(nn.Module):
             self.alpha_logit = nn.Parameter(torch.tensor(2.2))   # sigmoid ~ 0.90 init
         if self.hgate:
             self.gate_mod = HorizonGate(T_p)
+        if self.abank:
+            K = len(ANCHOR_NAMES)
+            # per-(anchor,horizon) linear-in-(d,u) router logits; oracle distillation trains it
+            w0 = torch.full((K, T_p), -0.5); w0[0] = 1.5; w0[1] = 0.5
+            wd = torch.zeros(K, T_p); wd[0] = -1.0; wd[1] = 0.3
+            self.w0 = nn.Parameter(w0)
+            self.wd = nn.Parameter(wd)
+            self.wu = nn.Parameter(torch.zeros(K, T_p))
+            self.raw_lam = nn.Parameter(torch.full((N,), 6.0))      # softplus ~ 6 steps = 30min
+            assert road_up is not None and road_down is not None
+            self.register_buffer("road_up", road_up.float())
+            self.register_buffer("road_down", road_down.float())
+            self.register_buffer("up_deg", (road_up > 0).sum(1).float())
+            self.register_buffer("down_deg", (road_down > 0).sum(1).float())
+            self.last_router = None
 
-    def forward(self, flow_hist, x_baseline, y_baseline, time_feat):
+    def forward(self, flow_hist, x_baseline, y_baseline, time_feat, y_daylag=None):
         # flow_hist (B,N,T_h); x_baseline (B,N,T_h); y_baseline (B,N,T_p); time_feat (B,T_h,2)
         B, N, T_h = flow_hist.shape
         if self.deseason:
@@ -114,6 +163,33 @@ class STAEformerDeseason(nn.Module):
         raw = self.backbone(x)                                           # (B,T_p,N,out_dim)
         if not self.deseason:
             return raw.squeeze(-1).permute(0, 2, 1) * self.flow_sd + self.flow_mu
+        if self.abank:
+            r = (flow_hist - x_baseline) / self.sd_res                   # (B,N,T_h)
+            d = r.abs().mean(dim=2)                                      # (B,N)
+            u = (r[:, :, -1] - r[:, :, -2]).abs()                        # (B,N)
+            last = flow_hist[:, :, -1]                                   # (B,N)
+            Tp = self.T_p
+            persist = last.unsqueeze(-1).expand(-1, -1, Tp)
+            up = torch.einsum("nm,bm->bn", self.road_up, last)
+            up = torch.where(self.up_deg.view(1, -1) > 0, up, last).unsqueeze(-1).expand(-1, -1, Tp)
+            down = torch.einsum("nm,bm->bn", self.road_down, last)
+            down = torch.where(self.down_deg.view(1, -1) > 0, down, last).unsqueeze(-1).expand(-1, -1, Tp)
+            lam = F.softplus(self.raw_lam) + 0.5                         # (N,) relaxation steps
+            steps = torch.arange(1, Tp + 1, device=flow_hist.device, dtype=flow_hist.dtype)
+            decay = torch.exp(-steps.view(1, 1, -1) / lam.view(1, -1, 1))            # (1,N,Tp)
+            a_decay = y_baseline + (last - x_baseline[:, :, -1]).unsqueeze(-1) * decay
+            A = torch.stack([y_baseline, persist, up, down, a_decay, y_daylag], dim=-1)  # (B,N,Tp,K)
+            logits = (self.w0.t().view(1, 1, Tp, -1)
+                      + d.unsqueeze(-1).unsqueeze(-1) * self.wd.t().view(1, 1, Tp, -1)
+                      + u.unsqueeze(-1).unsqueeze(-1) * self.wu.t().view(1, 1, Tp, -1))
+            g = torch.softmax(logits, dim=-1)                            # (B,N,Tp,K)
+            out = raw.squeeze(-1).permute(0, 2, 1)
+            yhat = (g * A).sum(-1) + out * self.sd_res
+            self.last_alpha = g[..., 0].detach().mean(-1)                # baseline-anchor weight
+            self.last_d = d.detach()
+            self.last_router = g.detach().mean(dim=2)                    # (B,N,K)
+            self.aux = {"g": g, "A": A}
+            return yhat
         if self.hgate:
             r = (flow_hist - x_baseline) / self.sd_res                   # (B,N,T_h) signed
             d = r.abs().mean(dim=2)                                      # (B,N) deviation strength
@@ -175,6 +251,19 @@ def compute_loss(model, y, batch, args, device):
     loss = masked_mae(y, t, msk)
     parts = {"mae": float(loss.item())}
     aux = model.aux
+    if aux is not None and model.oracle_sup and model.training and getattr(model, "abank", False):
+        g, A = aux["g"], aux["A"]                                # (B,N,Tp,K)
+        e = (t.unsqueeze(-1) - A).abs()
+        inv = 1.0 / (e + 0.02 * model.sd_node.view(1, -1, 1, 1))
+        gstar = inv / inv.sum(-1, keepdim=True)                  # inverse-error soft oracle
+        spread = ((e.max(-1).values - e.min(-1).values) / (e.mean(-1) + 1e-6)).clamp(0, 1)
+        arange_ = ((A.max(-1).values - A.min(-1).values) / model.sd_node.view(1, -1, 1)).clamp(0, 1)
+        conf = spread * arange_ * msk
+        huber = F.smooth_l1_loss(g, gstar, reduction="none", beta=0.25).sum(-1)
+        lg = (conf * model.sd_node.view(1, -1, 1) * huber).sum() / (conf.sum() + 1e-6)
+        loss = loss + args.lambda_gate * lg
+        parts["gate"] = float(lg.item())
+        return loss, parts
     if aux is not None and model.oracle_sup and model.training:
         g, Bq, P = aux["g"], aux["B"], aux["P"]
         eB = (t - Bq).abs()
@@ -234,10 +323,22 @@ def main():
     sd_res = train_residual_std(rdata.flow_series, rdata.flow_mask,
                                 rdata.baseline_median, rdata.day_kind, rdata.tod, hi, ch=0)
     sd_node = per_node_residual_std(rdata, hi)
+    import h5py
+    with h5py.File(Path(args.data_dir) / f"{args.region}_traffic.h5", "r") as hf:
+        feat_names = [x.decode() for x in hf.attrs["meta_feature_names"]]
     print(f"N={N} T_h={T_h} T_p={T_p} flow mu={mu:.2f} sd={sd:.2f} sd_res={sd_res:.3f}", flush=True)
 
+    road_cache = {}
+
     def make_model(variant):
-        m = STAEformerDeseason(N, T_h, T_p, **VARIANTS[variant]).to(device)
+        kw = dict(VARIANTS[variant])
+        if kw.get("abank"):
+            if "up" not in road_cache:
+                au, ad = build_road_graph(rdata, feat_names, K=8)
+                road_cache["up"], road_cache["down"] = torch.from_numpy(au), torch.from_numpy(ad)
+                print(f"road graph: up nnz={int((au > 0).sum())} down nnz={int((ad > 0).sum())}", flush=True)
+            kw["road_up"], kw["road_down"] = road_cache["up"], road_cache["down"]
+        m = STAEformerDeseason(N, T_h, T_p, **kw).to(device)
         m.sd_res.fill_(sd_res); m.flow_mu.fill_(mu); m.flow_sd.fill_(sd)
         m.sd_node.copy_(torch.from_numpy(sd_node).to(device))
         return m
@@ -247,7 +348,8 @@ def main():
         x_base = batch["x_baseline"][..., 0].to(device)         # (B,N,T_h)
         y_base = batch["y_baseline"][..., 0].to(device)         # (B,N,T_p)
         tf = batch["time_feat"].to(device)                      # (B,T_h,2)
-        return model(flow_hist, x_base, y_base, tf)             # (B,N,T_p)
+        ydl = batch["y_daylag"].to(device) if getattr(model, "abank", False) else None
+        return model(flow_hist, x_base, y_base, tf, y_daylag=ydl)   # (B,N,T_p)
 
     if args.smoke:
         loader = make_loader(train_ds, batch_size=4, shuffle=False)
@@ -316,8 +418,9 @@ def main():
     y_mask_flow = np.empty((S, T_p, N), dtype=bool)
     affected = np.empty((S, N), dtype=bool)
     alpha_all = np.empty((S, N), dtype=np.float32) \
-        if (model.adaptive or model.const_alpha or model.hgate) else None
-    d_all = np.empty((S, N), dtype=np.float32) if model.hgate else None
+        if (model.adaptive or model.const_alpha or model.hgate or model.abank) else None
+    d_all = np.empty((S, N), dtype=np.float32) if (model.hgate or model.abank) else None
+    router_all = np.empty((S, N, len(ANCHOR_NAMES)), dtype=np.float32) if model.abank else None
     cursor = 0
     with torch.no_grad():
         for batch in test_loader:
@@ -331,6 +434,8 @@ def main():
                 alpha_all[cursor:cursor + bs] = model.last_alpha.cpu().numpy()
             if d_all is not None:
                 d_all[cursor:cursor + bs] = model.last_d.cpu().numpy()
+            if router_all is not None:
+                router_all[cursor:cursor + bs] = model.last_router.cpu().numpy()
             cursor += bs
 
     diff = np.abs(pred_flow - actual_flow)
@@ -347,6 +452,12 @@ def main():
             res["alpha_tau"] = float(F.softplus(model.alpha_mod.raw_tau).item() + 1e-3)
         elif model.const_alpha:
             res["alpha_const"] = float(torch.sigmoid(model.alpha_logit).item())
+        elif model.abank:
+            for k, nm in enumerate(ANCHOR_NAMES):
+                res[f"router_{nm}_aff"] = float(router_all[..., k][affected].mean()) if affected.any() else float("nan")
+                res[f"router_{nm}_unaff"] = float(router_all[..., k][~affected].mean())
+            print("router aff/unaff: " + " ".join(
+                f"{nm}={res[f'router_{nm}_aff']:.2f}/{res[f'router_{nm}_unaff']:.2f}" for nm in ANCHOR_NAMES), flush=True)
         elif model.hgate:
             res["gate_a_mean"] = float(model.gate_mod.a.mean().item())
             res["gate_b_sp_mean"] = float(F.softplus(model.gate_mod.b).mean().item())
