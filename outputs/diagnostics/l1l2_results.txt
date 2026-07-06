@@ -1,0 +1,19 @@
+L1 (seed ensemble) + L2 (val-fitted per-node/horizon bias correction), inference-only pass.
+Alameda, s0g (NDR-Net) ckpts x seeds 42/1/2. 2026-07-06. Per-seed base MAEs reproduce the
+training summaries exactly (11.063/11.046/11.048) -> pipeline sound.
+
+L1 ENSEMBLE-3: all 10.888 (vs seed-mean 11.052: -0.164; vs best seed 11.046: -0.158)
+               aff 16.497 (-0.231 vs mean)   unaff 10.539
+  => FIRST SUB-11 NUMBER IN THE PROJECT. Pure variance reduction, zero novelty, zero training.
+  Updated headroom vs predictability floor (9~10.6): remaining winnable now ~0.3-1.9 MAE.
+
+L2 VAL-FITTED DEBIAS: NET NEGATIVE everywhere on all-MAE.
+  per-seed: +0.048 / +0.051 / +0.143; ensemble 10.888 -> 10.973 (+0.085).
+  affected improves marginally (-0.03..-0.06) but nowhere near compensating.
+  Mean |bias| fitted on val ~1.1 flow units, yet subtracting it hurts test =>
+  val-estimated per-node bias does NOT transfer to test (best-val checkpointing already
+  minimizes systematic val bias; what remains is period-specific noise, and subtracting it
+  adds variance). MECHANISTIC COROLLARY to P1: the chronically-hard corridors suffer chronic
+  VARIANCE (unpredictability), not chronic BIAS that a correction could remove. L2 is dead.
+
+Orange s0c L1/L2 running next in the chain (same box), completes ~+1.5h.
