@@ -17,3 +17,16 @@ L2 VAL-FITTED DEBIAS: NET NEGATIVE everywhere on all-MAE.
   VARIANCE (unpredictability), not chronic BIAS that a correction could remove. L2 is dead.
 
 Orange s0c L1/L2 running next in the chain (same box), completes ~+1.5h.
+
+ORANGE s0c L1/L2 (2026-07-06 evening, same inference-only pass):
+  L1 ENSEMBLE-3: all 12.022 (vs seed-mean 12.248: -0.226 -- even larger than Alameda's -0.164)
+                 aff 17.466 (vs mean 18.024? per-seed aff 17.995/17.690/17.683 -> mean 17.789; ens -0.323)
+  L2 debias: ~neutral on Orange (per-seed -0.003/-0.006/-0.017; ensemble 12.022->12.020).
+     Unlike Alameda's clear negative; either way negligible -> L2 verdict stands: dead as a lever.
+  Box 48769 shut down after completion.
+
+FINAL CHEAP-LEVER SCOREBOARD (ensemble of existing seeds, zero training):
+  Alameda: 11.392 (raw STAE) -> 11.052 (NDR mean) -> 10.888 (NDR ensemble)   total -0.504
+  Orange:  12.340 (raw mean) -> 12.248 (RADS mean) -> 12.022 (RADS ensemble) total -0.318
+  CC: NDR mean 11.733; ensemble not yet computed (s0g ckpts on box A87/wegjcc9jvq disk;
+      one 20-min box session away if wanted for the paper table).
