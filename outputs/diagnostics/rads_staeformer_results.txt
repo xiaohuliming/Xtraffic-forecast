@@ -118,3 +118,21 @@ CC LADDER (2nd-region NDR-Net validation), ContraCosta 42/1/2, 2026-07-04
   zero-overlap); present the Alameda ladder as the attribution study; state the CC nuance.
 STAEformer-side scoreboard: Alameda raw 11.392 -> NDR 11.052; CC raw 12.038 -> NDR 11.733;
 Orange raw/RADS completing ~07-05 (NDR not run on Orange).
+
+================================================================================
+ORANGE FINAL (3rd region, seed-2 completed after watchdog-race rerun), 2026-07-06
+================================================================================
+  s0a  12.340 (12.416/12.349/12.256)   s0c  12.248 (12.302/12.217/12.224)
+  paired: -0.114/-0.132/-0.031  ALL negative, mean -0.092. NOT zero-overlap.
+  affected paired mixed on seed42 (+0.131) but mean -0.064.
+  Region strength ranking on STAEformer: CC (-0.156, zero-overlap) > Alameda (-0.134, ~1.5sigma)
+  > Orange (-0.092, overlap). Direction consistent 3/3 regions.
+  NOTE: original serial run lost seed-2 to a watchdog race (60s poll caught the ~20s inter-run
+  gap of the cap-1 queue and shut the box after 4/6 runs); rerun with the fixed watchdog
+  (requires target summaries present + consecutive-zero-poll fallback) completed cleanly.
+
+=== EVIDENCE CLOSED 2026-07-06: RADS positive in all 6 backbone x region cells ===
+  GWN:        Alameda -0.229 | CC -0.157 | Orange -0.249   (all zero-overlap)
+  STAEformer: Alameda -0.134 | CC -0.156 | Orange -0.092   (all paired-negative; CC zero-overlap)
+  NDR-Net (STAEformer head): Alameda 11.052 / CC 11.733 (2 regions, composite zero-overlap)
+  Next: write the paper.
