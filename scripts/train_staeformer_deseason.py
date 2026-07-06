@@ -116,6 +116,7 @@ class STAEformerDeseason(nn.Module):
         self.hgate = bool(hgate) and self.deseason and not self.abank
         self.adaptive = bool(adaptive) and self.deseason and not self.hgate and not self.abank
         self.const_alpha = bool(const_alpha) and self.deseason and not self.adaptive and not self.hgate
+        self.T_p = T_p
         self.oracle_sup = bool(oracle) and (self.hgate or self.abank)
         self.dual = bool(dual) and self.hgate
         self.backbone = STAEformer(num_nodes=N, in_steps=T_h, out_steps=T_p,
