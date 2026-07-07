@@ -501,6 +501,7 @@ Orange 区域已于 2026-06-23 在云 5090 补齐，all 12.500，affected 18.107
 | outputs/diagnostics/adaptive_deseason_results.txt | v0c 与 v0b 与 v0d 逐种子结果、消融、三区域泛化、alpha 诊断 |
 | outputs/diagnostics/rfn_results.txt 与 rad_results.txt | 两次独立骨干负结果与 qov 骨干相关性诊断 |
 | outputs/diagnostics/rads_staeformer_results.txt | Exp1，RADS 在 STAEformer 上的迁移验证，全项目新低 11.258 |
+| docs/RADS_NDR_汇报讲稿.md | 方法线完整讲稿，机制逐层解释加数值例子加诚实定位加精确引用，可直接对外汇报 |
 | scripts/diagnose_rgdn_injection.py | 注入优化陷阱诊断 |
 | docs/superpowers/ 下 2026-06-17-rgdn 的 spec 与 plan | RGDN 设计与实现计划 |
 | scripts/significance_tests.py | 配对显著性检验 |
