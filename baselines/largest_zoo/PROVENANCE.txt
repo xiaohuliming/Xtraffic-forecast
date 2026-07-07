@@ -1,0 +1,2 @@
+Vendored from https://github.com/liuxu77/LargeST (MIT), commit b7c6ff5, 2026-07-07.
+Model implementations only; imports flattened (src.base.model -> base_model, src.utils.graph_algo -> graph_algo). No logic changes.
