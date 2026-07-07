@@ -20,7 +20,7 @@ while true; do
   if [ "$np" -eq 0 ]; then zero=$((zero+1)); else zero=0; fi
   if [ "$zero" -ge 5 ]; then echo "stalled: 5 zero-proc polls, $miss missing"; break; fi
 done
-tar czf "/root/${TAG}.tar.gz" outputs/baselines/zoo_* logs 2>/dev/null
+tar czf "/root/${TAG}.tar.gz" --exclude="*.npz" --exclude="*.pt" outputs/baselines/zoo_* logs 2>/dev/null
 for i in 1 2 3; do
   scp -o StrictHostKeyChecking=no "/root/${TAG}.tar.gz" "$RELAY:/root/xtraffic_results/" && break
   sleep 30
