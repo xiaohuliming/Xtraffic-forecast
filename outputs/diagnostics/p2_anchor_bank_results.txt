@@ -1,0 +1,24 @@
+P2 (s0h): K=6 anchor bank + generalized inverse-error oracle routing, Alameda 42/1/2, 2026-07-07.
+CLEAN NEGATIVE -- killed by the pre-registered stop line in one night, no grey zone.
+
+  s0h  all 11.756 (11.691/11.760/11.817)  aff 17.819  bucket5 22.7-23.3
+  paired vs s0f (11.110/11.118/11.119): +0.581/+0.642/+0.698, mean +0.641 -- ALL POSITIVE (worse).
+  s0h is worse than s0c (11.258) and near v0b-level; bucket 5 degraded (21.2 -> ~23).
+
+POST-MORTEM (design lessons, recorded for the paper's honesty section):
+  1. SOFT oracle over K=6 correlated anchors smears the routing: router weights are near-uniform
+     (base .22 / persist .25 / decay .22 / daylag .18 / up .06 / down .06), nearly IDENTICAL for
+     affected vs unaffected and across seeds. A blurred average of 6 anchors is a WORSE anchor
+     than s0f's decisive 2-anchor blend. The K=2 oracle worked because its target was sharp.
+  2. Neighbor LEVEL anchors are mis-specified: another road's absolute flow level is the wrong
+     magnitude for my node (lane/volume mismatch). The oracle correctly assigns them only ~6%
+     each, but the remaining smear still pollutes. A valid version would be deviation-space
+     (my baseline + neighbor's standardized residual x my sd), not level-space.
+  3. daylag raw values carry day-to-day noise that the median baseline smooths -- as an anchor it
+     adds variance more than signal (~18% weight yet performance collapsed).
+  4. Router conditioned only on (d,u) cannot learn WHICH anchor suits WHICH node.
+
+VERDICT: per the agreed one-shot bounded-bet rule, the method-innovation line is CLOSED.
+RADS-O / NDR-Net stand as the method side-dish (their evidence is untouched); the paper is an
+insight/reproducibility paper. Final experimental state: Alameda best 10.888 (NDR ensemble),
+s0h dead branch documented. All boxes shut.
