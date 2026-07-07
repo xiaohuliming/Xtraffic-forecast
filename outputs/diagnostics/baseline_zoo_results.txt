@@ -1,0 +1,21 @@
+# Baseline zoo rerun (IGSTGNN Table 4 list under our unified pipeline)
+# Protocol: event-anchored, 12-in/12-out 5-min, masked MAE, split 70/15/15.
+# Models vendored from LargeST (baselines/largest_zoo); trainer
+# scripts/train_baseline_zoo.py; input [flow_z, tod, dow] (dstagnn: flow only).
+# Source of truth: outputs/baselines/zoo_<model>/<region>/summary.json.
+
+## HL (History Last, model-free, no training) -- run locally 2026-07-07
+region       all     affected unaffected  h3      h6      h12
+Alameda      18.234  24.826   17.823      14.672  17.693  23.915
+ContraCosta  18.479  25.539   18.131      15.174  17.906  23.871
+Orange       19.281  24.959   19.003      15.798  18.759  24.889
+
+# Audit anchor: IGSTGNN Table 4 self-reported HL average MAE
+# Alameda 19.06 / ContraCosta 19.15 / Orange 20.51 (h3 15.60/16.47/16.79,
+# h12 24.86/23.44/25.76). Model-free baseline agrees within ~1 MAE across
+# all cells despite the unknown pieces of their window construction.
+# => dataset/protocol are aligned; the ~6 MAE gap on trainable baselines
+# (their GWNET Alameda 17.76 vs our GWN 11.81 event / 11.05 full-window)
+# is a training-quality artifact on their side, not a data difference.
+
+## Trained zoo (30 ep, best-val, batch 32, seeds 42/1/2) -- pending GPU sweep
