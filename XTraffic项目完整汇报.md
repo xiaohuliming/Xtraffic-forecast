@@ -462,7 +462,7 @@ Orange 区域已于 2026-06-23 在云 5090 补齐，all 12.500，affected 18.107
 
 真正还能主张的新颖点只有两处，其一是 oracle 门控蒸馏，用未来真值构造软目标监督门控，未检索到完全一致的，但本质是预测组合与门控的一个变体，其二是系统的骨干无关跨骨干跨区域即插即用验证，两个结构完全不同的骨干乘三区域，这个验证的系统性比机制本身更有分量。
 
-战略含义与既定定位一致，不是坏消息。作为纯方法论文卖，新颖性薄且有并发工作，审稿人会拿上述几篇质疑，风险高。作为复现与应用论文里的建设性配菜卖则完全成立，主命题是事故标签无增益这个反证，RADS 与 NDR 只是标签没用但从流量识别状态有用的正面例证，机制是否首创不影响该论点。写作动作，related work 主动且诚实地引用上述近似工作，把贡献表述为在事故标签无增益命题下的一个轻量可解释即插即用状态重组层，而非全新机制。参考线索，Williams 自适应季节交通模型，交通 regime-switching 与变点检测预测，2025 trend-event 双通道解耦交通预测，STWave 与 AAAI 2025 趋势季节分解网络。
+战略含义与既定定位一致，不是坏消息。作为纯方法论文卖，新颖性薄且有并发工作，审稿人会拿上述几篇质疑，风险高。作为复现与应用论文里的建设性配菜卖则完全成立，主命题是事故标签无增益这个反证，RADS 与 NDR 只是标签没用但从流量识别状态有用的正面例证，机制是否首创不影响该论点。写作动作，related work 主动且诚实地引用上述近似工作，把贡献表述为在事故标签无增益命题下的一个轻量可解释即插即用状态重组层，而非全新机制。精确引用，写 related work 时以全文为准。其一 STWave，When Spatio-Temporal Meet Wavelets: Disentangled Traffic Forecasting via Efficient Spectral Graph Attention Networks，ICDE 2023，Fang 等，用小波把交通解耦为稳定趋势与波动事件两通道各自建模再融合，是与 NDR 正常扰动双头概念最接近的先行工作。其二 STDN，Spatiotemporal-aware Trend-Seasonality Decomposition Network for Traffic Flow Forecasting，AAAI 2025 第 39 卷 11463 至 11471 页，Cao 等，在网络内部对每节点做趋势与季节分解。其三 HyperD，Hybrid Periodicity Decoupling Framework for Traffic Forecasting，arXiv 2511.09275，2025 预印本，周期与残差双支解耦。另有经典线，Williams 自适应季节交通模型，交通 threshold autoregression 即 regime-switching 预测，电网 adaptive seasonal persistence 专利。与 NDR 的区别要在论文里写清，上述工作都是在输入侧做信号分解后双通道处理，NDR 是共享编码器在输出侧做锚定双头,加训练期 oracle 门控蒸馏与跨骨干即插即用验证,后两者未检索到先例。
 
 ---
 
