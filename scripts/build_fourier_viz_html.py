@@ -17,7 +17,7 @@ def rfft_split(x, k_low):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--region", default="Alameda")
-    p.add_argument("--data_dir", default="outputs/dist_net/region_data")
+    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v2_noleak")
     p.add_argument("--out", default="outputs/fourier_test/fourier_viz.html")
     p.add_argument("--n_examples", type=int, default=4)
     p.add_argument("--n_agg", type=int, default=400)

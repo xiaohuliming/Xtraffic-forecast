@@ -1,5 +1,7 @@
 # RGDN 去季节化残差引导双支网络 Implementation Plan
 
+> 归档说明：该计划已执行完毕，仅用于追溯历史实现。运行环境和凭据约定已失效，不得按本文直接连接远程机器。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 实现 RGDN 并在参数对齐下跑通 V0a/V0b/V1/V2 决定性消融,回答"去季节化加残差引导的非对称双支,能否在等参数下超过单 GWN"。
@@ -16,9 +18,8 @@
 
 - 本地 Mac:有 numpy,无 torch、无 h5py。纯 numpy 文件可本地跑 pytest;含 torch 的文件本地只能
   `python3 -m py_compile` 做语法检查,行为验证在 5080。
-- 5080:LAN `asus@192.168.31.13` 密码 `Hzj050916`,代码在 `C:/Users/asus/traffic_fourier`,
-  python `C:\Python313\python.exe`,torch 在 user-site。长训练按 CLAUDE.md 的隐藏计划任务手册
-  跑,smoke 这种 <2 分钟的可直接 ssh 前台跑。
+- 5080 工作站的共享连接信息见 `config/lab_hosts.env`。代码目录和 Python 环境以当前机器配置为准。
+  长训练使用当前运行手册，smoke 测试可在受控终端前台运行。
 - 每个 task 末尾 commit。提交到当前分支 `feat/d3-gated-fusion`。commit 信息英文,结尾带
   `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`。
 

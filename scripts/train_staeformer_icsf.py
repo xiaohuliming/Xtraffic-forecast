@@ -26,7 +26,7 @@ import torch.nn.functional as F
 from torch.optim import Adam
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
-from dist_net.data import MultiRegionDataset, make_loader
+from dist_net.data import MultiRegionDataset, gather_primary_incident, make_loader
 from STAEformer import STAEformer
 
 SIGMA_EUC, SIGMA_ROAD, CUT_EUC, CUT_ROAD = 1.5, 1.5, 4.0, 5.0
@@ -45,19 +45,13 @@ def build_x(batch, mu, sd, device):
 
 
 def primary_incident(batch, device):
-    """type_idx (B,), duration (B,1), distances (B,N,3) for the first active slot."""
-    inc_feat = batch["incident_feat"].to(device)          # (B, M, C_e)
-    inc_mask = batch["incident_mask"].to(device)          # (B, M)
-    rel = batch["rel_feat"].to(device)                    # (B, M, N, 4)
-    B = inc_feat.size(0)
-    slot = inc_mask.float().argmax(dim=1)
+    """Return the anchor incident's type, elapsed time and distances."""
+    feat, rel_p, has_inc = gather_primary_incident(batch, device)
+    B = feat.size(0)
     ar = torch.arange(B, device=device)
-    feat = inc_feat[ar, slot]                             # (B, C_e)
-    rel_p = rel[ar, slot]                                 # (B, N, 4)
-    has_inc = inc_mask.any(dim=1).float()                 # (B,)
 
     type_idx = feat[:, :8].argmax(dim=1)
-    duration = feat[:, 8:9]
+    elapsed = feat[:, 8:9]
     log_euc, log_road, up_down = rel_p[..., 0], rel_p[..., 1], rel_p[..., 2]
 
     def gk(d, sigma, cut):
@@ -73,7 +67,7 @@ def primary_incident(batch, device):
     closest = (log_euc + (log_euc <= 1e-6).float() * 1e9).argmin(dim=1)
     dist[ar, closest] = 0.0
     dist = dist * has_inc[:, None, None]
-    return type_idx, duration, dist
+    return type_idx, elapsed, dist
 
 
 class ICSFLite(nn.Module):
@@ -93,9 +87,9 @@ class ICSFLite(nn.Module):
                                         nn.Dropout(0.1), nn.Linear(64, d))
         self.in_proj = nn.Linear(d, c_in)
 
-    def forward(self, x_last, type_idx, duration, dist, time_last):
+    def forward(self, x_last, type_idx, elapsed, dist, time_last):
         # x_last (B,N,c_in), dist (B,N,3), time_last (B,2)
-        emb = torch.cat([self.type_emb(type_idx), self.dur_mlp(duration), time_last], dim=-1)
+        emb = torch.cat([self.type_emb(type_idx), self.dur_mlp(elapsed), time_last], dim=-1)
         inc = self.incident_fusion(emb)                            # (B, d)
         dmask = (dist.sum(-1) > 0).float().unsqueeze(-1)           # (B, N, 1)
         dist_attn = F.softmax(self.distance_encoder(dist), dim=1)  # (B, N, d)
@@ -117,11 +111,11 @@ class STAEformerICSF(nn.Module):
         if use_icsf:
             self.icsf = ICSFLite(c_in=1, d=d_icsf)
 
-    def forward(self, x, type_idx, duration, dist, time_last):
+    def forward(self, x, type_idx, elapsed, dist, time_last):
         # x (B,T_h,N,3) = [z(flow), tod, dow]; inject into flow channel last step
         if self.use_icsf:
             flow_last = x[:, -1, :, 0:1]                           # (B,N,1)
-            effect = self.icsf(flow_last, type_idx, duration, dist, time_last)
+            effect = self.icsf(flow_last, type_idx, elapsed, dist, time_last)
             x = x.clone()
             x[:, -1, :, 0:1] = x[:, -1, :, 0:1] + self.icsf.in_proj(effect)
         return self.backbone(x)                                   # (B,T_p,N,1)
@@ -135,9 +129,13 @@ def masked_mae(pred, target, mask):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--region", required=True, choices=["Alameda", "ContraCosta", "Orange"])
-    p.add_argument("--data_dir", default="outputs/dist_net/region_data")
+    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v2_noleak")
     p.add_argument("--graph_dir", default="outputs/region_graphs")
-    p.add_argument("--out_dir", type=Path, default=Path("outputs/baselines/staeformer_icsf"))
+    p.add_argument(
+        "--out_dir",
+        type=Path,
+        default=Path("outputs/protocol_v2_noleak/baselines/staeformer_icsf"),
+    )
     p.add_argument("--use_icsf", action="store_true")
     p.add_argument("--d_icsf", type=int, default=32)
     p.add_argument("--epochs", type=int, default=30)
@@ -162,12 +160,16 @@ def main():
     val_ds = MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split="val")
     test_ds = MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split="test")
     rdata = train_ds.regions[args.region]
+    if not rdata.has_rel_feat:
+        raise RuntimeError(
+            "ICSF requires the v2 event relation cache; "
+            "run scripts/build_event_rel_feat.py first"
+        )
     N, T_h, T_p = int(rdata.N), int(rdata.T_h), int(rdata.T_p)
 
     flows = rdata.flow_series[:, :, 0]
     fmask = rdata.flow_mask[:, :, 0].astype(bool)
-    tr_ss = rdata.sample_start[rdata.split == 0]
-    hi = int(tr_ss.max()) + T_h + T_p
+    hi = rdata.train_end
     seg = flows[:hi]; segm = fmask[:hi]
     mu, sd = float(seg[segm].mean()), float(seg[segm].std() + 1e-6)
     print(f"N={N} T_h={T_h} T_p={T_p} flow mu={mu:.2f} sd={sd:.2f}", flush=True)
@@ -184,9 +186,9 @@ def main():
 
     def fwd(batch):
         x = build_x(batch, mu, sd, device)
-        type_idx, duration, dist = primary_incident(batch, device)
+        type_idx, elapsed, dist = primary_incident(batch, device)
         time_last = batch["time_feat"][:, -1, :].to(device)       # (B,2)
-        pred = model(x, type_idx, duration, dist, time_last)      # (B,T_p,N,1)
+        pred = model(x, type_idx, elapsed, dist, time_last)      # (B,T_p,N,1)
         return pred.squeeze(-1).permute(0, 2, 1) * sd + mu, x.size(0)  # (B,N,T_p)
 
     def ev(loader):
@@ -262,6 +264,7 @@ def main():
            "unaffected": float(diff[y_mask_flow & ~aff3].mean()),
            "best_val": best, "seed": args.seed, "use_icsf": args.use_icsf,
            "params": sum(q.numel() for q in model.parameters())}
+    res.update(rdata.result_metadata())
     print(f"\ntest MAE: all={res['all']:.3f}  affected={res['affected']:.3f}  "
           f"unaffected={res['unaffected']:.3f}", flush=True)
     (out_dir / "summary.json").write_text(json.dumps(res, indent=2))

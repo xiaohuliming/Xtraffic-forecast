@@ -2,7 +2,7 @@
 # Baseline-zoo worker pool. Runs on the GPU box from the repo root's parent.
 #   RUNS_FILE=zoo_tasks.txt WORKERS=6 bash scripts/run_zoo_queue.sh
 # Task file lines: <model> <region> <seed> [batch_size] [attempt]
-# Seed 42 writes outputs/baselines/zoo_<model>/, other seeds zoo_<model>_seed<seed>/.
+# Seed 42 writes outputs/protocol_v2_noleak/baselines/zoo_<model>/.
 # A failed run (no summary.json) is re-queued once at half batch (max 2 attempts).
 set -u
 cd "$(dirname "$0")/.."
@@ -21,7 +21,7 @@ worker() {
     [ -z "$line" ] && break
     set -- $line
     local model=$1 region=$2 seed=$3 bs=${4:-32} att=${5:-0}
-    local out="outputs/baselines/zoo_${model}"
+    local out="outputs/protocol_v2_noleak/baselines/zoo_${model}"
     [ "$seed" != "42" ] && out="${out}_seed${seed}"
     echo "[w$wid] START $model $region s$seed bs$bs att$att $(date +%F_%T)"
     python3 scripts/train_baseline_zoo.py --model "$model" --region "$region" \

@@ -6,15 +6,14 @@ IGSTGNN's data format per sample (dict):
   event_features   dict {Event Time, Description, Type, Holiday}
   event_position   int   — sensor index nearest event
   event_distances  (N, 3) float32 in [0, 1] — [euclid_kernel, road_kernel, downstream]
-  durations        float — incident duration (5-min steps? hours? unclear)
+  durations        float — elapsed incident time at forecast origin, in 5-min steps
   _t_idx           int   — anchor time index
 
 Mapping from our data (see scripts/build_full_county_cache.py + build_event_rel_feat.py):
-  incident_feat[i]   (M_max=32, C_e=13):
+  incident_feat[i]   (M_max=32, C_e=12):
     dims 0..7: one-hot type
-    dim 8: duration (hours)
-    dim 9: severity
-    dims 10..12: lat / lon / abs_postmile
+    dim 8: elapsed time at forecast origin (hours)
+    dims 9..11: lat / lon / abs_postmile
   event_rel_feat[k]  (N, 4):  global per-event distances
     dim 0: log(euclid_km + 1)
     dim 1: log(road_km + 1)
@@ -30,10 +29,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import h5py
 import numpy as np
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from dist_net.protocol import PROTOCOL_VERSION, forecast_window_bounds
 
 # Order in our incident_feat one-hot (dims 0..7)
 OUR_TYPES = ["1141", "Fire", "NoInj", "UnknInj", "Hazard", "AHazard", "CarFire", "Other"]
@@ -71,25 +76,40 @@ def gaussian_kernel(log_dist: np.ndarray, sigma_log: float, cutoff_log: float) -
 def build_split(region: str, data_dir: Path, out_dir: Path,
                 sigma_euc_log: float, sigma_road_log: float,
                 cutoff_euc_log: float, cutoff_road_log: float,
-                normalization: dict | None = None) -> dict:
+                normalization: dict | None = None,
+                overwrite: bool = False) -> dict:
     """Convert one region's .h5 to IGSTGNN .npy. Returns stats for downstream use."""
     samples_path = data_dir / f"{region}_samples.h5"
     traffic_path = data_dir / f"{region}_traffic.h5"
     rel_path = data_dir / f"{region}_event_rel_feat.npz"
 
     with h5py.File(samples_path, "r") as f:
+        protocol = str(f.attrs.get("protocol_version", "legacy"))
+        if protocol != PROTOCOL_VERSION:
+            raise RuntimeError(
+                f"{samples_path} uses {protocol!r}; required {PROTOCOL_VERSION!r}"
+            )
         split = f["split"][:]
         sample_start = f["sample_start"][:]
         incident_feat = f["incident_feat"][:]                  # (S, M_max, C_e)
-        affected_mask = f["affected_mask"][:]                  # (S, N)
+        affected_mask = f["analysis_labels/affected_mask"][:]  # (S, N)
         n_active = f["n_active_incidents"][:]
         T_h = int(f.attrs["T_h"]); T_p = int(f.attrs["T_p"])
         N = int(f.attrs["N"]); M_max = int(f.attrs["M_max"])
+        train_end = int(f.attrs["train_end"])
         active_event_idx = f["active_event_idx"][:]            # (S, M_max) int32
+        primary_incident_slot = f["primary_incident_slot"][:]
+        primary_event_idx = f["event_idx"][:]
     with h5py.File(traffic_path, "r") as f:
+        traffic_protocol = str(f.attrs.get("protocol_version", "legacy"))
+        if traffic_protocol != PROTOCOL_VERSION:
+            raise RuntimeError(
+                f"{traffic_path} uses {traffic_protocol!r}; "
+                f"required {PROTOCOL_VERSION!r}"
+            )
         flow = f["flow_series_imputed"][:]                     # (T, N, 3)
         flow_mask = f["flow_mask"][:]                          # (T, N, 3) bool
-        time_enc = f["time_enc"][:]                            # (T, 5) — first 2 dims should encode tod, dow
+        time_enc = f["time_enc"][:]                            # (T, 5)
         times_ns = f["times_ns"][:]                            # (T,) int64 nanoseconds
     import pandas as pd
     ts = pd.to_datetime(times_ns)
@@ -101,20 +121,19 @@ def build_split(region: str, data_dir: Path, out_dir: Path,
     rel = np.load(rel_path)
     event_rel_feat = rel["rel_feat"].astype(np.float32)        # (n_events, N, 4)
 
-    # Stats (z-norm) computed on TRAIN split only, using all sensors and history+future windows
+    # Stats are computed from raw observed training timestamps only.
     if normalization is None:
-        train_idx = np.where(split == 0)[0]
-        # Collect train flow windows
-        train_starts = sample_start[train_idx]
-        # Sample some for efficiency
-        rng = np.random.default_rng(0)
-        sub = rng.choice(train_starts, size=min(2000, len(train_starts)), replace=False)
-        train_vals = np.concatenate([
-            flow[s:s + T_h + T_p].reshape(-1, 3) for s in sub
-        ], axis=0)
-        mean_per_ch = train_vals.mean(axis=0)  # (3,)
-        std_per_ch = train_vals.std(axis=0)
-        std_per_ch = np.maximum(std_per_ch, 1e-6)
+        mean_per_ch = np.empty(3, dtype=np.float32)
+        std_per_ch = np.empty(3, dtype=np.float32)
+        for channel in range(3):
+            valid = flow_mask[:train_end, :, channel].astype(bool)
+            values = flow[:train_end, :, channel][valid]
+            if values.size == 0:
+                raise RuntimeError(
+                    f"{region} has no observed training values in channel {channel}"
+                )
+            mean_per_ch[channel] = values.mean()
+            std_per_ch[channel] = max(float(values.std()), 1e-6)
         # IGSTGNN stats_npz stores only flow mean/std (single value each)
         flow_mean = float(mean_per_ch[0])
         flow_std = float(std_per_ch[0])
@@ -132,6 +151,19 @@ def build_split(region: str, data_dir: Path, out_dir: Path,
     out_dir.mkdir(parents=True, exist_ok=True)
     out_region_dir = out_dir / region
     out_region_dir.mkdir(parents=True, exist_ok=True)
+    expected_outputs = [
+        out_region_dir / "incident_data_stats.npz",
+        *[
+            out_region_dir / f"incident_data_{name}.npy"
+            for name in ("train", "val", "test")
+        ],
+    ]
+    existing = [path for path in expected_outputs if path.exists()]
+    if existing and not overwrite:
+        raise FileExistsError(
+            "refusing to overwrite converted v2 data: "
+            + ", ".join(str(path) for path in existing)
+        )
 
     # Save stats in IGSTGNN-compatible format
     np.savez(out_region_dir / "incident_data_stats.npz",
@@ -147,25 +179,31 @@ def build_split(region: str, data_dir: Path, out_dir: Path,
         per_split_n[split_name] = len(keep)
         samples_out = []
         for i in keep:
-            s0 = int(sample_start[i])
-            x_raw = flow[s0:s0 + T_h, :, 0:1]              # (T_h, N, 1) flow only
-            y = flow[s0 + T_h:s0 + T_h + T_p, :, 0:1]      # (T_p, N, 1) flow only
+            anchor = int(sample_start[i])
+            hist_start, hist_stop, target_start, target_stop = (
+                forecast_window_bounds(anchor, T_h, T_p)
+            )
+            x_raw = flow[hist_start:hist_stop, :, 0:1]      # (T_h, N, 1)
+            y = flow[target_start:target_stop, :, 0:1]      # (T_p, N, 1)
 
             # z-normalize flow
             x_flow_norm = (x_raw - mean_per_ch[None, None, 0:1]) / std_per_ch[None, None, 0:1]
             y_norm = (y - mean_per_ch[None, None, 0:1]) / std_per_ch[None, None, 0:1]
 
             # IGSTGNN expects x_data[..., 0] = flow_norm, [..., 1] = tod/tpd, [..., 2] = dow/7
-            tod_window = tod_norm[s0:s0 + T_h]  # (T_h,)
-            dow_window = dow_norm[s0:s0 + T_h]  # (T_h,)
+            tod_window = tod_norm[hist_start:hist_stop]  # (T_h,)
+            dow_window = dow_norm[hist_start:hist_stop]  # (T_h,)
             tod_chan = np.broadcast_to(tod_window[:, None, None], (T_h, N, 1)).astype(np.float32)
             dow_chan = np.broadcast_to(dow_window[:, None, None], (T_h, N, 1)).astype(np.float32)
             x_norm = np.concatenate([x_flow_norm, tod_chan, dow_chan], axis=-1)  # (T_h, N, 3)
 
-            # Pick primary incident: first active slot (active_event_idx >= 0)
-            active_slots = np.where(active_event_idx[i] >= 0)[0]
-            primary_slot = int(active_slots[0]) if active_slots.size > 0 else 0
+            primary_slot = int(primary_incident_slot[i])
             primary_event = int(active_event_idx[i, primary_slot])
+            if primary_event != int(primary_event_idx[i]):
+                raise RuntimeError(
+                    f"sample {i} primary event mismatch: slot has {primary_event}, "
+                    f"sample declares {int(primary_event_idx[i])}"
+                )
 
             # Type: argmax over one-hot dims [0..7]
             type_onehot = incident_feat[i, primary_slot, :8]
@@ -173,7 +211,7 @@ def build_split(region: str, data_dir: Path, out_dir: Path,
             our_type_name = OUR_TYPES[our_type_idx]
             igs_type_code = IGS_TYPE_CODE[our_type_name]
             desc_code = DESC_CODE_BY_OUR_TYPE[our_type_name]
-            duration = float(incident_feat[i, primary_slot, 8])  # hours
+            elapsed = float(incident_feat[i, primary_slot, 8])  # hours
 
             # event_position: IGSTGNN treats this as a 0..11 categorical code (not a sensor index!)
             # Their position_embedding = nn.Embedding(12, 8). We don't have this categorical info,
@@ -201,12 +239,15 @@ def build_split(region: str, data_dir: Path, out_dir: Path,
                     "Event Time": 0.0,
                     "Description": int(desc_code),
                     "Type": int(igs_type_code),
-                    "Holiday": 0,                  # we don't have holiday info; default 0
+                    "Holiday": int(time_enc[anchor, 4] > 0.5),
                 },
                 "event_position": event_position,
                 "event_distances": event_distances,
-                "durations": float(duration * 12.0),    # convert hours → 5-min steps
-                "_t_idx": s0,
+                "durations": float(elapsed * 12.0),
+                "_t_idx": anchor,
+                "_history_start": hist_start,
+                "_forecast_origin": anchor,
+                "_protocol_version": PROTOCOL_VERSION,
                 "_affected_mask": affected_mask[i].astype(np.bool_),   # carried for our eval (NOT used by IGSTGNN)
             })
 
@@ -215,6 +256,28 @@ def build_split(region: str, data_dir: Path, out_dir: Path,
         print(f"  [{region}] {split_name}: {len(samples_out)} samples → {out_file}")
 
     print(f"  [{region}] total kept: train={per_split_n['train']} val={per_split_n['val']} test={per_split_n['test']}")
+    (out_region_dir / "conversion_meta.json").write_text(
+        json.dumps(
+            {
+                "protocol_version": PROTOCOL_VERSION,
+                "source_data_dir": str(data_dir),
+                "window_semantics": {
+                    "history": "[anchor-T_h+1, anchor]",
+                    "target": "[anchor+1, anchor+T_p]",
+                },
+                "train_end": train_end,
+                "normalization": {
+                    "fit_start": 0,
+                    "fit_end": train_end,
+                    "mean_per_ch": mean_per_ch.tolist(),
+                    "std_per_ch": std_per_ch.tolist(),
+                },
+                "samples": per_split_n,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
     return normalization
 
 
@@ -253,9 +316,17 @@ def build_sensor_info(region: str, data_dir: Path, out_dir: Path):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--region", default="all", help="region or 'all'")
-    p.add_argument("--data_dir", type=Path, default=Path("outputs/dist_net/region_data"))
+    p.add_argument(
+        "--data_dir",
+        type=Path,
+        default=Path("outputs/dist_net/region_data_v2_noleak"),
+    )
     p.add_argument("--graph_dir", type=Path, default=Path("outputs/region_graphs"))
-    p.add_argument("--out_dir", type=Path, default=Path("outputs/igstgnn_data_from_ours"))
+    p.add_argument(
+        "--out_dir",
+        type=Path,
+        default=Path("outputs/igstgnn_data_from_ours_v2_noleak"),
+    )
     p.add_argument("--sigma_euc_log", type=float, default=1.5,
                    help="sigma for gaussian kernel on log-euclidean km")
     p.add_argument("--sigma_road_log", type=float, default=1.5,
@@ -264,6 +335,7 @@ def main():
                    help="zero out log_euclidean > this (≈54 km euclid)")
     p.add_argument("--cutoff_road_log", type=float, default=5.0,
                    help="zero out log_road > this (≈148 km road)")
+    p.add_argument("--overwrite", action="store_true")
     args = p.parse_args()
 
     regions = ["Alameda", "ContraCosta", "Orange"] if args.region == "all" else [args.region]
@@ -272,7 +344,8 @@ def main():
         print(f"\n=== {region} ===")
         build_split(region, args.data_dir, args.out_dir,
                     args.sigma_euc_log, args.sigma_road_log,
-                    args.cutoff_euc_log, args.cutoff_road_log)
+                    args.cutoff_euc_log, args.cutoff_road_log,
+                    overwrite=args.overwrite)
         build_sensor_info(region, args.data_dir, args.out_dir)
         build_adj_matrix(region, args.graph_dir, args.out_dir)
 

@@ -1,5 +1,7 @@
 # DIST-Net 设计文档
 
+> 历史设计：该方向已经停止。2026-07-18 审计确认旧 severity、affected 与最终 duration 含事后信息，不能作为可部署输入或验证集监督。本文仅用于追溯设计，不是当前实施规格。
+
 **Dual-stream Incident-aware Spatio-Temporal Network**
 
 > 双流事故感知时空预测模型 — 用于 XTraffic 数据集上的 incident-guided traffic forecasting

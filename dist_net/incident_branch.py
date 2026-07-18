@@ -212,7 +212,7 @@ class IncidentBranch(nn.Module):
         # Learned D tensor (B, M, N, d_D). We use d_D=32 (< hidden_dim=64) to
         # keep memory bounded: (B=32, M=32, N=990, d_D=32) ≈ 130 MB fp32.
         # Three input streams summed (all projected to d_D):
-        #   incident features (B, M, C_e)         — type / severity / duration
+        #   incident features (B, M, C_e)         — type / elapsed time / location
         #   sensor static     (B, N, C_meta)      — sensor properties
         #   rel_feat          (B, M, N, 4)        — incident↔sensor geometry:
         #                                           [log_euclid, log_road,

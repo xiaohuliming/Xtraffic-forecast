@@ -8,6 +8,7 @@ Per Q4 decision: joint training across 3 regions with region-bucketed batches
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import h5py
@@ -16,6 +17,14 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset, Sampler
 
+from dist_net.protocol import (
+    CACHE_SCHEMA_VERSION,
+    PROTOCOL_VERSION,
+    build_full_window_index,
+    forecast_window_bounds,
+    git_worktree_provenance,
+)
+
 REGION_NAME_TO_KEY = {
     "Alameda": "alameda",
     "ContraCosta": "contra_costa",
@@ -23,6 +32,34 @@ REGION_NAME_TO_KEY = {
 }
 REGION_NAME_TO_CODE = {"Alameda": 0, "ContraCosta": 1, "Orange": 2}
 SPLIT_TO_CODE = {"train": 0, "val": 1, "test": 2}
+TRAINING_GIT = git_worktree_provenance(
+    Path(__file__).resolve().parent.parent
+)
+
+
+def gather_primary_incident(
+    batch: dict[str, torch.Tensor], device: torch.device
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Gather incident features and geometry using the stored anchor-event slot."""
+    incident_feature = batch["incident_feat"].to(device)
+    incident_mask = batch["incident_mask"].to(device)
+    relation_feature = batch["rel_feat"].to(device)
+    slots = batch["primary_incident_slot"].to(device).long()
+    batch_size, max_events = incident_mask.shape
+    if bool(((slots < 0) | (slots >= max_events)).any()):
+        raise RuntimeError("primary_incident_slot is outside the incident tensor")
+
+    rows = torch.arange(batch_size, device=device)
+    selected_is_active = incident_mask[rows, slots]
+    any_active = incident_mask.any(dim=1)
+    if bool((any_active & ~selected_is_active).any()):
+        raise RuntimeError("primary_incident_slot does not point to an active event")
+
+    return (
+        incident_feature[rows, slots],
+        relation_feature[rows, slots],
+        selected_is_active.float(),
+    )
 
 
 class RegionData:
@@ -40,38 +77,119 @@ class RegionData:
     """
 
     def __init__(self, region_name: str, data_dir: str | Path,
-                 graph_dir: str | Path, lazy: bool = False):
+                 graph_dir: str | Path, lazy: bool = False,
+                 required_protocol: str | None = PROTOCOL_VERSION):
         self.region_name = region_name
         self.region_code = REGION_NAME_TO_CODE[region_name]
         self.lazy = lazy
+        self.sampling_protocol = "event"
 
         # ---- samples file (always loaded fully — small) ----
         samples_path = Path(data_dir) / f"{region_name}_samples.h5"
         with h5py.File(samples_path, "r") as f:
+            self.cache_schema_version = int(
+                f.attrs.get("cache_schema_version", 1)
+            )
+            self.protocol_version = str(
+                f.attrs.get("protocol_version", "legacy")
+            )
+            if (
+                required_protocol is not None
+                and self.protocol_version != required_protocol
+            ):
+                raise RuntimeError(
+                    f"{samples_path} uses protocol {self.protocol_version!r}; "
+                    f"required {required_protocol!r}"
+                )
+            if (
+                required_protocol == PROTOCOL_VERSION
+                and self.cache_schema_version != CACHE_SCHEMA_VERSION
+            ):
+                raise RuntimeError(
+                    f"{samples_path} uses cache schema "
+                    f"{self.cache_schema_version}; required "
+                    f"{CACHE_SCHEMA_VERSION}"
+                )
             self.sample_start = f["sample_start"][...]
             self.split = f["split"][...]
             self.event_idx = f["event_idx"][...]
+            self.event_start_idx = (
+                f["event_start_idx"][...] if "event_start_idx" in f else None
+            )
             self.anchor_region_idx = f["anchor_region_idx"][...]
             self.sample_offset = f["sample_offset"][...]
             self.incident_feat = f["incident_feat"][...]
             self.incident_mask = f["incident_mask"][...]
-            self.affected_mask = f["affected_mask"][...]
+            if "analysis_labels/affected_mask" in f:
+                self.affected_mask = f["analysis_labels/affected_mask"][...]
+            else:
+                self.affected_mask = f["affected_mask"][...]
             self.n_active_incidents = f["n_active_incidents"][...]
             # active_event_idx is new (v0.3 cache). Optional for back-compat.
             if "active_event_idx" in f:
                 self.active_event_idx = f["active_event_idx"][...]
             else:
                 self.active_event_idx = None
+            if "primary_incident_slot" in f:
+                self.primary_incident_slot = f["primary_incident_slot"][...]
+            elif self.active_event_idx is not None:
+                matches = self.active_event_idx == self.event_idx[:, None]
+                self.primary_incident_slot = np.where(
+                    matches.any(axis=1), matches.argmax(axis=1), 0
+                ).astype(np.int16)
+            else:
+                self.primary_incident_slot = np.zeros(
+                    len(self.sample_start), dtype=np.int16
+                )
             self.M_max = int(f.attrs["M_max"])
             self.C_e = int(f.attrs["C_e"])
             self.N = int(f.attrs["N"])
             self.T_h = int(f.attrs["T_h"])
             self.T_p = int(f.attrs["T_p"])
+            self.train_end = int(f.attrs.get("train_end", -1))
+            self.val_end = int(f.attrs.get("val_end", -1))
+            sample_manifest_json = str(
+                f.attrs.get("source_manifest_json", "[]")
+            )
+            try:
+                self.sample_source_manifest = json.loads(
+                    sample_manifest_json
+                )
+            except json.JSONDecodeError:
+                self.sample_source_manifest = []
+            self.sample_cache_git = {
+                "git_sha": str(f.attrs.get("git_sha", "unknown")),
+                "git_branch": str(f.attrs.get("git_branch", "unknown")),
+                "git_dirty": bool(f.attrs.get("git_dirty", True)),
+            }
 
         # ---- event rel_feat (n_events, N, 4) — incident↔sensor geometry ----
         rel_feat_path = Path(data_dir) / f"{region_name}_event_rel_feat.npz"
         if rel_feat_path.exists() and self.active_event_idx is not None:
             rel = np.load(rel_feat_path)
+            rel_protocol = (
+                str(rel["protocol_version"].item())
+                if "protocol_version" in rel
+                else "legacy"
+            )
+            if (
+                required_protocol is not None
+                and rel_protocol != required_protocol
+            ):
+                raise RuntimeError(
+                    f"{rel_feat_path} uses protocol {rel_protocol!r}; "
+                    f"required {required_protocol!r}"
+                )
+            if (
+                self.event_start_idx is not None
+                and "event_start_idx" in rel
+                and not np.array_equal(
+                    self.event_start_idx, rel["event_start_idx"]
+                )
+            ):
+                raise RuntimeError(
+                    f"event ordering mismatch in {rel_feat_path}"
+                )
             self.event_rel_feat = rel["rel_feat"].astype(np.float32)   # (n_events, N, 4)
             self.has_rel_feat = True
         else:
@@ -81,6 +199,20 @@ class RegionData:
         # ---- traffic file ----
         self.traffic_path = Path(data_dir) / f"{region_name}_traffic.h5"
         with h5py.File(self.traffic_path, "r") as f:
+            traffic_protocol = str(f.attrs.get("protocol_version", "legacy"))
+            traffic_schema = int(f.attrs.get("cache_schema_version", 1))
+            if traffic_protocol != self.protocol_version:
+                raise RuntimeError(
+                    f"protocol mismatch between {samples_path.name} "
+                    f"({self.protocol_version}) and {self.traffic_path.name} "
+                    f"({traffic_protocol})"
+                )
+            if traffic_schema != self.cache_schema_version:
+                raise RuntimeError(
+                    f"cache schema mismatch between {samples_path.name} "
+                    f"({self.cache_schema_version}) and "
+                    f"{self.traffic_path.name} ({traffic_schema})"
+                )
             # small stuff: load eagerly always
             self.time_enc = f["time_enc"][...]          # (T, 5) float32
             self.static_meta = f["static_meta"][...]    # (N, C_meta) float32
@@ -90,6 +222,33 @@ class RegionData:
             self.times_ns = f["times_ns"][...]          # (T,) int64
             self.T = int(f.attrs["T"])
             self.C_meta = int(self.static_meta.shape[1])
+            self.meta_feature_names = np.asarray(
+                f.attrs.get("meta_feature_names", []), dtype=object
+            )
+            self.baseline_fit_start = int(
+                f.attrs.get("baseline_fit_start", 0)
+            )
+            self.baseline_fit_end = int(
+                f.attrs.get("baseline_fit_end", self.train_end)
+            )
+            self.imputation_method = str(
+                f.attrs.get("imputation_method", "legacy_unknown")
+            )
+            self.baseline_method = str(
+                f.attrs.get("baseline_method", "legacy_unknown")
+            )
+            manifest_json = str(
+                f.attrs.get("source_manifest_json", "[]")
+            )
+            try:
+                self.traffic_source_manifest = json.loads(manifest_json)
+            except json.JSONDecodeError:
+                self.traffic_source_manifest = []
+            self.traffic_cache_git = {
+                "git_sha": str(f.attrs.get("git_sha", "unknown")),
+                "git_branch": str(f.attrs.get("git_branch", "unknown")),
+                "git_dirty": bool(f.attrs.get("git_dirty", True)),
+            }
 
             # large: load eager unless lazy
             if not lazy:
@@ -98,6 +257,11 @@ class RegionData:
             else:
                 self.flow_series = None
                 self.flow_mask = None
+
+        if self.train_end < 0:
+            self.train_end = int(self.T * 0.70)
+        if self.val_end < 0:
+            self.val_end = int(self.T * 0.85)
 
         # Pre-compute day_kind / tod arrays for fast baseline lookup
         times = pd.to_datetime(self.times_ns)
@@ -117,6 +281,32 @@ class RegionData:
             )
 
         self._lazy_traffic_f: h5py.File | None = None
+        self.training_git = dict(TRAINING_GIT)
+
+    def result_metadata(self) -> dict[str, object]:
+        """JSON-safe protocol and provenance fields for every new summary."""
+        return {
+            "protocol_version": self.protocol_version,
+            "cache_schema_version": self.cache_schema_version,
+            "sampling_protocol": self.sampling_protocol,
+            "split": {
+                "train_end": self.train_end,
+                "val_end": self.val_end,
+            },
+            "preprocessing": {
+                "imputation_method": self.imputation_method,
+                "baseline_method": self.baseline_method,
+                "baseline_fit_start": self.baseline_fit_start,
+                "baseline_fit_end": self.baseline_fit_end,
+            },
+            "cache_provenance": {
+                "traffic_source_manifest": self.traffic_source_manifest,
+                "sample_source_manifest": self.sample_source_manifest,
+                "traffic_builder_git": self.traffic_cache_git,
+                "sample_builder_git": self.sample_cache_git,
+            },
+            "training_git": self.training_git,
+        }
 
     def _traffic_handle(self) -> h5py.File:
         if self._lazy_traffic_f is None:
@@ -135,8 +325,9 @@ class RegionData:
         T_h = self.T_h
         T_p = self.T_p
 
-        hist_lo, hist_hi = t - T_h + 1, t + 1            # [t-T_h+1, t]
-        fut_lo, fut_hi = t + 1, t + 1 + T_p              # [t+1, t+T_p]
+        hist_lo, hist_hi, fut_lo, fut_hi = forecast_window_bounds(
+            t, T_h, T_p
+        )
 
         x_hist_t, x_hist_mask_t = self._slice_traffic(hist_lo, hist_hi)  # (T_h, N, 3)
         y_true_t,  y_mask_t      = self._slice_traffic(fut_lo, fut_hi)   # (T_p, N, 3)
@@ -204,6 +395,9 @@ class RegionData:
             "affected_mask":  self.affected_mask[idx].astype(np.bool_),    # (N,)
             "rel_feat":       rel_feat,                           # (M_max, N, 4)
             "n_active_incidents": np.int32(self.n_active_incidents[idx]),
+            "primary_incident_slot": np.int16(
+                self.primary_incident_slot[idx]
+            ),
             "sample_start":   np.int64(t),
             "sample_idx":     np.int64(idx),
         }
@@ -222,26 +416,42 @@ class FullWindowRegionData(RegionData):
 
     def __init__(self, region_name: str, data_dir: str | Path,
                  graph_dir: str | Path, lazy: bool = False,
-                 stride: int = 1, train_frac: float = 0.7, val_frac: float = 0.1):
-        super().__init__(region_name, data_dir, graph_dir, lazy=lazy)
+                 stride: int = 1, train_frac: float = 0.7, val_frac: float = 0.1,
+                 required_protocol: str | None = PROTOCOL_VERSION):
+        super().__init__(
+            region_name,
+            data_dir,
+            graph_dir,
+            lazy=lazy,
+            required_protocol=required_protocol,
+        )
         T_h, T_p, T = self.T_h, self.T_p, self.T
-        # anchor t needs history [t-T_h+1, t] and future [t+1, t+T_p]
-        starts = np.arange(T_h - 1, T - T_p, max(1, stride), dtype=np.int64)
+        if not 0 < train_frac < train_frac + val_frac < 1:
+            raise ValueError("full-window fractions must satisfy 0 < train < train+val < 1")
+        self.train_end = int(T * train_frac)
+        self.val_end = int(T * (train_frac + val_frac))
+        self.sampling_protocol = "full_window"
+        starts, split = build_full_window_index(
+            total_steps=T,
+            history=T_h,
+            horizon=T_p,
+            stride=stride,
+            train_end=self.train_end,
+            val_end=self.val_end,
+        )
         n = len(starts)
-        i_tr = int(n * train_frac)
-        i_va = int(n * (train_frac + val_frac))
-        split = np.empty(n, dtype=np.int64)
-        split[:i_tr] = 0
-        split[i_tr:i_va] = 1
-        split[i_va:] = 2
 
         self.sample_start = starts
         self.split = split
+        self.event_idx = np.full(n, -1, dtype=np.int32)
+        self.anchor_region_idx = np.full(n, -1, dtype=np.int32)
+        self.sample_offset = np.full(n, -1, dtype=np.int8)
         self.affected_mask = np.zeros((n, self.N), dtype=np.bool_)
         self.n_active_incidents = np.zeros(n, dtype=np.int32)
         self.incident_feat = np.zeros((n, self.M_max, self.C_e), dtype=np.float32)
         self.incident_mask = np.zeros((n, self.M_max), dtype=np.bool_)
         self.active_event_idx = np.full((n, self.M_max), -1, dtype=np.int32)
+        self.primary_incident_slot = np.zeros(n, dtype=np.int16)
         self.has_rel_feat = False  # get_sample returns zero rel_feat
 
 

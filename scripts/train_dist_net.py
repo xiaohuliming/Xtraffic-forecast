@@ -6,9 +6,9 @@ Default behavior trains on all 3 regions joint, with region-bucketed batching
 verification, use --toy-n-per-region to limit training/val set sizes.
 
 Logs:
-  • per-batch losses + monitors → outputs/dist_net/runs/<name>/log.jsonl
-  • per-epoch summary → outputs/dist_net/runs/<name>/summary.json
-  • checkpoints → outputs/dist_net/runs/<name>/ckpt_*.pt
+  • per-batch losses + monitors → outputs/protocol_v2_noleak/dist_net/<name>/log.jsonl
+  • per-epoch summary → outputs/protocol_v2_noleak/dist_net/<name>/summary.json
+  • checkpoints → outputs/protocol_v2_noleak/dist_net/<name>/ckpt_*.pt
 """
 from __future__ import annotations
 
@@ -41,9 +41,13 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     # paths
     p.add_argument("--data-dir", type=Path,
-                   default=Path("outputs/dist_net/region_data"))
+                   default=Path("outputs/dist_net/region_data_v2_noleak"))
     p.add_argument("--graph-dir", type=Path, default=Path("outputs/region_graphs"))
-    p.add_argument("--out-dir", type=Path, default=Path("outputs/dist_net/runs"))
+    p.add_argument(
+        "--out-dir",
+        type=Path,
+        default=Path("outputs/protocol_v2_noleak/dist_net"),
+    )
     p.add_argument("--run-name", default=None,
                    help="Subdir under --out-dir; defaults to a timestamp")
     # data
@@ -213,15 +217,36 @@ def main() -> None:
               f"|train|={len(train_ds)}  |val|={len(val_ds)}")
 
     edge_index_lookup = edge_index_registry(train_ds, device)
+    first_region = train_ds.regions[args.regions[0]]
+    schemas = {
+        (region.C_meta, region.C_e, region.T_h, region.T_p)
+        for region in train_ds.regions.values()
+    }
+    if len(schemas) != 1:
+        raise RuntimeError(f"region cache schemas differ: {sorted(schemas)}")
+    data_provenance = {
+        name: region.result_metadata()
+        for name, region in train_ds.regions.items()
+    }
+    if not (args.blind or args.single_branch):
+        missing_rel = [
+            name for name, region in train_ds.regions.items()
+            if not region.has_rel_feat
+        ]
+        if missing_rel:
+            raise RuntimeError(
+                "incident-aware DIST-Net requires v2 event relation caches for: "
+                + ", ".join(missing_rel)
+            )
 
     # Model
     cfg = DISTNetConfig(
         c_x=3,
-        c_meta=train_ds.regions[args.regions[0]].C_meta,
-        c_e=13, d_t=5,
+        c_meta=first_region.C_meta,
+        c_e=first_region.C_e, d_t=5,
         n_regions=len(REGION_NAME_TO_CODE),
         hidden_dim=args.hidden_dim,
-        t_h=12, t_p=12,
+        t_h=first_region.T_h, t_p=first_region.T_p,
         single_branch=args.single_branch,
     )
     model = DISTNet(cfg).to(device)
@@ -336,6 +361,7 @@ def main() -> None:
                         "scheduler_state": scheduler.state_dict(),
                         "config": vars(args),
                         "model_config": vars(cfg),
+                        "data_provenance": data_provenance,
                         "val_metrics": val_metrics,
                     }, ckpt_path)
                     print(f"    saved best -> {ckpt_path}", flush=True)
@@ -348,6 +374,7 @@ def main() -> None:
                 "n_train": len(train_ds),
                 "n_val": len(val_ds),
                 "total_params": pc["_total"],
+                "data_provenance": data_provenance,
             }, indent=2), encoding="utf-8")
 
     final_ckpt = run_dir / "ckpt_final.pt"
@@ -356,6 +383,7 @@ def main() -> None:
         "model_state": model.state_dict(),
         "config": vars(args),
         "model_config": vars(cfg),
+        "data_provenance": data_provenance,
     }, final_ckpt)
     print(f"\ndone. final checkpoint: {final_ckpt}", flush=True)
     print(f"      best val L_main: {best_val_L_main:.4f}", flush=True)

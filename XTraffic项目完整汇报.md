@@ -1,26 +1,50 @@
 # XTraffic 交通流量预测研究：完整汇报
 
-初版日期：2026-06-17，持续更新，最近更新 2026-07-06
+初版日期：2026-06-17，持续更新，最近更新 2026-07-18
 作者：科研实习项目组
-说明：本文是本项目的唯一权威报告与进度文档，持续更新。原《项目总结报告_2026-06-10》与《去季节化方向_交接_2026-06-26》已并入本文并归档到 docs/archive，不再单独维护。本文中所有数字均来自已落盘的实验文件，包括 test_predictions.npz、summary.json、训练日志与诊断文件，无任何估算或记忆填充。按全局写作规范，正文不使用破折号与括号内插说明。更新轨迹，2026-06-22 新增第 4.7 节 RGDN 架构轮负结果，2026-06-27 新增第 4.8 节自适应去季节化 v0c 正向结果，2026-06-30 并入第十二部分并合并旧文档，2026-07-02 新增第 4.9 节独立骨干两次负结果、第 4.10 节 RADS 重定位与 STAEformer 迁移成功与第 4.11 节 RADS 对外速览，2026-07-03 新增第 4.12 节，NDR 提案拆为有界阶梯，RADS-O oracle 门控蒸馏在 Alameda 决定性胜出，当晚双残差头亦过线，NDR-Net 成立，全项目新低 11.052，2026-07-04 补 ContraCosta 第二区域验证，复合体零重叠复现，CC 新低 11.733，2026-07-06 Orange 收官，RADS 于 STAEformer 侧三区域配对全负，全部实验证据关账。
+说明：本文是本项目研究历史、实验数字与出处的唯一权威长报告。原《项目总结报告_2026-06-10》与《去季节化方向_交接_2026-06-26》已并入本文并归档到 docs/archive，不再单独维护。本文中所有数字均来自已落盘的实验文件，包括 test_predictions.npz、summary.json、训练日志与诊断文件，无任何估算或记忆填充。数字来自落盘文件不等于实验协议无误。2026-07-18 数据有效性审计发现旧 XTraffic 管线存在未来信息泄露，因此审计前数字均保留为历史记录，当前是否可用于论文以 `docs/audits/result_validity.csv` 为准。按全局写作规范，正文不使用破折号与括号内插说明。
+
+## 2026-07-18 数据有效性审计
+
+论文写作暂停。旧版 XTraffic 缓存构建器对全年序列做双向线性插值，导致历史输入读取未来观测。RADS 气候态在拟合前使用事故记录排除训练数据，严格 label-free 表述不成立。部分事故模型还读取由事故后真实流量生成的 severity、affected 或最终 duration。事件协议与 full-window 协议存在边界目标重叠，多个训练脚本的统计范围又越过训练边界。
+
+因此，本文下方所有 XTraffic 绝对数值与配对结论均标记为审计前历史结果。它们不能直接进入论文，也不能被解释为泄露已经在同窗比较中自动抵消。旧输出只读保留，无泄露复跑使用独立的 `protocol_v2_noleak` 缓存与结果目录。
+
+完整代码证据、三个区域的落盘量化、受影响实验清单和修复验收条件见 `docs/audits/data_leakage_2026-07-18.md`。机器可读状态见 `docs/audits/result_validity.csv`。
+
+## 2026-07-18 无泄露 v2 代码修复完成
+
+代码层修复已经完成。共享协议 `dist_net/protocol.py` 统一实现因果前向填充、完整目标窗切分、event group 隔离、full-window 目标互斥、train-only 拟合范围和可部署事故特征。正式构建入口 `scripts/build_full_county_cache.py` 不再使用事故记录拟合气候态，不再把最终 duration 与 severity 写入推理输入，并将 affected 物理移入分析标签区域。`dist_net/data.py` 默认拒绝旧协议缓存，主要训练入口默认读取 `region_data_v2_noleak` 并写入独立的 `protocol_v2_noleak` 结果目录。ICSF、统计上界和 IGSTGNN 的预测时刻与锚定事故对齐也已修复。
+
+v2 缓存会记录 schema version、协议版本、精确切分边界、预处理拟合范围、原始文件 SHA-256、构建代码 Git SHA、分支与 dirty 状态。数据回归测试覆盖未来数据不改变历史输入、split 目标集合互斥、同一事件不跨 split、事后事故字段不改变可部署输入、主事故在截断后仍可定位、窗口语义对齐和旧缓存拒绝。当前完整测试结果为 28 项通过，Python 编译、Shell 语法和补丁格式检查均通过。
+
+尚未完成的是用完整原始数据生成三个区域的正式 v2 H5，以及在新协议上重跑最小判别矩阵。因此旧结果的 contaminated 状态不变，本文仍不能恢复论文结论。
 
 ---
 
 ## 第一部分：一页速览
 
+本部分记录 2026-07-18 审计前的研究叙事，用于追溯项目演进。当前结论状态以上方审计说明为准。
+
 ### 我们在做什么
 
 研究 XTraffic 这个大型交通数据集上，事故信息能否增强交通流量预测。XTraffic 是 2024 年发布的、目前最大的带事故标注的公开交通数据集，由北京航空航天大学团队构建，发布动机就是支持事故感知的交通预测。
 
-### 我们最终发现了什么
+### 审计前我们得到了什么结论
 
 一句话：在 XTraffic 上，事故标签对流量预测没有增益。任何不看标签的模型，无论是我们自己的轻量模型 FDN，还是社区公认的标准 SOTA 模型 STAEformer，都不输甚至明显优于使用全套事故标签的事故感知模型 IGSTGNN。
 
 更进一步，我们能主动纠正文献：对标的 KDD'26 论文 IGSTGNN 之所以显得是 SOTA，是因为它的对比基线过弱，且其官方代码存在一个会无条件触发的训练 bug。我们用一个公认的标准 label-free 模型直接超过了它声称的 SOTA 成绩。
 
-### 论文定位
+### 审计前的论文定位
 
 从最初设想的方法论文，最终确定为应用与复现性研究论文。核心命题是事故标签无增益，证据链包括标准 SOTA 模型 label-free 超越事故感知模型、官方代码 bug 取证、事故模块即插即用主张复现失败、多种架构尝试系统性无增益、显著性检验与多种子背书。对标 IGSTGNN 本身能中 KDD，我们处在同一问题赛道，证据更完整，结论更反直觉。
+
+### 最新进展，2026-07-18，发现数据泄露并完成 v2 代码修复
+
+代码与落盘 H5 审计确认，旧数据管线存在未来插值、label-informed 气候态、事后事故特征、切分目标重叠与统计范围越界。所有使用旧 XTraffic 缓存的模型都受影响。标准基准 METR-LA、PEMS04 与 PEMS08 不经过该缓存，不受本次审计影响。项目从论文写作切回数据修复与最小判别矩阵复跑，旧结果保留但不再视为已关账证据。
+
+同日完成无泄露 v2 的代码实现与本地回归验证。正式数据入口、数据集加载器、主要训练脚本、ICSF 和 IGSTGNN 转换器已经切换到版本化协议与独立输出目录。仓库根目录的重复训练脚本已经清理，脚本、文档、远程启动文件和本地产物均有明确目录与索引。当前阻塞已经从代码修复转为正式缓存生成和实验复跑。
 
 ### 最新进展，2026-06-25
 
@@ -46,18 +70,21 @@
 
 ContraCosta 阶梯完成。复合体干净复现，s0g 对 s0c 配对差全负零重叠，均值负 0.148，端到端 12.038 到 11.733 改善 0.305，与 Alameda 的 0.340 一致。诚实差异，中间级归因区域相关，CC 上门控形式与 oracle 单独约为零，增益几乎全由双残差头扛，组件有协同，复合体总量跨区域稳定。方法层级关系一句话，RADS 是机制地基，锚点在周期基线与持续水平间自适应，NDR-Net 是长在其上的完整双态预测头，前者证据最广，两骨干乘多区域，后者绝对性能最强，两区域零重叠。详见第 4.12 节。
 
-### 最新进展，2026-07-06，Orange 收官，全部实验证据关账
+### 历史进展，2026-07-06，当时判断全部实验证据关账
 
-Orange 的 s0a 对 s0c 三种子完成，配对差负 0.114 与负 0.132 与负 0.031 全负，均值负 0.092，方向与前两区域一致，强度最弱且非零重叠，如实记录。至此 RADS 在 GWN 与 STAEformer 两骨干乘三区域共六格全部配对为正增益，NDR-Net 在两区域复合零重叠，主命题三段论与方法证据全部关账。下一步唯一事项，开写论文。写作前的新颖性查证已完成，机制组件均有先例，含 2025 年 trend-event 双通道解耦等并发工作，故 RADS 与 NDR 定位为主命题下的建设性配菜而非全新方法，related work 主动引用近似工作，详见第 9.1 节。方法升级路线的 P1 检测性诊断已完成，双任务腿被杀死，但副产品是主命题最直接的机制证据，被标注事故在流量偏离中几乎不可见，详见第 4.13 节。
+Orange 的 s0a 对 s0c 三种子完成，配对差负 0.114 与负 0.132 与负 0.031 全负，均值负 0.092，方向与前两区域一致，强度最弱且非零重叠，如实记录。当时据此判断 RADS 在 GWN 与 STAEformer 两骨干乘三区域共六格全部配对为正增益，NDR-Net 在两区域复合零重叠，主命题三段论与方法证据全部关账，并决定转入论文写作。2026-07-18 审计已经推翻“关账”状态，数字保留为历史记录。写作前的新颖性查证已完成，机制组件均有先例，含 2025 年 trend-event 双通道解耦等并发工作，故 RADS 与 NDR 定位为主命题下的建设性配菜而非全新方法，related work 主动引用近似工作，详见第 9.1 节。方法升级路线的 P1 检测性诊断已完成，双任务腿被杀死，但副产品是主命题最直接的机制证据，被标注事故在流量偏离中几乎不可见，详见第 4.13 节。
 
 ### 接下来要做什么
 
-1. 携完整证据与导师对齐选刊与篇幅，然后开写。论文三段论已闭环，事故标签无增益，强时空表示是必要条件，RADS 是 model-agnostic 的状态自适应重组层，RADS-O 进一步把门控升级为可由训练期 oracle 蒸馏监督的层
-2. NDR-Net 第二区域验证已完成，复合体在 ContraCosta 零重叠复现，负 0.148，CC 新低 11.733
-3. Orange 已收官，配对全负均值负 0.092，RADS 六格证据齐
-4. STAEformer 上的 s0b 与 s0d 消融，分解 s0c 减 0.134 的构成
-5. 正式配对显著性，拉取预测落盘文件后跑 significance_tests.py
-6. 正面回应审稿人必问的缺口，考虑增加拥堵起始或恢复相关的评估维度
+代码阶段已经完成旧结果冻结、v2 schema 与 provenance、因果缺失处理、train-only climatology、完整目标窗和 event group 互斥切分、事故输入与分析标签拆分、训练统计边界修正、IGSTGNN 对齐及本地回归测试。
+
+当前待执行事项如下。
+
+1. 用完整原始数据生成三个区域的 `region_data_v2_noleak`。
+2. 生成三地区事故与节点关系缓存。
+3. 运行缓存 smoke test、目标集合互斥检查和 provenance 验收。
+4. 重跑三地区 STAEformer s0a 对 s0c、两地区 s0f 对 s0g、三地区 ICSF A/B 与 full-window 九宫格。
+5. 根据无泄露结果重新判断论文主张，再恢复 baseline zoo 与论文写作。
 
 ---
 
@@ -79,7 +106,9 @@ Orange 的 s0a 对 s0c 三种子完成，配对差负 0.114 与负 0.132 与负 
 12. 第十阶段，2026-07-01 到 07-02：v0c 重定位为 RADS 机制，骨干降级为残差函数的实现。在 STAEformer 上迁移验证成功，Alameda s0c 11.258 为全项目历史最低。两区域 Alameda 减 0.134 与 ContraCosta 减 0.156 配对全负，ContraCosta 零重叠。RADS 在 GWN 与 STAEformer 两骨干上都有正增益，跨骨干跨区域，model-agnostic 主张已支撑，详见第 4.10 节。
 13. 第十一阶段，2026-07-03：外部 NDR-Net 提案拆成有界阶梯并设停止线。A1 即 RADS-O，逐 horizon 门控加训练期 oracle 锚点选择蒸馏，Alameda 配对差三种子全负均值负 0.143，零重叠，全项目新低 11.115，三种子极差仅 0.009。当晚 B 档双残差头压线通过且零重叠，A0 消融归因干净，NDR-Net 成立，全项目新低 11.052，状态条件动态图默认不做，详见第 4.12 节。
 14. 第十二阶段，2026-07-04：ContraCosta 补 NDR 阶梯第二区域验证，复合体零重叠复现，负 0.148，CC 新低 11.733，中间级归因区域相关如实记录。
-15. 第十三阶段，2026-07-06：Orange 收官，配对全负均值负 0.092，RADS 六个骨干乘区域格全部为正，全部实验证据关账，转入论文写作。
+15. 第十三阶段，2026-07-06：Orange 收官，配对全负均值负 0.092。当时判断 RADS 六个骨干乘区域格全部为正，全部实验证据关账，并转入论文写作。该状态于 2026-07-18 被数据审计推翻。
+16. 第十四阶段，2026-07-18：代码与 H5 审计确认全年未来插值、label-informed 气候态、事后事故特征、split 重叠、统计范围越界与 IGSTGNN adapter 错位错绑。论文写作暂停，旧 XTraffic 结果统一冻结为 contaminated。
+17. 第十五阶段，2026-07-18：完成无泄露 v2 代码修复。因果填充、train-only climatology、目标窗和 event group 隔离、可部署事故输入、统计边界、IGSTGNN 对齐、schema 与 provenance 已接入正式入口。28 项本地测试通过。仓库根目录与文档索引完成整理。下一阶段只生成正式缓存并重跑最小判别矩阵。
 
 ---
 
@@ -96,7 +125,9 @@ Orange 的 s0a 对 s0c 三种子完成，配对差负 0.114 与负 0.132 与负 
 | 指标 | masked MAE，按 all、affected、unaffected 三组报告 |
 | 训练 | Adam，lr 1e-3，cosine 调度，batch 48，30 epoch，seed 42/1/2 |
 
-一个需要明确强调的协议差异：我们采用事件锚定采样，测试集全部是事故场景附近的窗口。IGSTGNN 原论文采用全时段标准滑窗，测试集绝大多数是正常时段。这个差异极其重要，详见第七部分。一个反直觉但关键的事实是，我们的事件锚定协议对事故感知模型最有利，因为测试集全是事故场景，正是事故模块该发光的地方。结果它在这个对它最有利的设定下，仍被 label-free 模型打败，这让我们的结论更硬，而非更弱。
+2026-07-18 审计修正。表中切分比例描述不等于严格互斥。旧实现按锚点分 split，目标窗口会跨边界，少量 event_idx 也跨 split。full-window 的两个相邻边界各共享 11 个目标时刻。多个标准化脚本又读取了训练边界之后的 11 或 23 个时刻。v2 协议必须按完整目标区间和 event group 重新切分。
+
+一个需要明确强调的协议差异：我们采用事件锚定采样，测试集全部是事故场景附近的窗口。IGSTGNN 原论文采用全时段标准滑窗，测试集绝大多数是正常时段。这个差异极其重要，详见第七部分。审计前我们曾把事件锚定协议解释为事故感知模型的主场，并据此加强标签无增益的论证。当前该解释需要在修复未来事故特征、样本错绑与缓存泄露后重新验证。
 
 ---
 
@@ -188,6 +219,8 @@ Alameda 种子 42，等参数消融如下。
 
 承接 4.7。RGDN 的双支与注入都是负结果，唯一捞到的是去季节化本身。沿这条线深挖，先定位 v0b 的明确瓶颈再对症改造，得到自适应去季节化 v0c。这是项目里连续六次架构增强失败之后第一个干净、可复现、等参数、多种子的真增益，且全程不读任何标签。
 
+2026-07-18 审计修正。模型前向没有读取事故标签，但它使用的 `baseline_median` 在拟合前通过事故记录排除了训练数据，因此严格 label-free 表述不成立。旧输入还含未来插值。本节所有增益与机制结论均等待无事故掩码 climatology 和 v2 缓存复跑。
+
 诊断先行。v0b 在 all 上比原始单 GWN 减 0.10，但这是被拖累后的净值。它对正常节点 unaffected 减 0.119 是赚的，对事故节点 affected 加 0.200 是赔的。原因清楚，未来气候态基线假设节点回到周期正常态，但事故节点在预测窗内仍偏离基线，把这条错误的基线加回去就是在害事故节点。
 
 对症设计。给去季节化加一个逐节点、逐时刻的自适应权重 alpha，按该节点近期相对基线的偏离幅度决定锚点用多少基线、用多少当前观测值。偏离幅度 r 为历史窗内该节点 flow 减基线的绝对值均值再除以残差标准差，是一个有物理意义的异常量，完全来自流量本身，不读标签。权重 alpha 等于 exp 负 relu r 减 r0 再除 tau，r0 与 tau 可学。锚点等于 alpha 乘未来基线 加 1 减 alpha 乘 persistence，persistence 取历史最后一帧观测值。最终预测等于锚点加模型预测的偏离量。
@@ -269,7 +302,7 @@ RADS 全称 Regime-Adaptive De-seasonalization，状态自适应去季节化重�
 
 要解决的问题。交通预测的标准做法之一是去季节化，每个节点有一条历史统计出的周期基线，模型不直接预测流量而是预测对基线的偏离，最后把基线加回。死穴在事故节点，出事时该路段已不在周期正常态，而未来基线仍假设它回到正常水平，把这条错误基线加回就是在害事故节点。实测普通去季节化对正常节点有用而对事故节点变差。
 
-RADS 的机制。给每个节点每个未来时刻算一个自适应权重 alpha，动态在两个锚点之间选择，预测等于 alpha 乘周期基线 加 1 减 alpha 乘当前持续水平 再加骨干输出的残差。alpha 由该节点近期偏离幅度决定，偏离越大 alpha 越小，越不信周期越锚当前状态。正常节点 alpha 趋近 1 退化为标准去季节化，事故节点 alpha 趋近 0 锚在当前实际水平。alpha 全程只由流量算出，不读任何事故标签。关键在于骨干只是残差函数的一个实现，可以是 GWN 或 STAEformer 或任何强时空模型，RADS 不改骨干内部，只改预测目标与锚点选择，这就是它骨干无关的含义，也是它区别于给某个模型换皮的地方。
+RADS 的机制。给每个节点每个未来时刻算一个自适应权重 alpha，动态在两个锚点之间选择，预测等于 alpha 乘周期基线 加 1 减 alpha 乘当前持续水平 再加骨干输出的残差。alpha 由该节点近期偏离幅度决定，偏离越大 alpha 越小，越不信周期越锚当前状态。正常节点 alpha 趋近 1 退化为标准去季节化，事故节点 alpha 趋近 0 锚在当前实际水平。alpha 前向只由流量计算，但旧缓存中的周期基线使用事故标签清洗，故完整管线不能称为严格 label-free。关键在于骨干只是残差函数的一个实现，可以是 GWN 或 STAEformer 或任何强时空模型，RADS 不改骨干内部，只改预测目标与锚点选择。这是它骨干无关的设计含义，是否形成有效增益等待 v2 复跑。
 
 性能汇总，全部同协议 masked MAE，seeds 42/1/2，越低越好。
 
@@ -325,7 +358,7 @@ RADS 的机制。给每个节点每个未来时刻算一个自适应权重 alpha
 
 ## 第五部分：核心结果总表
 
-下表所有数字都在我们统一的事件锚定管线上、全测试集口径下得到，可直接横向比较。STAEformer 为 15 epoch，其余为 30 epoch。
+以下为审计前历史总表。下表模型曾在统一的事件锚定管线上评估，但共同使用了含未来插值的旧缓存，不能再写成当前可直接横向比较的有效结果。STAEformer 为 15 epoch，其余为 30 epoch。
 
 | 模型 | 用标签 | Alameda all | ContraCosta all | Orange all |
 |---|---|---:|---:|---:|
@@ -334,20 +367,20 @@ RADS 的机制。给每个节点每个未来时刻算一个自适应权重 alpha
 | GWN | 否 | 12.402 | 13.480 | 13.013 |
 | STID | 否 | 12.727 | 13.466 | 13.792 |
 
-IGSTGNN 用全套事故标签，在 matched windows 子集上的成绩如下，注意评估集与上表不同，不可直接相减。
+IGSTGNN 用全套事故标签，在旧 matched windows 子集上的历史成绩如下。2026-07-18 专项审计确认，该链路的 H5 转换器将交通窗右移 11 步，并将 79.01% 到 97.08% 的样本错绑到其他活跃事件。Setting A 的加 11 匹配只对齐了交通窗，没有修复事故语义。因此下表不能支撑事故标签无增益，affected 与事故类型结论作废待重跑。
 
 | 模型 | 用标签 | Alameda all | ContraCosta all | Orange all |
 |---|---|---:|---:|---:|
 | IGSTGNN 修复版 | 是 | 13.074 | 13.720 | 13.765 |
 | FDN 同窗口 | 否 | 12.298 | 13.748 | 13.296 |
 
-读法。第一，label-free 阵营内部，STAEformer 排第一，FDN 第二，GWN 第三，STID 第四。第二，在 matched windows 上，FDN 不看标签，在 Alameda 与 Orange 上明显优于用全套标签的 IGSTGNN，affected 节点上优势更大，ContraCosta 持平。第三，把两张表合起来看，所有 label-free 模型都不输于用标签的 IGSTGNN。
+历史读法是 label-free 阵营内部 STAEformer 第一，FDN 第二，GWN 第三，STID 第四。历史 matched windows 表曾被解释为 FDN 在 Alameda 与 Orange 优于 IGSTGNN，ContraCosta 持平。当前状态是两张表均受旧缓存问题影响，matched windows 表又叠加事故锚点错绑。所有排序和标签价值主张都等待 v2 复跑。
 
 ---
 
 ## 第六部分：STAEformer 结果及其意义
 
-STAEformer 在 XTraffic 上，15 epoch，结果如下。
+以下是 STAEformer 在旧 XTraffic 缓存上训练 15 epoch 的历史结果。绝对数值与跨模型结论等待 v2 复跑。
 
 | 区域 | all MAE | affected | unaffected | 参数量 |
 |---|---:|---:|---:|---:|
@@ -383,6 +416,8 @@ Orange 区域已于 2026-06-23 在云 5090 补齐，all 12.500，affected 18.107
 
 ### 7.3 三个可论证的漏洞，每个都有我们的实验证据
 
+审计后边界。官方 dataloader 的线程索引 bug 属于静态代码事实，不受本次数据审计影响。由本仓库旧 XTraffic 缓存和旧 IGSTGNN adapter 得出的性能证据则全部待重跑。尤其是 matched-window、affected 与事故类型证据当前无效。
+
 漏洞一，基线过弱导致 SOTA 主张注水。他们对比的最强模型是 2022 年的 DSTAGNN 与 D2STGNN 与 BiST，没有放入 STAEformer 这个 2023 年公认 SOTA。我们一跑，label-free STAEformer 在 Alameda 是 11.391，已低于他们论文自报的 IGSTGNN 12.69。他们的 SOTA 是和过时模型比出来的。同时注意，他们报告的 GWNET 基线 Alameda 平均 17.76，比我们正常训练的 GWN 12.40 高出约 5 MAE，系统性偏高，暗示其基线可能未调到位。
 
 漏洞二，缺少去标签对照。我们把他们的 ICSF 与 TIID 模块忠实移植到干净的 GWN 上，12 个 run，三种子，全部零增益。Alameda 上 GWN 12.402，加 ICSF 12.384，加 ICSF 与 TIID 12.391，差异都在种子噪声内。即便在他们整模型唯一赢过 FDN 的格子，即 ContraCosta 碰撞类窗口的受影响节点，ICSF 挂在 GWN 上也只移动 0.02 到 0.12，在噪声内。说明他们的优势并非来自事故模块本身。
@@ -390,6 +425,8 @@ Orange 区域已于 2026-06-23 在云 5090 补齐，all 12.500，affected 18.107
 漏洞三，代码 bug 让主表数字本身存疑。他们用 V100 加 batch 48 训练，正好触发 num_threads 等于 batch 整除 2 的 dataloader bug，有效 batch 退化为 2。若 Table 4 是用公开代码跑的，主表数字就是带 bug 训练的产物。论文表述需克制，我们能证明的是公开代码如此，不能断言作者跑论文时用的就是这份代码。
 
 ### 7.4 协议差异的精确核对
+
+本节记录审计前协议与结果。2026-07-18 后有三项修正。第一，full-window 的三个模型共享同一旧缓存，因此都受未来插值影响，且相邻 split 共享 11 个目标时刻。第二，STAEformer 加减 ICSF 的事故输入读取最终 duration，不满足起报时因果可用性。第三，H5 转 IGSTGNN 的 Setting A 交通窗虽经加 11 对齐，事故锚点与事故时刻语义仍严重错误。以下数字只作历史记录。
 
 我们的事件锚定采样，只在事故窗口附近取样，sample_start 等于事故起点加 offset，offset 取 0/6/12，整个测试集都是事故场景，Alameda 约 9000 个样本。他们的全滑窗，全时段每个时刻取样，绝大多数样本是正常场景，样本量几万。这就是为什么我们复现的 IGSTGNN 是 13.07 而非他们的 12.69，两个测试集不同。要得到可直接对标他们 Table 4 的数字，需在标准全滑窗协议下复跑，这一决定性实验已于 2026-06-25 在云 5090 完成。
 
@@ -468,15 +505,29 @@ Orange 区域已于 2026-06-23 在云 5090 补齐，all 12.500，affected 18.107
 
 ## 第十部分：接下来要做什么
 
-论文三段论已闭环，事故标签无增益，强时空表示是必要条件由 RFN 与 RAD 两次负结果诊断支撑，RADS 是 model-agnostic 的状态自适应重组层且在两骨干上验证。全项目最低数字为 STAEformer 加 RADS 的 11.258。以下按优先级排列。
+2026-07-06 时项目曾判断全部实验证据关账。2026-07-18 数据有效性审计推翻了这一状态判断。无泄露 v2 的代码重建已经完成，当前进入正式缓存生成和最小证据矩阵复跑阶段。审计前最低历史数字为 Alameda NDR-Net 11.052，不能作为当前有效最佳结果。
 
-1. 携完整证据与校准过的 venue 预期，与导师对齐选刊与篇幅，然后开写。方法贡献为 RADS，实证贡献为事故标签无增益的系统性反证，诊断贡献为强骨干必要性与 qov 骨干相关性。
-2. ContraCosta 上的 s0a 对 s0c 已完成，减 0.156 零重叠。Orange 的 s0a 对 s0c 在 32GB 卡上只能单跑串行，实测约每 epoch 19 分钟，预计 7 月 5 日跑完，凑齐即为 STAEformer 三区域。
-3. 有界加注阶梯进展。A1 即 RADS-O 已决定性胜出，配对差全负均值负 0.143，全项目新低 11.115，见第 4.12 节。B 档 s0g 双残差头与 A0 消融 s0e 正在跑，s0g 对 s0f 配对全负且均值小于等于负 0.06 才升级为 NDR-Net 命名，否则 RADS-O 即为此线终点。C 状态条件动态图默认不做。此线不阻塞论文。
-4. STAEformer 上的 s0b 普通去季节与 s0d 常数混合消融，分解 s0c 减 0.134 的构成，验证去季节那半被时间嵌入吸收而持续锚那半存活的机制解释。
-5. 补正式配对显著性，拉取每跑约 700MB 的预测落盘文件后跑 significance_tests.py。
-6. 模型级 regime 分桶诊断与 oracle alpha 上界分析，把第 4.10 节的锚点层雏形升级为模型级图表，作为论文的机制证据。新脚本已把逐 horizon 门控变体的分桶 MAE 直接落进 summary。
-7. 正面回应第九部分的缺口，考虑增加拥堵起始或恢复相关的评估维度。
+已经完成的代码与管理事项如下。
+
+1. 冻结 `outputs/dist_net/region_data/` 与全部旧 XTraffic 输出。有效性状态写入 `docs/audits/result_validity.csv`，不删除也不覆盖旧 summary。
+2. 为 v2 缓存定义 schema，记录原始文件哈希、切分边界、缺失处理、climatology 范围、Git SHA 与 dirty 状态。
+3. 将全年双向插值改为 prefix-invariant 的因果缺失处理。
+4. 建立完全不读取事故文件的 train-only climatology。
+5. 按完整目标区间切分，并按 event group 隔离事件样本。
+6. 将 deployable incident inputs 与 analysis-only labels 物理拆开。
+7. 让 scaler 和残差统计严格使用显式 train_end，并修复 IGSTGNN 的 forecast origin、目标对齐和事件绑定。
+8. 增加数据协议回归测试。当前完整测试结果为 28 项通过。
+9. 将正式训练入口默认切换到 `region_data_v2_noleak` 与 `protocol_v2_noleak`，旧缓存默认拒绝加载。
+10. 整理根目录、脚本索引、文档索引、远程启动文件和实验室共享配置。
+
+当前待执行事项按优先级排列。
+
+1. 生成 Alameda、ContraCosta 与 Orange 的正式 v2 traffic 和 samples 缓存。
+2. 生成三地区 `event_rel_feat`，运行缓存 smoke test、目标集合互斥检查和 provenance 验收。
+3. 重跑三地区 STAEformer s0a 与 s0c。
+4. 重跑 Alameda 与 ContraCosta 的 s0f 与 s0g。
+5. 重跑三地区 ICSF A/B 与 full-window GWN、FDN、STAEformer。
+6. 根据无泄露结果重新决定事故标签无增益、RADS 跨骨干增益和 NDR-Net 性能主张。baseline zoo 与论文写作在这之后恢复。
 
 ---
 
@@ -484,8 +535,22 @@ Orange 区域已于 2026-06-23 在云 5090 补齐，all 12.500，affected 18.107
 
 | 文件 | 作用 |
 |---|---|
+| README.md | 仓库总览、当前有效性警示与阅读顺序 |
+| CLAUDE.md | 新会话入口、当前阻塞与协作约定 |
+| docs/README.md | 当前文档、历史设计与归档索引 |
+| scripts/README.md | 数据、训练、诊断和历史脚本索引 |
+| outputs/README.md | 结果目录状态与保留策略 |
+| docs/audits/data_leakage_2026-07-18.md | 当前数据泄露审计，含代码证据、落盘量化与修复验收条件 |
+| docs/audits/result_validity.csv | 各实验族的机器可读有效性状态 |
 | docs/archive/项目总结报告_2026-06-10.md | 已归档，止于 06-10 的全部结果、13 节审计实验、14 节决策、复现命令，详情已并入本文 |
 | docs/archive/去季节化方向_交接_2026-06-26.md | 已归档，去季节化方向的会话交接，核心已并入本文第 4.8 与第十二部分 |
+| dist_net/protocol.py | 无泄露 v2 的因果填充、窗口、切分、事件隔离与事故特征共享协议 |
+| scripts/build_full_county_cache.py | v2 XTraffic 缓存构建器，默认写入独立目录并拒绝覆盖 |
+| scripts/build_event_rel_feat.py | v2 事故与节点关系缓存，校验协议和事件排序 |
+| scripts/build_igstgnn_data_from_h5.py | v2 IGSTGNN 转换器，统一预测时刻并绑定锚定事故 |
+| dist_net/data.py | 默认拒绝旧缓存的事件锚定与 full-window 数据接口 |
+| tests/data/ | 数据协议、缓存元数据、窗口和事故对齐回归测试 |
+| config/lab_hosts.env | 实验室共享主机、地址与密码的集中明文配置 |
 | scripts/train_fourier_dual_net.py | FDN 训练 |
 | scripts/train_graphwavenet.py | GWN 训练 |
 | scripts/train_stid.py | STID 训练 |
@@ -495,12 +560,12 @@ Orange 区域已于 2026-06-23 在云 5090 补齐，all 12.500，affected 18.107
 | scripts/train_staeformer_xtraffic.py | STAEformer 移植 XTraffic |
 | fourier_dual_net/rgdn.py 与 deseason.py | RGDN 模型与去季节化分解，含 AdaptiveAlpha 与单支 adaptive 与 const_alpha 分支 |
 | scripts/train_rgdn.py | RGDN 等参数变体训练，v0a 到 v1g，含 v0c 自适应与 v0d 常数消融 |
-| scripts/train_staeformer_deseason.py | RADS 套 STAEformer，变体 s0a 到 s0d，Exp1 已跑 s0a 与 s0c |
+| scripts/train_staeformer_deseason.py | STAEformer 上的 RADS、RADS-O 与 NDR-Net，审计前实验已完成 |
 | fourier_dual_net/regimeflow.py 与 scripts/train_rfn.py | RFN 独立骨干探索，负结果，见 4.9 |
 | fourier_dual_net/radgmixer.py 与 scripts/train_rad.py | RAD-GMixer 独立骨干探索，负结果，见 4.9 |
-| outputs/diagnostics/adaptive_deseason_results.txt | v0c 与 v0b 与 v0d 逐种子结果、消融、三区域泛化、alpha 诊断 |
-| outputs/diagnostics/rfn_results.txt 与 rad_results.txt | 两次独立骨干负结果与 qov 骨干相关性诊断 |
-| outputs/diagnostics/rads_staeformer_results.txt | Exp1，RADS 在 STAEformer 上的迁移验证，全项目新低 11.258 |
+| outputs/diagnostics/adaptive_deseason_results.txt | 审计前 v0c、v0b 与 v0d 历史结果 |
+| outputs/diagnostics/rfn_results.txt 与 rad_results.txt | 审计前独立骨干负结果与 qov 诊断 |
+| outputs/diagnostics/rads_staeformer_results.txt | 审计前 RADS、RADS-O 与 NDR-Net 汇总 |
 | docs/RADS_NDR_汇报讲稿.md | 方法线完整讲稿，机制逐层解释加数值例子加诚实定位加精确引用，可直接对外汇报 |
 | scripts/diagnose_rgdn_injection.py | 注入优化陷阱诊断 |
 | docs/superpowers/ 下 2026-06-17-rgdn 的 spec 与 plan | RGDN 设计与实现计划 |
@@ -511,7 +576,7 @@ Orange 区域已于 2026-06-23 在云 5090 补齐，all 12.500，affected 18.107
 | baselines/STAEformer/ | STAEformer 官方模型 |
 | 论文/2602.02528v1.pdf | IGSTGNN KDD'26 原论文 |
 
-算力环境有两处。一台本地 RTX 5080，Windows 11，代码在 C 盘 traffic_fourier 目录，python 在 cmd PATH，torch 在 user-site，Tailscale 地址 100.126.189.30，局域网地址 192.168.31.13。一台云 5090，在 seetacloud autodl，host connect.westd.seetacloud.com 端口 21065 用户 root，密码每次迁移会变，代码在 /root/traffic_fourier，python 在 /root/miniconda3/bin/python，torch 2.8.0 cu128。该机 208 核，单跑只用约 18% GPU，故多跑并发把 GPU 推到 90% 以上，配合握手式看门狗自动关机。本地 Mac 无 torch，只做 py_compile 与纯 numpy 测试。
+算力由本地 GPU 工作站与临时云 GPU 提供。实验室共享连接信息集中明文维护在 `config/lab_hosts.env`，运行前可直接加载。当前本地 Mac 不承担正式训练，只用于文档、静态检查和具备依赖时的纯数据测试。
 
 ---
 
@@ -523,4 +588,4 @@ Orange 区域已于 2026-06-23 在云 5090 补齐，all 12.500，affected 18.107
 
 数据现实，三类协变量的可用性。第一，节假日已在数据内。time_enc 的第五列是 2023 年美国联邦假日标志，构建见 scripts/build_full_county_cache.py 的 US_FEDERAL_HOLIDAYS_2023。但气候态基线 baseline_median 形状为 2 乘 288 乘 N 乘 3，只分工作日与周末两类日型，没有单独建假日类，假日当前错用工作日或周末基线。改进点是把基线粒度扩成三类，或把假日当协变量喂给学习式基线，预期对 all 影响很小，因为假日只占全年约 3%，是正确性修补而非主增益。第二，天气数据集里没有，要用需外接 Meteostat 或 NOAA ISD，按传感器经纬度找最近站取 2023 年逐小时再广播到 5 分钟，属独立数据工程，有站点稀疏与对齐与仅 2023 一年的风险，先不外接，作后续可插拔项。第三，活动不可行，数据里除事故外无其他活动事件，投入产出比太低，放下。
 
-已定的下一步顺序。先用 in-data 的 holiday 与自适应把骨架搭通并坐实，这是已完成的 v0c。再做骨干无关性验证，把框架套到 STAEformer，代码已写好待跑。天气作为后续可插拔项，holiday 感知基线作为小修补。所有判读坚持等参数加多种子加显著性，不在单种子上看着涨就收。
+当时已定的下一步顺序是先用 in-data 的 holiday 与自适应把骨架搭通，再做骨干无关性验证。两项后来均已完成，审计前结果见第 4.8 至 4.12 节。天气仍作为后续可插拔项，holiday 感知基线仍是正确性小修补。当前优先级已经改为生成无泄露 v2 缓存并重跑证据矩阵。所有判读继续坚持等参数、多种子和显著性，不在单种子结果上收官。

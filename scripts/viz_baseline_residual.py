@@ -41,7 +41,7 @@ def lookup_baseline(base, start_step, T_h):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--region", default="Alameda")
-    p.add_argument("--data_dir", default="outputs/dist_net/region_data")
+    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v2_noleak")
     p.add_argument("--out_dir", default="outputs/fourier_test")
     p.add_argument("--channel", type=int, default=0)
     p.add_argument("--n_agg", type=int, default=400)

@@ -6,12 +6,12 @@ model per region and write per-region checkpoint + per-region test predictions
 in the same .npz schema as scripts/run_distnet_test_inference.py.
 
 Reads:
-  outputs/dist_net/region_data/<region>_traffic.h5      historical traffic
-  outputs/dist_net/region_data/<region>_samples.h5      event-anchored samples
+  outputs/dist_net/region_data_v2_noleak/<region>_traffic.h5
+  outputs/dist_net/region_data_v2_noleak/<region>_samples.h5
   outputs/region_graphs/<region_key>_sparse_adj.npz     edge_index → adj matrix
 
 Writes:
-  outputs/baselines/graphwavenet/<region>/
+  outputs/protocol_v2_noleak/baselines/graphwavenet/<region>/
     ckpt_best.pt
     test_predictions.npz   (same schema as DIST-Net)
     summary.json
@@ -47,10 +47,10 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("--region", required=True, choices=list(REGION_TO_GRAPH_KEY.keys()))
     p.add_argument("--data-dir", type=Path,
-                   default=Path("outputs/dist_net/region_data"))
+                   default=Path("outputs/dist_net/region_data_v2_noleak"))
     p.add_argument("--graph-dir", type=Path, default=Path("outputs/region_graphs"))
     p.add_argument("--out-dir", type=Path,
-                   default=Path("outputs/baselines/graphwavenet"))
+                   default=Path("outputs/protocol_v2_noleak/baselines/graphwavenet"))
     p.add_argument("--epochs", type=int, default=30)
     p.add_argument("--batch-size", type=int, default=32)
     p.add_argument("--lr", type=float, default=1e-3)
@@ -284,7 +284,7 @@ def main() -> None:
     valid_un = valid & (~aff_TpN)
     mae_un = float(diff[valid_un].mean()) if valid_un.any() else float("nan")
     summary = {"all": mae_all, "affected": mae_aff, "unaffected": mae_un,
-               "best_val_L_main": best_val}
+               "best_val_L_main": best_val, **rdata.result_metadata()}
     print(f"\ntest MAE: all={mae_all:.3f}  affected={mae_aff:.3f}  unaffected={mae_un:.3f}",
           flush=True)
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2),

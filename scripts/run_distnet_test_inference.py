@@ -33,7 +33,11 @@ from dist_net.model import DISTNet, DISTNetConfig
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("--ckpt", type=Path, required=True)
-    p.add_argument("--data-dir", type=Path, default=Path("outputs/dist_net/region_data"))
+    p.add_argument(
+        "--data-dir",
+        type=Path,
+        default=Path("outputs/dist_net/region_data_v2_noleak"),
+    )
     p.add_argument("--graph-dir", type=Path, default=Path("outputs/region_graphs"))
     p.add_argument("--regions", nargs="+",
                    default=["Alameda", "ContraCosta", "Orange"])

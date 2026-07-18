@@ -49,9 +49,13 @@ def masked_mae(pred, target, mask):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--region", required=True, choices=["Alameda", "ContraCosta", "Orange"])
-    p.add_argument("--data_dir", default="outputs/dist_net/region_data")
+    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v2_noleak")
     p.add_argument("--graph_dir", default="outputs/region_graphs")
-    p.add_argument("--out_dir", type=Path, default=Path("outputs/baselines/staeformer"))
+    p.add_argument(
+        "--out_dir",
+        type=Path,
+        default=Path("outputs/protocol_v2_noleak/baselines/staeformer"),
+    )
     p.add_argument("--epochs", type=int, default=30)
     p.add_argument("--batch_size", type=int, default=16)
     p.add_argument("--lr", type=float, default=1e-3)
@@ -95,8 +99,7 @@ def main():
     # flow z-score from train split (channel 0), masked by validity
     flows = rdata.flow_series[:, :, 0]
     fmask = rdata.flow_mask[:, :, 0].astype(bool)
-    tr_ss = rdata.sample_start[rdata.split == 0]
-    hi = int(tr_ss.max()) + T_h + T_p
+    hi = rdata.train_end
     seg = flows[:hi]; segm = fmask[:hi]
     mu, sd = float(seg[segm].mean()), float(seg[segm].std() + 1e-6)
     print(f"N={N} T_h={T_h} T_p={T_p} flow mu={mu:.2f} sd={sd:.2f}", flush=True)
@@ -197,6 +200,7 @@ def main():
            "affected": float(diff[y_mask_flow & aff3].mean()),
            "unaffected": float(diff[y_mask_flow & ~aff3].mean()),
            "best_val": best, "seed": args.seed, "params": sum(q.numel() for q in model.parameters())}
+    res.update(rdata.result_metadata())
     print(f"\ntest MAE: all={res['all']:.3f}  affected={res['affected']:.3f}  "
           f"unaffected={res['unaffected']:.3f}", flush=True)
     (out_dir / "summary.json").write_text(json.dumps(res, indent=2))

@@ -1,199 +1,81 @@
-# XTraffic 交通流量预测研究 — 项目状态与约定
+# XTraffic 项目导航与协作约定
 
-详细记录见《XTraffic项目完整汇报.md》(唯一权威报告与进度文档,含全部数字与出处)。
-旧档《项目总结报告_2026-06-10》与《去季节化方向_交接_2026-06-26》已并入并归档到 docs/archive/。
-本文件只做快速导航,新会话先读这里。
+最近更新：2026-07-18
 
-## 最新进展 (2026-07-06):Orange 收官,全部实验证据关账,转入论文写作
+## 新会话先读
 
-**RADS 六格全正:GWN(−0.229/−0.157/−0.249 全零重叠)+ STAEformer(−0.134/−0.156/−0.092 配对全负,
-CC 零重叠、Orange 最弱非零重叠)。NDR-Net 两区域复合零重叠(Alameda 11.052 / CC 11.733)。**
-Orange seed2 曾因看门狗竞态丢失(cap1 串行 run 间 ~20s 空档被 60s 轮询误判),修复版看门狗(验证目标
-summary 存在+连续零进程兜底)补跑完成。所有 autodl 实例已关机。**下一步唯一事项:开写论文**(可选补:
-s0b/s0d 消融、配对显著性 npz)。
+1. `README.md`
+2. `docs/audits/data_leakage_2026-07-18.md`
+3. `docs/audits/result_validity.csv`
+4. `XTraffic项目完整汇报.md`
+5. `docs/README.md`
 
-## 历史进展 (2026-07-04):NDR-Net 阶梯全通 + 两区域验证,新低 Alameda 11.052 / CC 11.733
+`XTraffic项目完整汇报.md` 是研究历史、实验数字和出处的唯一权威长报告。数据是否仍可用于论文，以 2026-07-18 审计和有效性清单为准。
 
-**新会话先读 `XTraffic项目完整汇报.md` 第 4.10 到 4.12 节(4.11 有对外速览与层级关系)。**
-层级:**RADS(锚点自适应机制)⊂ RADS-O(+逐 horizon 门控+oracle 蒸馏)⊂ NDR-Net(+正常/扰动双残差头)**,
-不是并列方法。NDR 阶梯(变体 s0e/s0f/s0g 在 scripts/train_staeformer_deseason.py)已全线通过:
-**Alameda 归因阶梯 11.392→11.258(RADS)→11.179(门控形式)→11.115(oracle,种子极差压到 0.009)→11.052
-(双头,NDR-Net),每级三种子配对全负+零重叠,总计 −0.340**;oracle 把门控钉到 0.53/0.63(主损失自学
-只到 0.71/0.76,单位校准×sd_node 是必要工程点)。**CC 第二区域:复合体零重叠复现(s0g vs s0c −0.148),
-端到端 12.038→11.733(−0.305);但中间级归因区域相关(CC 上门控/oracle 单独≈0,双头扛 −0.120,组件协同)
-→ 论文主张复合体两区域零重叠,Alameda 阶梯做归因研究,CC 差异如实写**。RADS 单独=两骨干(GWN 三区域
-+STAEformer)最广证据;NDR-Net=最强数字。停止线纪律全程执行(全负且均值≤−0.06)。
-数据 outputs/diagnostics/rads_staeformer_results.txt。**仅剩:Orange s0a/s0c 串行(端口 37423,单跑
-25.5GB/32GB 只能 cap1,~19min/ep,预计 7/5 自动回传关机)→ RADS 三区域收官;然后全证据关账,开写论文。
-可选补:s0b/s0d 消融、配对显著性 npz。**
-下面是更早的历史状态(仍有效)。
+## 当前状态
 
-## 历史进展 (2026-07-03):RADS-O(oracle 门控蒸馏)决定性胜出
+审计前的研究线已经完成：
 
-详见完整汇报 4.12。s0f 11.115(极差 0.009),配对 vs s0c −0.143 零重叠;工程要点:oracle 门控蒸馏
-g*=|y−P|/(|y−B|+|y−P|),置信加权 Huber,必须乘 sd_node 单位校准否则监督形同虚设。
-下面是更早的历史状态(仍有效)。
+- RADS 在 GWN 与 STAEformer 两个骨干、三个区域上完成验证。
+- RADS-O 增加逐 horizon 门控与训练期 oracle 蒸馏。
+- NDR-Net 在 RADS-O 上增加正常态与扰动态双残差头。
+- 三者是包含关系：`RADS ⊂ RADS-O ⊂ NDR-Net`。
+- 审计前记录的最低历史 MAE 为 Alameda 的 NDR-Net 11.052。
+- Orange 的 STAEformer RADS 验证已经完成。README 中曾写迁移仍在进行，属于过期状态。
+- P2 六锚点库实验失败，方法加注线已经关闭。
+- baseline zoo 已启动并有本地回传结果，但尚未形成权威诊断汇总。
 
-## 历史进展 (2026-07-02):v0c 重定位为 RADS,在 STAEformer 上迁移成功,全项目新低 11.258
+以上是历史实验进度，不是当前可发表状态。
 
-**详见 `XTraffic项目完整汇报.md` 第 4.8 到 4.10 节。** 时间线:v0c 三区域三胜(4.8)后,为回应
-"GWN 封装"质疑试了两条独立轻量骨干,RFN(状态转移 TCN)与 RAD-GMixer(分解混合器),**均干净负结果**,
-等参数控制证明差距是架构性的;附带发现 **qov 输入价值是骨干相关的**(弱骨干+0.15 真增益,强 GWN 上
-反而过拟合变差 0.07),独立轻量骨干岔路封死(4.9)。随后与导师对齐重定位:**v0c=RADS(Regime-Adaptive
-De-seasonalization)机制,骨干只是残差函数的实现**。决定性验证 Exp1:RADS 套 STAEformer,Alameda
-seeds 42/1/2,**s0c 11.258 vs s0a 11.392(配对差三种子全负,均值−0.134),11.258=全项目历史最低**;
-诚实边界:逐种子非零重叠(~1.5σ,弱于 GWN 侧 −0.229/2.9σ),机制上时间嵌入吸收去季节那半、持续锚
-那半存活(4.10)。**论文三段论闭环:事故标签无增益 + 强时空表示是必要条件(RFN/RAD 诊断)+ RADS 是
-model-agnostic 重组层(GWN/STAEformer 双验证)。** 数据 outputs/diagnostics/{rfn,rad,rads_staeformer}
-_results.txt。**待办:CC/Orange 补 s0a/s0c(收紧 1.5σ);s0b/s0d 消融;配对显著性;开写论文。**
-远端:autodl 实例用完即关,**结果回传中转=用户服务器 8.134.12.5(root,Mac 免密)**,看门狗跑完自动
-tar 推 /root/xtraffic_results/ 再关机,不用重开机拉数据;GitHub 在 autodl 上不可达,代码用 tar 流传;
-STAEformer 很慢(~28min/epoch @6并发),96GB 卡最多 8 并发(12 会 OOM)。
-下面是更早的历史状态(仍有效)。
+## 当前最高优先级
 
-## 历史进展 (2026-06-27):自适应去季节化 v0c = 连败六次后第一个架构侧真增益
+2026-07-18 审计确认旧 XTraffic 管线存在 P0 数据问题：
 
-**详见 `XTraffic项目完整汇报.md` 第 4.8 节。**
-沿去季节化深挖,诊断 v0b 害事故节点(affected +0.200,因把周期基线加回正在偏离的事故
-节点是错的),对症出 **v0c 自适应去季节化**:逐节点按近期异常幅度 r 在周期基线与 persistence(末帧观测)
-间选锚点,α=exp(−relu(r−r0)/τ),正常节点 α≈1 精确退化回 v0b,事故节点 α→0 锚当前水平,残差头照常叠加。
-代码 fourier_dual_net/rgdn.py 的 AdaptiveAlpha + 单支 adaptive/const_alpha 分支,scripts/train_rgdn.py
-变体 v0c/v0d。**结果(seeds 42/1/2 均值,等参数 +2 参,label-free):Alameda v0c 11.452 vs v0b 11.681
-(−0.229,≈2.9σ,逐种子零重叠);ContraCosta v0c 12.297 vs v0b 12.453(−0.157,零重叠)。** 消融 v0d 常数
-混合拿一半(−0.122),自适应异常加权再拿一半(−0.108),两块都真实。诊断 α_aff≈0.81<α_unaff≈0.89,真分化、
-非退化门控。效率:v0c 用 1/5 参数在 Alameda 逼近 STAEformer(11.391)。数据 outputs/diagnostics/
-adaptive_deseason_results.txt + outputs/rgdn/{区域}/。**待办:Orange v0b/v0c 在云 5090 跑(~12h,看门狗自动
-关机);STAEformer+框架代码已写好 scripts/train_staeformer_deseason.py 待跑(预判去季节那半在有 time emb 的
-STAEformer 上蒸发,持续锚那半可能留);正式配对显著性需拉 700MB/跑 npz。** 远端:seetacloud autodl,
-connect.westd.seetacloud.com:21065 root,密码每迁移变;208 核,单跑只用 18% GPU,故多跑并发(GPU→96%)。
-下面是更早的历史状态(仍有效)。
+1. 全年 `np.interp` 会把未来观测写入历史输入。
+2. RADS 气候态在拟合前使用事故标签排除数据，严格 label-free 主张不成立。
+3. severity、affected 与最终 duration 含事后信息，部分模型却将其用于输入或损失。
+4. 事件协议和 full-window 协议存在切分边界目标重叠。
+5. 多个脚本的 scaler 或残差统计越过训练边界。
 
-## 最新交接 (2026-06-26):两个决定性实验已关账,转入"去季节化"新方向
+因此，所有旧 XTraffic 绝对数值和配对结论均暂停进入论文。旧结果只读保留，不能删除或原地覆盖。
 
-**详见 `XTraffic项目完整汇报.md`(旧交接档已归档 docs/archive)。** 两个决定性实验已完成并提交:全滑窗 9 宫格
-(三模型全胜 IGSTGNN 主表)+ STAEformer±ICSF(零增益)。当前转入去季节化方向:用户选自适应机制
-+ holiday(in-data,天气暂不外接),先 Alameda 多种子等参数跑真信号。去季节化唯一已知信号=v0b 比
-v0a all −0.100(单种子,affected +0.200/unaffected −0.119)。详细决策/设计/下一步全在交接文件。
-下面是更早的历史状态(仍有效)。
+无泄露 v2 代码已经完成：共享协议位于 `dist_net/protocol.py`，正式构建入口为 `scripts/build_full_county_cache.py`，数据测试位于 `tests/data/`。当前完整测试结果为 28 项通过。仓库已同步远端 main 的 `c9425e2`，组员提交中可用的修复已经并入正式 `scripts/` 入口，根目录重复脚本和远程运行产物已经归位。当前还没有生成完整 v2 缓存，也没有重跑实验。
 
-## 一句话现状 (2026-06-18,RGDN 架构方向负结果,回 XTraffic 应用论文主线)
+## 下一步顺序
 
-**老师新方向 RGDN(去季节化残差引导双支)已试,负结果,机制不成立。** 分解导向:复用缓存
-气候态基线 baseline_median[day_kind,tod] 去季节化、只预测偏离;残差支线图传播,主支线节点局部
-加邻居残差注入,sum 融合。Alameda 种子 42 等参数消融(全部对齐 ~316k):v0a 原始 11.811 /
-v0b 去季节 11.711 / v1 完整 11.884 / v2 无注入 11.779。**去季节化是唯一真增益**:v0b 比 v0a
-all −0.100,单 GWN 就够、不需要双支。**机制不立**:v1 比 v0b 差 +0.174;注入是负担,v1 比 v2
-差 +0.105;双支本身 v2 vs v0b +0.068 在噪声带内。**注入是优化陷阱**(诊断坐实):自适应邻接
-退化成全局平均、熵比 0.987,模型重度依赖、推理置零崩到 22.6,门控版 v1g 11.922 更差且学到的
-门控停在 0.90、逃不出。数据 outputs/diagnostics/rgdn_round1_results.txt;代码 fourier_dual_net/
-rgdn.py + scripts/{train_rgdn,collect_rgdn_results,diagnose_rgdn_injection}.py;spec/plan 见
-docs/superpowers。单种子,方向清楚(headline ~2-4σ),多种子可收紧但结论已定。
-**下一步:与老师对齐,把 RGDN 负结果 + 去季节化小增益并入 XTraffic 应用论文,或决定补多种子坐实。**
+1. 在具备完整原始数据的机器上生成三个区域的 `region_data_v2_noleak`。
+2. 运行 cache smoke test、目标集合互斥检查和 provenance 检查。
+3. 用 `protocol_v2_noleak` 新结果目录重跑最小判别矩阵。
+4. 根据复跑结果决定论文主张，再恢复 baseline zoo。
 
-下面是 RGDN 之前的主线状态(仍有效)。证据链完整,完整汇报已纳入项目根目录
-`XTraffic项目完整汇报.md`(所有数字核自落盘)。
-**论文定位 = XTraffic 应用/复现性研究**:命题=事故标签无增益。最强证据=STAEformer
-(ICCV'23 SOTA, label-free) 在 XTraffic 上三区域 all,全部 seed 42,数据
-outputs/baselines/staeformer/{区域}/summary.json:Alameda 11.391 (aff 17.161 / unaff 11.031,
-1.56M 参) / ContraCosta 12.116 (aff 18.337 / unaff 11.809, 1.54M 参) / Orange 12.500
-(aff 18.107 / unaff 12.226, 2.01M 参)。**三区域全部低于 IGSTGNN 论文 Table 4 自报数**
-(11.391<12.69, 12.116<13.43, 12.500<13.13),且我们测试集事件锚定更难,结论更硬;也超过
-我们的 FDN(11.98)。Orange 这格 2026-06-23 在云 5090 跑完(5080 当年 OOM),三区域齐全。
-IGSTGNN 原论文(论文/2602.02528v1.pdf)三漏洞已核:基线过弱(没放 STAEformer)、
-无去标签对照(我们 ICSF 移植零增益证伪)、代码 bug 让主表存疑。
-**决定性实验 (1) 全滑窗协议复跑已完成 (2026-06-25, 云 5090, stride=1 seed42 patience6):**
-3 模型 x 3 区域,标准滑窗 12 进 12 出、整条时序 70/10/20 时序切分、masked MAE all
-(train/val/test 窗口=73567/10510/21020,三模型共用同一 loader 窗口逐元素对齐)。数据
-outputs/{baselines/graphwavenet_fullwindow, fourier_dual_net/learnable_K3_fullwindow,
-baselines/staeformer_fullwindow}/{区域}/summary.json:
-  Alameda  GWN 11.052 / FDN 10.735 / STAE 10.382
-  ContraCosta GWN 11.314 / FDN 11.132 / STAE 10.750
-  Orange   GWN 11.641 / FDN 11.293 / STAE 10.856
-**结论坐实:全 9 格远低于 IGSTGNN Table 4 自报(Alameda 12.69 / CC 13.43 / Orange 13.13)。**
-连最弱的 GWN(无标签, 316k 参)都在三区域全胜 IGSTGNN;STAEformer 领先 IGSTGNN ~2.3-2.7 MAE;
-FDN 三区域全部赢 GWN(-0.317/-0.182/-0.348),STAE<FDN<GWN 单调一致。注意此协议数比事件锚定低
-(全滑窗含大量正常车流,事件锚定测试窗更难),两协议不可直接互比,但各自内部排序一致。诚实边界:
-这是标准全滑窗协议对照,非逐字复现 IGSTGNN 切分(其单文件 incidents_data.npy 的切分预处理脚本
-不在其放出的仓库里, 无法逐字重现)。代码:dist_net/data.py 的 FullWindowRegionData +
-三训练脚本 --protocol full_window;队列 scripts/run_fullwindow_queue.sh;日志 outputs/fullwindow_run.log。
-注意 full_window 下 summary.json 的 affected/unaffected=NaN(无标签按设计),只取 all。
-**决定性实验 (2) STAEformer ± ICSF 已完成 (2026-06-26, 云 5090, 事件协议 seed42 patience6):**
-把 IGSTGNN 的 ICSF 忠实移植注入最强 label-free 骨干 STAEformer 的归一化 flow 通道最后一帧,
-同窗 A/B。数据 outputs/baselines/staeformer_icsf/{区域}/{base,icsf}/summary.json:
-Alameda base 11.283 / icsf 11.309 (Δ+0.026); ContraCosta 11.968 / 11.968 (Δ+0.000);
-Orange 12.436 / 12.375 (Δ−0.061)。**三个 Δ 极小且符号混杂(一差一平一略好),最大 0.061,
-全在种子噪声带内,单种子无法与零区分 => 事故标签对最强模型也零增益,与 GWN±ICSF 一致。**
-诚实:不夸大成"加标签必然更差"。代码 scripts/train_staeformer_icsf.py(c_in=1 注入,镜像
-train_gwn_icsf.py);队列 scripts/run_staeformer_icsf_queue.sh;日志 outputs/staeformer_icsf_run.log。
-频谱路由是标注边界的分析点,不是主菜(等参数下容量占 74-80%,路由仅 0.7%)。
+## 最小判别矩阵
 
-**频谱路由的诚实结论**(经等参数消融定案,勿再夸大):基准上 FDN 赢 GWN 的旧 headline
-(PEMS04 −0.69 / PEMS08 −0.51) **是 2P-vs-P 不公平对比**(FDN=2×GWN+7 参数)。等参数三变体
-(gwn/dual/spectral) 拆开:容量占 74-80%,路由仅 20-26%。路由净效应 pooled −0.137 MAE
-(6/6 种子负, t=−5.8),真实但小(~0.7%)。STID(有 time emb)路由=0,METR-LA(speed)=0。
-=> 频谱路由 = 轻量周期注入,仅在「周期主导信号 + 周期盲骨干」交集有效。
-数据:outputs/diagnostics/{gwn_routing_vs_capacity, spectral_stid_ablation, benchmark_transfer_results}.txt。
-教训:任何"X 赢 Y"先查参数是否对齐,再下结论(14.3 节改正)。
-**下一步:与老师对齐选刊与篇幅,然后开写 XTraffic 论文。**
+- 三地区 STAEformer s0a 与 s0c
+- Alameda 与 ContraCosta 的 s0f 与 s0g
+- 三地区 ICSF A/B
+- 三地区 full-window GWN、FDN 与 STAEformer
 
-## 已定结论(不要重新讨论)
+## 实验纪律
 
-1. FDN (FFT 可学习掩码 + 双 GWN) 赢 GWN 6-9σ (Alameda -0.38, CC -0.42, 3 种子),
-   赢 IGSTGNN (matched windows, 用标签) Alameda+Orange 显著、CC 平。
-2. 事故标签无增益:ICSF/TIID 移植到 GWN 零增益 (12 runs);IGSTGNN 唯一赢的格子
-   (CC 碰撞窗口) 与其事故模块无关;hazard 窗口占 42-58% 稀释一切。
-3. IGSTGNN 官方 dataloader bug:num_threads = max(bs//2,1) 硬编码 → 无条件触发,
-   有效 batch=2。我们的对比用修复版(对其有利)。
-4. 架构增强 5 连败:+A/+B/+E/D3 gated fusion/ICSF 移植,全部在种子噪声内。
-   不要再提调制模块类方案。
-5. fixed_k → learnable 掩码 +0.225 (Alameda, >5σ):这是真实的架构元素,论文卖点之一。
-6. RGDN 残差引导双支 (老师新方向, 2026-06-18) 负结果:去季节化 (单 GWN 预测偏离气候态)
-   是唯一真增益 (v0b−v0a all −0.10, 等参数);双支无增益 (v2≈v0b);注入是优化陷阱、门控也
-   救不回 (v1g 11.922 > v2 11.779, gate 停 0.90)。架构增强连败再+1,别再提注入/双支调制类。
+- 所有汇报数字必须来自已落盘文件，严禁估算填充。
+- XTraffic 旧缓存与旧 summary 只读冻结。
+- 新结果必须记录协议、split、normalizer 与 climatology 拟合范围、缓存哈希、Git SHA、dirty 状态和 schema version。
+- 等参数比较优先，多种子约定为 42、1、2。
+- 指标使用 masked MAE，并按需要报告 all、affected 与 unaffected。
+- affected 只能作为事后分组指标，除非实验明确声明使用标签监督。
+- 负结果如实保留，不为追求正结果反复改停止线。
+- 报告类正文不用破折号，不用括号内插说明。
+- 代码注释保持最少，commit 信息使用英文。
 
-## 下一步任务:标准基准移植(已批准,进行中)
+## 仓库维护
 
-- 数据:**已下载到 data/benchmarks/**(gitignore,勿提交):metr-la.h5 54M +
-  adj_mx_metrla.pkl(3 元组,最后一项 207×207 邻接);PEMS04.npz (16992,307,3) +
-  PEMS04_distance.csv (from,to,cost);PEMS08.npz (17856,170,3) + PEMS08_distance.csv。
-  PEMS-BAY 暂缓(GitHub raw 100M 限制,3 个数据集足够判读)。
-- 协议:12 步入 12 步出;METR-LA 用 speed 通道 70/10/20,值为 0 视为缺失做 masked MAE;
-  PEMS04/08 用 flow 通道 0,60/20/20,全部有效。z-score 用训练段统计。
-- 实现:新建 scripts/train_benchmark.py:通用 loader(滑窗采样,无事件锚定概念)+
-  复用 FDN 与 GWN 模型构造;--model {fdn,gwn} --dataset {metrla,pems04,pems08};
-  时间特征 tod 从时间索引推(METR-LA 5min 起点 2012-03-01 00:00,PEMS 5min);
-  FDN 的 time_feat 需要 (B,T_h,2) [tod/288, dow/7] 同我们管线。各 3 种子;
-  数据 scp 到 5080 的 data/benchmarks/ 后用隐藏任务队列跑,每 run <1h。
-- 判读:FDN 对 GWN 的种子带差距是否复现 0.3+ 量级;赢 → 方法论文,
-  XTraffic 标签分析降为一章;不赢 → 基准研究论文。
-- 然后与老师对齐(带报告)。
+- `scripts/README.md` 是脚本分类入口。
+- `outputs/README.md` 说明历史结果和本地产物的关系。
+- `docs/archive/` 保存被主报告吸收的旧文档。
+- 不批量移动仍被历史入口引用的脚本或结果，避免破坏导入与路径。根目录只保留项目级文档和配置。
+- 本地原始数据位于根目录 `archive/`，不进入 Git。
+- 远程运行包和日志放到被忽略的 `outputs/remote_runs/`。
 
-## 关键文件
+## 凭据与远程运行
 
-- XTraffic项目完整汇报.md — 唯一权威报告,全部结果、审计实验、决策、v0c 自适应去季节化
-- docs/archive/ — 旧档项目总结报告_2026-06-10 与去季节化方向_交接_2026-06-26,已并入主报告仅作历史保留
-- scripts/train_fourier_dual_net.py / train_graphwavenet.py / train_stid.py /
-  train_gwn_icsf.py — 四个训练脚本,产物 schema 相同
-- scripts/significance_tests.py / incident_type_breakdown.py / diagnose_fdn_failures.py
-- outputs/diagnostics/ — seed_noise_band.txt, icsf_collision_results.txt, significance_tests.txt
-- outputs/dist_net/region_data/ — XTraffic h5 缓存 (本地+5080 同构)
-- docs/superpowers/specs+plans — D3 与 ICSF 的设计文档
-- 本地无 torch;一切训练在 5080。
-
-## 5080 远程操作手册(踩坑后的最终版)
-
-- LAN: asus@192.168.31.13, 密码 Hzj050916;Tailscale 100.126.189.30 时常不在线。
-- 代码在 C:/Users/asus/traffic_fourier;python 在 cmd PATH,torch 在 user-site。
-- 长训练启动:写 .bat 队列 (CRLF!) + VBS 隐藏包装 + schtasks 创建/run/确认日志后
-  **立即删除任务**(占位触发时间会真的再次发火,血的教训:三实例抢 GPU)。
-- 不要用: nohup(bash 无 python)、Start-Process(引号地狱)、/ru SYSTEM 或
-  /ru asus /rp(批处理登录无 user-site → 找不到 torch)、裸控制台(被关 → forrtl 200)。
-- 读远端日志:python -X utf8 + base64 经 ssh 管道,避免 GBK 乱码;杀队列要连父 cmd
-  树一起 taskkill /T,否则 cmd 前进到下一条命令继续拉起 python。
-- Monitor 过滤词至少含: test MAE|Traceback|forrtl|aborting|CUDA out of memory。
-
-## 写作与协作约定
-
-- 用户要诚实的负结果;所有汇报数字必须出自已落盘文件,严禁估算填充。
-- 报告类文稿:不用破折号、不用括号内插说明(全局 CLAUDE.md 的规则)。
-- 代码注释最少化;commit 信息英文;种子约定 42/1/2;指标 masked MAE all/affected/unaffected。
+实验室共享主机、地址和密码集中明文维护在 `config/lab_hosts.env`。运行脚本可以直接 `source` 该文件，也允许环境变量覆盖。私钥、个人令牌和个人账号凭据仍不进入仓库。

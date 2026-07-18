@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Build DIST-Net data cache per design doc §3.
+"""Build the versioned no-leakage XTraffic cache.
 
-For each region produces 2 HDF5 files under outputs/dist_net/region_data/:
+For each region produces 2 HDF5 files under
+outputs/dist_net/region_data_v2_noleak/:
   {region}_traffic.h5  - continuous regional time series + statistics
   {region}_samples.h5  - per-sample metadata (event-anchored)
 
 Continuous traffic file (loaded once per region at training time):
-  /flow_series_imputed (T, N, 3)  float32  linear-interpolated raw flow
+  /flow_series_imputed (T, N, 3)  float32  causal forward-filled raw flow
   /flow_mask           (T, N, 3)  bool     1=originally observed
   /time_enc            (T, 5)     float32  sin/cos(tod)+sin/cos(dow)+holiday
   /static_meta         (N, C_meta) float32 sensor static features (z-normalized)
@@ -24,14 +25,16 @@ Sample metadata file (one entry per (event, offset)):
   /incident_feat       (S, M_max, C_e) float32  active incidents in [t-24, t]
   /incident_mask       (S, M_max) bool
   /n_active_incidents  (S,)       int32
-  /affected_mask       (S, N)     bool     union over active events' affected nodes
+  /primary_incident_slot (S,)     int16    anchor event's slot in incident_feat
+  /analysis_labels/affected_mask  (S, N) bool post-event evaluation label
 """
 from __future__ import annotations
 
 import argparse
 import bisect
+import hashlib
 import json
-import math
+import sys
 import time
 from pathlib import Path
 
@@ -39,17 +42,25 @@ import h5py
 import numpy as np
 import pandas as pd
 
-from build_impact_labels import (
-    CHANNEL_FLOW,
-    CHANNEL_OCC,
-    CHANNEL_SPEED,
-    build_baseline_valid_mask,
-    build_matches,
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from scripts.build_impact_labels import (
     build_robust_baseline,
-    load_incidents_2023,
     load_region_traffic,
     load_sensor_meta,
     region_specs,
+)
+from dist_net.protocol import (
+    CACHE_SCHEMA_VERSION,
+    PROTOCOL_VERSION,
+    build_deployable_incident_feature,
+    build_training_fit_mask,
+    causal_forward_fill,
+    classify_event_group,
+    classify_forecast_window,
+    git_worktree_provenance,
+    select_active_events,
 )
 
 REGIONS_DEFAULT = ["Alameda", "ContraCosta", "Orange"]
@@ -58,7 +69,7 @@ INCIDENT_TYPES = ["1141", "Fire", "NoInj", "UnknInj",
                   "Hazard", "AHazard", "CarFire", "Other"]
 TYPE_TO_IDX = {t: i for i, t in enumerate(INCIDENT_TYPES)}
 N_TYPES = len(INCIDENT_TYPES)
-C_E = N_TYPES + 5  # one-hot type + [duration, severity, lat, lon, abs_pm]
+C_E = N_TYPES + 4  # one-hot type + [elapsed_hours, lat, lon, abs_pm]
 
 # US federal holidays in 2023 (matches export_to_igstgnn.py)
 US_FEDERAL_HOLIDAYS_2023 = {
@@ -90,7 +101,11 @@ def parse_args() -> argparse.Namespace:
                    default=Path("outputs/impact_labels_aggregated/region_area_sensor_window"))
     p.add_argument("--node-label-dir", type=Path,
                    default=Path("outputs/impact_labels"))
-    p.add_argument("--out-dir", type=Path, default=Path("outputs/dist_net/region_data"))
+    p.add_argument(
+        "--out-dir",
+        type=Path,
+        default=Path("outputs/dist_net/region_data_v2_noleak"),
+    )
     p.add_argument("--regions", nargs="+", default=REGIONS_DEFAULT)
     p.add_argument("--t-h", type=int, default=DEFAULT_T_H)
     p.add_argument("--t-p", type=int, default=DEFAULT_T_P)
@@ -98,9 +113,6 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--active-window", type=int, default=DEFAULT_ACTIVE_WINDOW,
                    help="Active-incident lookback in 5-min steps (default 24 = 2 hours)")
     p.add_argument("--sample-offsets", nargs="+", type=int, default=list(DEFAULT_SAMPLE_OFFSETS))
-    p.add_argument("--candidate-pm-radius", type=float, default=5.0)
-    p.add_argument("--anchor-pm-radius", type=float, default=2.0)
-    p.add_argument("--baseline-mask-extra-steps", type=int, default=12)
     p.add_argument("--baseline-train-frac", type=float, default=0.70,
                    help="Use first this fraction of year to fit baseline statistics")
     p.add_argument("--min-baseline-count", type=int, default=8)
@@ -113,17 +125,12 @@ def parse_args() -> argparse.Namespace:
                    help="Temporal fraction at which train -> val")
     p.add_argument("--split-val-end", type=float, default=0.85,
                    help="Temporal fraction at which val -> test")
+    p.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Replace files in the v2 output directory if they already exist.",
+    )
     return p.parse_args()
-
-
-def split_code(sample_start: int, total_steps: int,
-               train_end: float, val_end: float) -> int:
-    frac = sample_start / total_steps
-    if frac < train_end:
-        return 0  # train
-    if frac < val_end:
-        return 1  # val
-    return 2      # test
 
 
 def compute_time_enc(times: pd.DatetimeIndex) -> np.ndarray:
@@ -143,25 +150,8 @@ def compute_time_enc(times: pd.DatetimeIndex) -> np.ndarray:
 
 
 def impute_flow(traffic: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Linear interpolation along time axis per (node, channel).
-    Returns (imputed, mask) where mask is True for originally-observed values."""
-    T, N, C = traffic.shape
-    mask = np.isfinite(traffic)
-    imputed = traffic.copy()
-    t_arange = np.arange(T)
-    for n in range(N):
-        for c in range(C):
-            col = imputed[:, n, c]
-            m = mask[:, n, c]
-            if m.all():
-                continue
-            if not m.any():
-                # node-channel entirely missing; fill 0 (caller relies on mask=0)
-                imputed[:, n, c] = 0.0
-                continue
-            # linear interpolation over time
-            imputed[:, n, c] = np.interp(t_arange, t_arange[m], col[m])
-    return imputed.astype(np.float32), mask
+    """Causally fill missing values and retain the original observation mask."""
+    return causal_forward_fill(traffic)
 
 
 def build_static_meta(region_meta: pd.DataFrame) -> tuple[np.ndarray, list[str]]:
@@ -186,34 +176,13 @@ def build_static_meta(region_meta: pd.DataFrame) -> tuple[np.ndarray, list[str]]
     return static_meta, feat_names
 
 
-def normalize_type(type_str: object) -> str:
-    if pd.isna(type_str):
-        return "Other"
-    t = str(type_str).strip()
-    return t if t in TYPE_TO_IDX else "Other"
-
-
-def _safe_float(value, default: float = 0.0) -> float:
-    """NaN-safe float coercion. NaN is truthy in Python so `x or default` fails."""
-    if value is None:
-        return default
-    try:
-        f = float(value)
-    except (TypeError, ValueError):
-        return default
-    return f if np.isfinite(f) else default
-
-
-def event_incident_feature(row: pd.Series) -> np.ndarray:
-    """Pack one event's row into a fixed (C_e,) vector. All entries finite."""
-    feat = np.zeros(C_E, dtype=np.float32)
-    feat[TYPE_TO_IDX[normalize_type(row.get("primary_type"))]] = 1.0
-    feat[N_TYPES + 0] = _safe_float(row.get("duration_min")) / 60.0  # hours
-    feat[N_TYPES + 1] = _safe_float(row.get("severity_any_z_auc_topk"))
-    feat[N_TYPES + 2] = _safe_float(row.get("latitude"))
-    feat[N_TYPES + 3] = _safe_float(row.get("longitude"))
-    feat[N_TYPES + 4] = _safe_float(row.get("incident_abs_pm"))
-    return feat
+def event_incident_feature(row: pd.Series, sample_start: int) -> np.ndarray:
+    """Pack only fields known by the forecast origin."""
+    return build_deployable_incident_feature(
+        row,
+        anchor_step=sample_start,
+        type_to_idx=TYPE_TO_IDX,
+    )
 
 
 def build_affected_lookup(node_labels: pd.DataFrame) -> dict[str, np.ndarray]:
@@ -237,13 +206,61 @@ def event_affected_mask(N: int, incident_ids: list[str],
 
 
 def parse_incident_ids_field(s: object) -> list[str]:
-    """event_labels.csv stores incident_ids as a comma-separated string."""
+    """Parse comma- or semicolon-separated incident identifiers."""
     if pd.isna(s) or s is None:
         return []
     text = str(s).strip()
     if not text:
         return []
-    return [tok.strip() for tok in text.split(",") if tok.strip()]
+    normalized = text.replace(";", ",")
+    return [tok.strip() for tok in normalized.split(",") if tok.strip()]
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for block in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def source_manifest(paths: list[Path]) -> list[dict[str, object]]:
+    manifest = []
+    for path in paths:
+        resolved = path.resolve()
+        try:
+            display = str(resolved.relative_to(ROOT))
+        except ValueError:
+            display = str(resolved)
+        manifest.append(
+            {
+                "path": display,
+                "bytes": resolved.stat().st_size,
+                "sha256": sha256_file(resolved),
+            }
+        )
+    return manifest
+
+
+def write_protocol_attrs(
+    h5: h5py.File,
+    train_end: int,
+    val_end: int,
+    baseline_fit_end: int,
+    manifest: list[dict[str, object]],
+    git_info: dict[str, object],
+) -> None:
+    h5.attrs["cache_schema_version"] = CACHE_SCHEMA_VERSION
+    h5.attrs["protocol_version"] = PROTOCOL_VERSION
+    h5.attrs["train_end"] = int(train_end)
+    h5.attrs["val_end"] = int(val_end)
+    h5.attrs["baseline_fit_start"] = 0
+    h5.attrs["baseline_fit_end"] = int(baseline_fit_end)
+    h5.attrs["imputation_method"] = "causal_forward_fill_zero_prefix"
+    h5.attrs["baseline_method"] = "label_free_train_only_robust_median"
+    h5.attrs["source_manifest_json"] = json.dumps(manifest, sort_keys=True)
+    for key, value in git_info.items():
+        h5.attrs[key] = value
 
 
 # ---------- main per-region build ----------
@@ -251,8 +268,11 @@ def parse_incident_ids_field(s: object) -> list[str]:
 def build_traffic_h5(region_name: str, region_meta: pd.DataFrame,
                      traffic: np.ndarray, times: pd.DatetimeIndex,
                      baseline: np.ndarray, scale: np.ndarray,
-                     region_node_idx: np.ndarray, out_path: Path) -> None:
-    print(f"  [{region_name}] imputing flow (linear interp) ...", flush=True)
+                     region_node_idx: np.ndarray, out_path: Path,
+                     train_end: int, val_end: int, baseline_fit_end: int,
+                     manifest: list[dict[str, object]],
+                     git_info: dict[str, object]) -> None:
+    print(f"  [{region_name}] imputing flow (causal forward fill) ...", flush=True)
     t0 = time.time()
     imputed, mask = impute_flow(traffic)
     print(f"    imputed in {time.time() - t0:.1f}s; "
@@ -282,6 +302,14 @@ def build_traffic_h5(region_name: str, region_meta: pd.DataFrame,
         f.attrs["N"] = int(static_meta.shape[0])
         f.attrs["T"] = int(traffic.shape[0])
         f.attrs["channels"] = np.array(["flow", "occupancy", "speed"], dtype="S16")
+        write_protocol_attrs(
+            f,
+            train_end=train_end,
+            val_end=val_end,
+            baseline_fit_end=baseline_fit_end,
+            manifest=manifest,
+            git_info=git_info,
+        )
     sz = out_path.stat().st_size / (1024 ** 3)
     print(f"    saved {sz:.2f} GB")
 
@@ -289,7 +317,10 @@ def build_traffic_h5(region_name: str, region_meta: pd.DataFrame,
 def build_samples_h5(region_name: str, region_node_idx: np.ndarray,
                      events: pd.DataFrame, affected_lookup: dict[str, np.ndarray],
                      total_steps: int, args: argparse.Namespace,
-                     out_path: Path) -> None:
+                     out_path: Path, train_end: int, val_end: int,
+                     baseline_fit_end: int,
+                     manifest: list[dict[str, object]],
+                     git_info: dict[str, object]) -> None:
     N = region_node_idx.size
     n_events = len(events)
     if args.smoke_events > 0:
@@ -301,13 +332,12 @@ def build_samples_h5(region_name: str, region_node_idx: np.ndarray,
     events = events.sort_values("start_idx").reset_index(drop=True)
     starts_sorted = events["start_idx"].to_numpy(dtype=np.int64)
 
-    # Pre-build per-event feature vec + affected mask
-    print(f"  [{region_name}] pre-computing per-event features + affected_mask...", flush=True)
+    # Pre-build analysis-only affected masks. Deployable incident features are
+    # built per sample because elapsed time changes with the forecast origin.
+    print(f"  [{region_name}] pre-computing analysis affected masks...", flush=True)
     t0 = time.time()
-    event_feats = np.zeros((n_events, C_E), dtype=np.float32)
     event_affected = np.zeros((n_events, N), dtype=bool)
     for i, row in enumerate(events.itertuples(index=False)):
-        event_feats[i] = event_incident_feature(events.iloc[i])
         inc_ids = parse_incident_ids_field(getattr(row, "incident_ids"))
         event_affected[i] = event_affected_mask(N, inc_ids, affected_lookup)
     print(f"    pre-compute in {time.time() - t0:.1f}s; "
@@ -327,39 +357,68 @@ def build_samples_h5(region_name: str, region_node_idx: np.ndarray,
     affected_list: list[np.ndarray] = []
     active_event_idx_list: list[np.ndarray] = []   # (M_max,) int32 per sample,
                                                     # -1 marks padding
+    primary_slot_list: list[int] = []
 
     # Bounds: need T_h history and T_p future
-    min_start = args.t_h            # sample_start at t means hist is [t-T_h+1..t]
+    min_start = args.t_h - 1        # sample_start at t means hist is [t-T_h+1..t]
     max_start = total_steps - args.t_p - 1  # need [t+1..t+T_p] all in-range
 
     max_active_seen = 0
     n_truncated = 0
+    n_mixed_events_dropped = 0
 
     for ev_idx in range(n_events):
         ev_start = int(starts_sorted[ev_idx])
         anchor_idx = int(events.iloc[ev_idx]["anchor_region_idx"])
+        group_split = classify_event_group(
+            event_start=ev_start,
+            offsets=args.sample_offsets,
+            history=args.t_h,
+            horizon=args.t_p,
+            train_end=train_end,
+            val_end=val_end,
+            total_steps=total_steps,
+        )
+        if group_split is None:
+            n_mixed_events_dropped += 1
+            continue
+
         for offset in args.sample_offsets:
             sample_start = ev_start + int(offset)
             if sample_start < min_start or sample_start > max_start:
+                continue
+            sample_split = classify_forecast_window(
+                sample_start,
+                args.t_p,
+                train_end,
+                val_end,
+                total_steps,
+            )
+            if sample_split != group_split:
                 continue
 
             # Find all events with start_idx in [sample_start - active_window + 1, sample_start]
             lo = bisect.bisect_left(starts_sorted, sample_start - args.active_window + 1)
             hi = bisect.bisect_right(starts_sorted, sample_start)
             active = np.arange(lo, hi, dtype=np.int64)
+            if ev_idx not in active:
+                active = np.sort(np.append(active, ev_idx))
             n_active = active.size
             max_active_seen = max(max_active_seen, n_active)
 
-            # Pack into (M_max, C_e). If too many, keep most recent.
+            # Pack into (M_max, C_e), retaining the sample's primary event even
+            # when a dense incident window must be truncated.
             inc_feat = np.zeros((args.m_max, C_E), dtype=np.float32)
             inc_mask = np.zeros(args.m_max, dtype=bool)
+            chosen, primary_slot = select_active_events(
+                active, primary_index=ev_idx, max_events=args.m_max
+            )
             if n_active > args.m_max:
-                # Keep the most recent (highest start_idx)
-                chosen = active[-args.m_max:]
                 n_truncated += 1
-            else:
-                chosen = active
-            inc_feat[:chosen.size] = event_feats[chosen]
+            for slot, chosen_idx in enumerate(chosen):
+                inc_feat[slot] = event_incident_feature(
+                    events.iloc[int(chosen_idx)], sample_start
+                )
             inc_mask[:chosen.size] = True
 
             # Affected mask: union across all active events
@@ -369,8 +428,7 @@ def build_samples_h5(region_name: str, region_node_idx: np.ndarray,
                 aff = np.zeros(N, dtype=bool)
 
             sample_start_list.append(sample_start)
-            split_list.append(split_code(sample_start, total_steps,
-                                          args.split_train_end, args.split_val_end))
+            split_list.append(group_split)
             event_idx_list.append(ev_idx)
             anchor_idx_list.append(anchor_idx)
             offset_list.append(int(offset))
@@ -378,6 +436,7 @@ def build_samples_h5(region_name: str, region_node_idx: np.ndarray,
             inc_mask_list.append(inc_mask)
             n_active_list.append(int(chosen.size))
             affected_list.append(aff)
+            primary_slot_list.append(primary_slot)
 
             active_idx = np.full(args.m_max, -1, dtype=np.int32)
             active_idx[:chosen.size] = chosen.astype(np.int32)
@@ -387,6 +446,7 @@ def build_samples_h5(region_name: str, region_node_idx: np.ndarray,
     print(f"    generated {n_samples} samples in {time.time() - t0:.1f}s")
     print(f"    max active events in any window: {max_active_seen}, "
           f"truncated samples (>M_max={args.m_max}): {n_truncated}")
+    print(f"    events dropped to keep event groups disjoint: {n_mixed_events_dropped}")
 
     if n_samples == 0:
         print(f"    WARNING: no samples generated for {region_name}")
@@ -402,6 +462,7 @@ def build_samples_h5(region_name: str, region_node_idx: np.ndarray,
     n_active_arr = np.array(n_active_list, dtype=np.int32)
     affected_arr = np.stack(affected_list, axis=0)             # (S, N)
     active_event_idx_arr = np.stack(active_event_idx_list, axis=0)  # (S, M_max) int32
+    primary_slot_arr = np.asarray(primary_slot_list, dtype=np.int16)
 
     split_counts = {0: int((split_arr == 0).sum()),
                     1: int((split_arr == 1).sum()),
@@ -413,14 +474,17 @@ def build_samples_h5(region_name: str, region_node_idx: np.ndarray,
         f.create_dataset("sample_start", data=sample_start_arr)
         f.create_dataset("split", data=split_arr)
         f.create_dataset("event_idx", data=event_idx_arr)
+        f.create_dataset("event_start_idx", data=starts_sorted)
         f.create_dataset("anchor_region_idx", data=anchor_idx_arr)
         f.create_dataset("sample_offset", data=offset_arr)
         f.create_dataset("incident_feat", data=inc_feat_arr, compression="lzf")
         f.create_dataset("incident_mask", data=inc_mask_arr, compression="lzf")
         f.create_dataset("n_active_incidents", data=n_active_arr)
-        f.create_dataset("affected_mask", data=affected_arr, compression="lzf")
         f.create_dataset("active_event_idx", data=active_event_idx_arr,
                          compression="lzf")
+        f.create_dataset("primary_incident_slot", data=primary_slot_arr)
+        analysis = f.create_group("analysis_labels")
+        analysis.create_dataset("affected_mask", data=affected_arr, compression="lzf")
         f.attrs["region_name"] = region_name
         f.attrs["N"] = int(N)
         f.attrs["M_max"] = int(args.m_max)
@@ -433,20 +497,66 @@ def build_samples_h5(region_name: str, region_node_idx: np.ndarray,
         f.attrs["n_samples"] = int(n_samples)
         f.attrs["n_truncated_active"] = int(n_truncated)
         f.attrs["max_active_seen"] = int(max_active_seen)
+        f.attrs["n_mixed_events_dropped"] = int(n_mixed_events_dropped)
         f.attrs["split_train_end"] = float(args.split_train_end)
         f.attrs["split_val_end"] = float(args.split_val_end)
+        f.attrs["incident_feature_names"] = np.array(
+            [f"type_{name}" for name in INCIDENT_TYPES]
+            + ["elapsed_hours", "latitude", "longitude", "incident_abs_pm"],
+            dtype="S32",
+        )
+        f.attrs["affected_mask_role"] = "analysis_only_post_event_label"
+        write_protocol_attrs(
+            f,
+            train_end=train_end,
+            val_end=val_end,
+            baseline_fit_end=baseline_fit_end,
+            manifest=manifest,
+            git_info=git_info,
+        )
     sz = out_path.stat().st_size / (1024 ** 2)
     print(f"    saved {sz:.1f} MB")
 
 
 def main() -> None:
     args = parse_args()
+    if not 0 < args.split_train_end < args.split_val_end < 1:
+        raise ValueError("split fractions must satisfy 0 < train < val < 1")
+    if not 0 < args.baseline_train_frac <= args.split_train_end:
+        raise ValueError(
+            "baseline_train_frac must be positive and cannot exceed split_train_end"
+        )
     args.out_dir.mkdir(parents=True, exist_ok=True)
+    if not args.overwrite:
+        existing: list[Path] = []
+        for region_name in args.regions:
+            candidates = [
+                args.out_dir / f"{region_name}_samples.h5",
+                args.out_dir / f"{region_name}_config.json",
+            ]
+            if not args.samples_only:
+                candidates.append(
+                    args.out_dir / f"{region_name}_traffic.h5"
+                )
+            existing.extend(path for path in candidates if path.exists())
+        if existing:
+            raise FileExistsError(
+                "refusing to overwrite v2 cache files: "
+                + ", ".join(str(path) for path in existing)
+                + "; pass --overwrite"
+            )
 
-    print(f"loading global sensor metadata + incidents...")
+    print("loading global sensor metadata...")
     meta = load_sensor_meta(args.archive)
-    inc = load_incidents_2023(args.archive)
-    print(f"  global: {len(meta)} sensors, {len(inc)} incidents")
+    print(f"  global: {len(meta)} sensors")
+    git_info = git_worktree_provenance(ROOT)
+    common_sources = [
+        args.archive / "sensor_meta_feature.csv",
+        args.archive / "node_order.npy",
+        *[args.archive / f"p{month:02d}_done.npy" for month in range(1, 13)],
+    ]
+    print("hashing source traffic files for cache provenance...", flush=True)
+    common_manifest = source_manifest(common_sources)
 
     specs = region_specs()
 
@@ -462,19 +572,39 @@ def main() -> None:
         N = region_node_idx.size
         print(f"  N = {N}")
 
+        event_path = args.event_root / region_name / "event_labels.csv"
+        node_label_path = args.node_label_dir / region_name / "node_labels.csv"
+        sample_manifest = common_manifest + source_manifest(
+            [event_path, node_label_path]
+        )
+        out_traffic = args.out_dir / f"{region_name}_traffic.h5"
+        out_samples = args.out_dir / f"{region_name}_samples.h5"
+        out_config = args.out_dir / f"{region_name}_config.json"
+
         if args.samples_only:
-            # Just need T (=total_steps) for split coding; pull from existing h5.
-            out_traffic_pre = args.out_dir / f"{region_name}_traffic.h5"
-            if not out_traffic_pre.exists():
+            if not out_traffic.exists():
                 raise FileNotFoundError(
-                    f"--samples-only requires {out_traffic_pre} to exist already"
+                    f"--samples-only requires {out_traffic} to exist already"
                 )
-            with h5py.File(out_traffic_pre, "r") as _f:
+            with h5py.File(out_traffic, "r") as _f:
+                schema = int(_f.attrs.get("cache_schema_version", -1))
+                protocol = str(_f.attrs.get("protocol_version", ""))
+                if schema != CACHE_SCHEMA_VERSION or protocol != PROTOCOL_VERSION:
+                    raise RuntimeError(
+                        "--samples-only refuses a legacy or mismatched traffic cache"
+                    )
+                cached_manifest = json.loads(
+                    str(_f.attrs.get("source_manifest_json", "[]"))
+                )
+                if cached_manifest != common_manifest:
+                    raise RuntimeError(
+                        "--samples-only source hashes differ from the existing "
+                        "traffic cache; rebuild both files"
+                    )
                 T = int(_f.attrs["T"])
             print(f"  [samples-only] T={T} from existing traffic.h5")
             traffic = None
-            times = pd.date_range("2023-01-01", "2024-01-01", freq="5min", inclusive="left")
-            baseline = scale = counts = matches = baseline_valid = train_valid = None
+            baseline = scale = counts = train_valid = None
         else:
             print(f"  loading traffic time series...", flush=True)
             t0 = time.time()
@@ -483,19 +613,14 @@ def main() -> None:
             print(f"    traffic shape {traffic.shape} loaded in {time.time() - t0:.1f}s")
             print(f"    traffic NaN fraction (raw): {np.isnan(traffic).mean():.3%}")
 
-            # Build baseline statistics (fitting on first split_train_end of year, with incident-window masking)
-            print(f"  building baseline statistics (training portion only) ...", flush=True)
+            print("  building label-free baseline statistics (training only) ...", flush=True)
             t0 = time.time()
-            matches = build_matches(
-                inc=inc, region_meta=region_meta_full, times=times,
-                candidate_pm_radius=args.candidate_pm_radius,
-                anchor_pm_radius=args.anchor_pm_radius,
-                baseline_mask_extra_steps=args.baseline_mask_extra_steps,
+            train_end = int(T * args.split_train_end)
+            val_end = int(T * args.split_val_end)
+            baseline_fit_end = int(T * args.baseline_train_frac)
+            train_valid = build_training_fit_mask(
+                traffic.shape[:2], train_end=baseline_fit_end
             )
-            baseline_valid = build_baseline_valid_mask(traffic.shape[:2], matches)
-            train_cutoff = int(T * args.baseline_train_frac)
-            train_valid = baseline_valid.copy()
-            train_valid[train_cutoff:, :] = False
             baseline, scale, counts = build_robust_baseline(
                 traffic=traffic, times=times, baseline_valid=train_valid,
                 min_count=args.min_baseline_count,
@@ -519,34 +644,41 @@ def main() -> None:
                         sfill = 1.0
                     sslab[~np.isfinite(sslab)] = sfill
 
-            out_traffic = args.out_dir / f"{region_name}_traffic.h5"
             build_traffic_h5(
                 region_name=region_name, region_meta=region_meta_full,
                 traffic=traffic, times=times, baseline=baseline, scale=scale,
                 region_node_idx=region_node_idx, out_path=out_traffic,
+                train_end=train_end, val_end=val_end,
+                baseline_fit_end=baseline_fit_end,
+                manifest=common_manifest, git_info=git_info,
             )
 
-        # set path for meta_json regardless of branch
-        out_traffic = args.out_dir / f"{region_name}_traffic.h5"
+        train_end = int(T * args.split_train_end)
+        val_end = int(T * args.split_val_end)
+        baseline_fit_end = int(T * args.baseline_train_frac)
 
         print(f"  loading event_labels + node_labels...", flush=True)
-        events = pd.read_csv(args.event_root / region_name / "event_labels.csv")
-        node_labels = pd.read_csv(args.node_label_dir / region_name / "node_labels.csv")
+        events = pd.read_csv(event_path)
+        node_labels = pd.read_csv(node_label_path)
         print(f"    events: {len(events)}, node_label rows: {len(node_labels)}")
         affected_lookup = build_affected_lookup(node_labels)
         print(f"    affected_lookup: {len(affected_lookup)} unique incident_ids")
 
-        out_samples = args.out_dir / f"{region_name}_samples.h5"
         build_samples_h5(
             region_name=region_name, region_node_idx=region_node_idx,
             events=events, affected_lookup=affected_lookup,
             total_steps=T, args=args, out_path=out_samples,
+            train_end=train_end, val_end=val_end,
+            baseline_fit_end=baseline_fit_end,
+            manifest=sample_manifest, git_info=git_info,
         )
 
         # Write a brief config note for this region
         meta_json = {
             "region_name": region_name,
             "county": region.county,
+            "cache_schema_version": CACHE_SCHEMA_VERSION,
+            "protocol_version": PROTOCOL_VERSION,
             "N": int(N),
             "T": int(T),
             "C_e": int(C_E),
@@ -557,16 +689,32 @@ def main() -> None:
             "sample_offsets": list(args.sample_offsets),
             "split_train_end": float(args.split_train_end),
             "split_val_end": float(args.split_val_end),
+            "train_end": train_end,
+            "val_end": val_end,
             "baseline_train_frac": float(args.baseline_train_frac),
+            "baseline_fit_start": 0,
+            "baseline_fit_end": baseline_fit_end,
+            "imputation_method": "causal_forward_fill_zero_prefix",
+            "baseline_method": "label_free_train_only_robust_median",
             "incident_types": INCIDENT_TYPES,
+            "incident_feature_names": [
+                *[f"type_{name}" for name in INCIDENT_TYPES],
+                "elapsed_hours",
+                "latitude",
+                "longitude",
+                "incident_abs_pm",
+            ],
             "traffic_file": str(out_traffic),
             "samples_file": str(out_samples),
+            "traffic_source_manifest": common_manifest,
+            "sample_source_manifest": sample_manifest,
+            **git_info,
         }
-        (args.out_dir / f"{region_name}_config.json").write_text(
+        out_config.write_text(
             json.dumps(meta_json, indent=2), encoding="utf-8"
         )
         if not args.samples_only:
-            del traffic, baseline, scale, matches, baseline_valid, train_valid
+            del traffic, baseline, scale, train_valid
 
     print(f"\nall regions built. Outputs in {args.out_dir}")
 

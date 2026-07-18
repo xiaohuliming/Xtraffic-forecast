@@ -232,6 +232,37 @@ def masked_mae(pred, target, mask):
     return ((pred - target).abs() * mask).sum() / mask.sum().clamp(min=1.0)
 
 
+def flow_metrics(pred: np.ndarray, actual: np.ndarray, msk: np.ndarray,
+                 aff: np.ndarray) -> dict:
+    """Masked MAE/RMSE/MAPE over all/affected/unaffected + per-horizon lists.
+    MAPE follows LargeST (null_val=0): only entries with actual != 0 count."""
+    S, T_p, N = pred.shape
+    diff = np.abs(pred - actual)
+    a_abs = np.abs(actual)
+    aff3 = np.broadcast_to(aff[:, None, :], (S, T_p, N))
+
+    def stats(d, a, sel):
+        dd = d[sel].astype(np.float64)
+        p = sel & (a > 1e-4)
+        rr = (d[p] / a[p]).astype(np.float64)
+        return (float(dd.mean()) if dd.size else float("nan"),
+                float(np.sqrt((dd ** 2).mean())) if dd.size else float("nan"),
+                float(rr.mean() * 100.0) if rr.size else float("nan"))
+
+    mae_all, rmse_all, mape_all = stats(diff, a_abs, msk)
+    mae_aff, rmse_aff, mape_aff = stats(diff, a_abs, msk & aff3)
+    mae_un, rmse_un, mape_un = stats(diff, a_abs, msk & ~aff3)
+    mae_h, rmse_h, mape_h = [], [], []
+    for h in range(T_p):
+        m, r, p = stats(diff[:, h], a_abs[:, h], msk[:, h])
+        mae_h.append(m); rmse_h.append(r); mape_h.append(p)
+    return {"all": mae_all, "affected": mae_aff, "unaffected": mae_un,
+            "rmse": rmse_all, "rmse_affected": rmse_aff, "rmse_unaffected": rmse_un,
+            "mape": mape_all, "mape_affected": mape_aff, "mape_unaffected": mape_un,
+            "h3": mae_h[2], "h6": mae_h[5], "h12": mae_h[T_p - 1],
+            "mae_h": mae_h, "rmse_h": rmse_h, "mape_h": mape_h}
+
+
 def per_node_residual_std(rdata, hi, ch=0, floor=1e-6):
     flow = rdata.flow_series[:hi, :, ch]
     mask = rdata.flow_mask[:hi, :, ch].astype(bool)
@@ -291,9 +322,15 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--region", required=True, choices=["Alameda", "ContraCosta", "Orange"])
     p.add_argument("--variant", required=True, choices=list(VARIANTS))
-    p.add_argument("--data_dir", default="outputs/dist_net/region_data")
+    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v2_noleak")
     p.add_argument("--graph_dir", default="outputs/region_graphs")
-    p.add_argument("--out_dir", type=Path, default=Path("outputs/baselines/staeformer_deseason"))
+    p.add_argument(
+        "--out_dir",
+        type=Path,
+        default=Path(
+            "outputs/protocol_v2_noleak/baselines/staeformer_deseason"
+        ),
+    )
     p.add_argument("--epochs", type=int, default=30)
     p.add_argument("--batch_size", type=int, default=16)
     p.add_argument("--lr", type=float, default=1e-3)
@@ -317,8 +354,7 @@ def main():
 
     flows = rdata.flow_series[:, :, 0]
     fmask = rdata.flow_mask[:, :, 0].astype(bool)
-    tr_ss = rdata.sample_start[rdata.split == 0]
-    hi = int(tr_ss.max()) + T_h + T_p
+    hi = rdata.train_end
     seg, segm = flows[:hi], fmask[:hi]
     mu, sd = float(seg[segm].mean()), float(seg[segm].std() + 1e-6)
     sd_res = train_residual_std(rdata.flow_series, rdata.flow_mask,
@@ -441,10 +477,9 @@ def main():
 
     diff = np.abs(pred_flow - actual_flow)
     aff3 = np.broadcast_to(affected[:, None, :], (S, T_p, N))
-    res = {"all": float(diff[y_mask_flow].mean()),
-           "affected": float(diff[y_mask_flow & aff3].mean()),
-           "unaffected": float(diff[y_mask_flow & ~aff3].mean()),
+    res = {**flow_metrics(pred_flow, actual_flow, y_mask_flow, affected),
            "best_val": best, "seed": args.seed, "variant": args.variant, "params": nparam}
+    res.update(rdata.result_metadata())
     if alpha_all is not None:
         res["alpha_affected"] = float(alpha_all[affected].mean()) if affected.any() else float("nan")
         res["alpha_unaffected"] = float(alpha_all[~affected].mean()) if (~affected).any() else float("nan")

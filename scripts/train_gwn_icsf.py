@@ -3,8 +3,8 @@
 
 Faithful-in-spirit port of IGSTGNN's IncidentsIcsfModule onto GraphWaveNet in OUR
 pipeline (see docs/superpowers/specs/2026-06-12-gwn-icsf-collision-design.md).
-Per sample, the PRIMARY active incident (first active slot) provides:
-  type (one-hot argmax), duration (hours), distances (N,3) = gaussian kernels of
+Per sample, the stored PRIMARY incident slot provides:
+  type (one-hot argmax), elapsed time (hours), distances (N,3) = gaussian kernels of
   log euc/road distance + downstream flag (adapter parity: sigma 1.5/1.5, cutoff 4/5,
   closest sensor zeroed).
 --use_icsf  adds incident-attention correction to the LAST history timestep (input space)
@@ -29,7 +29,7 @@ import torch.nn.functional as F
 from torch.optim import Adam
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
-from dist_net.data import MultiRegionDataset, make_loader
+from dist_net.data import MultiRegionDataset, gather_primary_incident, make_loader
 from model import gwnet
 
 SIGMA_EUC, SIGMA_ROAD, CUT_EUC, CUT_ROAD = 1.5, 1.5, 4.0, 5.0
@@ -46,19 +46,13 @@ def build_adj_supports(edge_index, N, device):
 
 
 def primary_incident(batch, device):
-    """Return type_idx (B,), duration (B,1), distances (B,N,3) for the first active slot."""
-    inc_feat = batch["incident_feat"].to(device)          # (B, M, C_e)
-    inc_mask = batch["incident_mask"].to(device)          # (B, M)
-    rel = batch["rel_feat"].to(device)                    # (B, M, N, 4)
-    B = inc_feat.size(0)
-    slot = inc_mask.float().argmax(dim=1)                 # first active (0 if none)
+    """Return the anchor incident's type, elapsed time and distances."""
+    feat, rel_p, has_inc = gather_primary_incident(batch, device)
+    B = feat.size(0)
     ar = torch.arange(B, device=device)
-    feat = inc_feat[ar, slot]                             # (B, C_e)
-    rel_p = rel[ar, slot]                                 # (B, N, 4)
-    has_inc = inc_mask.any(dim=1).float()                 # (B,)
 
     type_idx = feat[:, :8].argmax(dim=1)                  # (B,)
-    duration = feat[:, 8:9]                               # (B, 1) hours
+    elapsed = feat[:, 8:9]                                # (B, 1) hours
 
     log_euc, log_road, up_down = rel_p[..., 0], rel_p[..., 1], rel_p[..., 2]
 
@@ -75,7 +69,7 @@ def primary_incident(batch, device):
     closest = (log_euc + (log_euc <= 1e-6).float() * 1e9).argmin(dim=1)  # (B,)
     dist[ar, closest] = 0.0
     dist = dist * has_inc[:, None, None]
-    return type_idx, duration, dist
+    return type_idx, elapsed, dist
 
 
 class ICSFLite(nn.Module):
@@ -96,9 +90,9 @@ class ICSFLite(nn.Module):
         self.in_proj = nn.Linear(d, c_in)
         self.out_proj = nn.Linear(d, 1)
 
-    def forward(self, x_last, type_idx, duration, dist, time_last):
+    def forward(self, x_last, type_idx, elapsed, dist, time_last):
         # x_last (B,N,C), dist (B,N,3), time_last (B,2)
-        emb = torch.cat([self.type_emb(type_idx), self.dur_mlp(duration), time_last], dim=-1)
+        emb = torch.cat([self.type_emb(type_idx), self.dur_mlp(elapsed), time_last], dim=-1)
         inc = self.incident_fusion(emb)                            # (B, d)
         dmask = (dist.sum(-1) > 0).float().unsqueeze(-1)           # (B, N, 1)
         dist_attn = F.softmax(self.distance_encoder(dist), dim=1)  # (B, N, d)
@@ -132,11 +126,11 @@ class GWNICSF(nn.Module):
         decay = torch.exp(-torch.arange(1, T_p + 1, dtype=torch.float32) ** 2 / 2.0)
         self.register_buffer("decay", decay)               # sigma_t = 1.0, theirs
 
-    def forward(self, x_hist, type_idx, duration, dist, time_last):
+    def forward(self, x_hist, type_idx, elapsed, dist, time_last):
         # x_hist (B,N,T,3) -> effect on last step + optional output decay
         effect = None
         if self.use_icsf or self.use_tiid:
-            effect = self.icsf(x_hist[:, :, -1, :], type_idx, duration, dist, time_last)
+            effect = self.icsf(x_hist[:, :, -1, :], type_idx, elapsed, dist, time_last)
         x = x_hist
         if self.use_icsf and effect is not None:
             x = x_hist.clone()
@@ -150,17 +144,21 @@ class GWNICSF(nn.Module):
 
 def run_batch(model, batch, device):
     x = batch["x_hist"].to(device)
-    type_idx, duration, dist = primary_incident(batch, device)
+    type_idx, elapsed, dist = primary_incident(batch, device)
     time_last = batch["time_feat"][:, -1, :].to(device)
-    return model(x, type_idx, duration, dist, time_last)
+    return model(x, type_idx, elapsed, dist, time_last)
 
 
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--region", required=True, choices=["Alameda", "ContraCosta", "Orange"])
-    p.add_argument("--data_dir", default="outputs/dist_net/region_data")
+    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v2_noleak")
     p.add_argument("--graph_dir", default="outputs/region_graphs")
-    p.add_argument("--out_dir", type=Path, default=Path("outputs/baselines/gwn_icsf"))
+    p.add_argument(
+        "--out_dir",
+        type=Path,
+        default=Path("outputs/protocol_v2_noleak/baselines/gwn_icsf"),
+    )
     p.add_argument("--use_icsf", action="store_true")
     p.add_argument("--use_tiid", action="store_true")
     p.add_argument("--epochs", type=int, default=30)
@@ -185,6 +183,11 @@ def main():
     val_ds = MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split="val")
     test_ds = MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split="test")
     rdata = train_ds.regions[args.region]
+    if not rdata.has_rel_feat:
+        raise RuntimeError(
+            "ICSF requires the v2 event relation cache; "
+            "run scripts/build_event_rel_feat.py first"
+        )
     N, T_p = int(rdata.N), int(rdata.T_p)
     supports = build_adj_supports(rdata.edge_index, N, device)
     model = GWNICSF(N, T_p, supports, device, nhid=args.nhid, dropout=args.dropout,
@@ -269,6 +272,7 @@ def main():
            "unaffected": float(diff[y_mask_flow & ~aff3].mean()),
            "best_val": best_val, "use_icsf": args.use_icsf, "use_tiid": args.use_tiid,
            "seed": args.seed}
+    res.update(rdata.result_metadata())
     print(f"\ntest MAE: all={res['all']:.3f}  affected={res['affected']:.3f}  "
           f"unaffected={res['unaffected']:.3f}", flush=True)
     (out_dir / "summary.json").write_text(json.dumps(res, indent=2))

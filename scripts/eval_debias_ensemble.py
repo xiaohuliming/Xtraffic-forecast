@@ -42,9 +42,12 @@ def main():
     p.add_argument("--region", required=True)
     p.add_argument("--variant", required=True)
     p.add_argument("--seeds", type=int, nargs="+", default=[42, 1, 2])
-    p.add_argument("--data_dir", default="outputs/dist_net/region_data")
+    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v2_noleak")
     p.add_argument("--graph_dir", default="outputs/region_graphs")
-    p.add_argument("--ckpt_root", default="outputs/baselines/staeformer_deseason")
+    p.add_argument(
+        "--ckpt_root",
+        default="outputs/protocol_v2_noleak/baselines/staeformer_deseason",
+    )
     p.add_argument("--batch_size", type=int, default=16)
     args = p.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

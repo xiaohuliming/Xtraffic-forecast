@@ -4,7 +4,7 @@ __pycache__/
 *.pyc
 
 # Raw XTraffic data and generated caches are too large for GitHub.
-archive/
+/archive/
 *.npy
 *.h5
 *.npz
@@ -25,6 +25,7 @@ baselines/IGSTGNN/img/
 
 # Outputs ignored by default; markdown / CSV summaries force-added explicitly.
 outputs/**
+!outputs/README.md
 !outputs/setting_a_artifacts/
 !outputs/setting_a_artifacts/**
 !outputs/paper_artifacts/
@@ -40,3 +41,23 @@ outputs/**
 !outputs/paper_artifacts/figures/
 !outputs/paper_artifacts/figures/**
 data/benchmarks/
+
+# Personal credentials and machine-specific settings stay local.
+# Shared lab defaults are intentionally centralized in config/lab_hosts.env.
+.env
+.env.*
+*.pem
+*.key
+.claude/settings.local.json
+
+# Local run bundles, logs, and test/build residue.
+/zoo_results_*/
+/zoo_hidden.vbs
+/zoo_launch.bat
+/zoo_tasks_win.txt
+outputs/remote_runs/
+*.log
+*.tar.gz
+.pytest_cache/
+.coverage
+htmlcov/

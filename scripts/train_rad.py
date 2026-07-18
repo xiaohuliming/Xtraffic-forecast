@@ -83,9 +83,13 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--region", default="Alameda", choices=["Alameda", "ContraCosta", "Orange"])
     p.add_argument("--variant", required=True, choices=list(VARIANTS))
-    p.add_argument("--data_dir", default="outputs/dist_net/region_data")
+    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v2_noleak")
     p.add_argument("--graph_dir", default="outputs/region_graphs")
-    p.add_argument("--out_dir", type=Path, default=Path("outputs/rad"))
+    p.add_argument(
+        "--out_dir",
+        type=Path,
+        default=Path("outputs/protocol_v2_noleak/rad"),
+    )
     p.add_argument("--epochs", type=int, default=30)
     p.add_argument("--batch_size", type=int, default=16)
     p.add_argument("--lr", type=float, default=1e-3)
@@ -108,8 +112,7 @@ def main():
     train_ds = MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split="train")
     rdata = train_ds.regions[args.region]
     N, T_h, T_p = int(rdata.N), int(rdata.T_h), int(rdata.T_p)
-    tr_ss = rdata.sample_start[rdata.split == 0]
-    hi = int(tr_ss.max()) + T_h + T_p
+    hi = rdata.train_end
     sd_node = torch.from_numpy(per_node_residual_std(rdata, hi))
     feat_names = [s.decode() if isinstance(s, bytes) else s
                   for s in np.array(rdata.__dict__.get("meta_feature_names",
@@ -224,6 +227,7 @@ def main():
            "affected": float(diff[y_mask_flow & aff3].mean()),
            "unaffected": float(diff[y_mask_flow & ~aff3].mean()),
            "best_val": best, "seed": args.seed, "variant": args.variant, "params": nparam}
+    res.update(rdata.result_metadata())
     print(f"\ntest MAE all={res['all']:.3f} affected={res['affected']:.3f} "
           f"unaffected={res['unaffected']:.3f}", flush=True)
     (out_dir / "summary.json").write_text(json.dumps(res, indent=2))

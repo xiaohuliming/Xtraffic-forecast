@@ -9,7 +9,7 @@ Two decomposition modes are supported:
   --decomp_mode learnable   : per-bin sigmoid mask (initialised at step K)
 
 Writes:
-  outputs/fourier_dual_net/<tag>/<region>/
+  outputs/protocol_v2_noleak/fourier_dual_net/<tag>/<region>/
     ckpt_best.pt
     test_predictions.npz   (same schema as GraphWaveNet baseline)
     summary.json
@@ -38,9 +38,13 @@ from fourier_dual_net.model import FourierDualNet
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("--region", required=True, choices=["Alameda", "ContraCosta", "Orange"])
-    p.add_argument("--data_dir", default="outputs/dist_net/region_data")
+    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v2_noleak")
     p.add_argument("--graph_dir", default="outputs/region_graphs")
-    p.add_argument("--out_dir", type=Path, default=Path("outputs/fourier_dual_net"))
+    p.add_argument(
+        "--out_dir",
+        type=Path,
+        default=Path("outputs/protocol_v2_noleak/fourier_dual_net"),
+    )
     p.add_argument("--tag", default=None, help="run tag; default=<decomp_mode>_K<K>")
     p.add_argument("--decomp_mode", choices=["fixed_k", "learnable", "conditioned"], default="fixed_k")
     p.add_argument("--K", type=int, default=3)
@@ -333,7 +337,7 @@ def main() -> None:
     summary = {"all": mae_all, "affected": mae_aff, "unaffected": mae_un,
                "best_val_L_main": best_val,
                "decomp_mode": args.decomp_mode, "K": args.K,
-               "final_decomp_mask": final_mask}
+               "final_decomp_mask": final_mask, **rdata.result_metadata()}
     print(f"\ntest MAE: all={mae_all:.3f}  affected={mae_aff:.3f}  unaffected={mae_un:.3f}",
           flush=True)
     print(f"final decomp mask: {[round(v, 3) for v in final_mask]}", flush=True)

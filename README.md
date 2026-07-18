@@ -1,101 +1,100 @@
-# Xtraffic-forecast
+# XTraffic 交通流量预测研究
 
-A reproducibility and application study on **XTraffic 2023** (California mainline sensors:
-Alameda 521 nodes, Contra Costa 496, Orange 990; 12-step → 12-step flow forecasting at
-5-minute granularity). XTraffic is the largest public incident-annotated traffic dataset,
-released to support **incident-aware** forecasting.
+本仓库研究 XTraffic 2023 上的交通流量预测，重点回答两个问题：
 
-## Main finding: incident labels give no measurable gain
+1. 事故标签是否真的能提高预测精度。
+2. 只使用历史流量的状态自适应重组机制能否稳定改善强时空骨干。
 
-On XTraffic, using incident labels does **not** improve flow forecasting. Any label-free
-model — from our lightweight FourierDualNet to the community-standard SOTA STAEformer —
-matches or clearly beats the incident-aware model IGSTGNN that uses the full label set.
+## 当前状态
 
-Strongest evidence: **STAEformer (ICCV'23, label-free) beats incident-aware IGSTGNN on all
-three regions**, all below IGSTGNN's own reported numbers, and faithfully porting IGSTGNN's
-incident module (ICSF) into both GraphWaveNet and STAEformer yields **zero gain**.
+> **无泄露 v2 管线已经实现并通过本地回归测试，正式缓存与实验尚未重跑，论文写作继续暂停。**
+>
+> 2026-07-18 的代码与落盘数据审计确认，旧版 XTraffic 数据管线存在未来信息泄露和切分边界污染。此前报告的所有 XTraffic 数值均保留为历史实验记录，但在无泄露管线复跑前，不应作为论文结论或最终基准引用。完整证据见 [数据泄露审计](docs/audits/data_leakage_2026-07-18.md)。
 
-| Region | STAEformer (no labels) | IGSTGNN self-reported (uses labels) |
-|---|---:|---:|
-| Alameda | **11.391** | 12.69 |
-| Contra Costa | **12.116** | 13.43 |
-| Orange | **12.500** | 13.13 |
+审计前，项目已经完成以下研究路线：
 
-## Positive result: adaptive de-seasonalization (v0c)
+- 用 GWN、FDN、STAEformer 和 IGSTGNN 研究事故标签的预测价值。
+- 将自适应去季节化机制整理为 RADS，并迁移到 GWN 与 STAEformer。
+- 在 RADS 上继续形成 RADS-O 与 NDR-Net。
+- 完成三地区、多种子、等参数消融和一批标准基准实验。
+- 启动统一管线下的 baseline zoo，但结果尚未完成权威汇总。
 
-Sustained digging on the decomposition direction produced the project's first clean,
-reproducible, equiparameter, multi-seed, **label-free** architectural gain after six failed
-enhancement attempts.
+这些工作仍有方法设计和工程价值，但 XTraffic 上的数值证据需要按新协议重建。当前代码已经实现因果填充、label-free train-only 气候态、完整目标窗切分、event group 隔离、可部署事故特征、显式训练边界、IGSTGNN 对齐、cache schema 与 provenance。下一步是生成正式 v2 缓存，并在独立结果目录中重跑最小判别矩阵。
 
-De-seasonalization predicts only the deviation from a cached climatology baseline and adds
-the baseline back. Its weakness is incident nodes: the future baseline assumes a return to
-the periodic norm, which is wrong while an incident persists. **v0c** fixes this with a
-per-node, per-step weight `alpha = exp(-relu(r - r0) / tau)` from the recent residual
-magnitude `r`: normal nodes keep the periodic baseline as their anchor, incident nodes
-switch the anchor toward persistence (the last observed level). The residual head is
-unchanged; only the anchor moves. `alpha = 1` reduces exactly to plain de-seasonalization.
+## 已确认的数据问题
 
-| Region | v0b plain de-season | v0c adaptive | Δ |
-|---|---:|---:|---:|
-| Alameda | 11.681 | **11.452** | −0.229 |
-| Contra Costa | 12.453 | **12.297** | −0.157 |
-| Orange | 12.744 | **12.495** | −0.249 |
+| 优先级 | 问题 | 主要影响 |
+|---|---|---|
+| P0 | 对全年序列使用双向线性插值，历史输入会读取未来观测 | 所有使用旧 XTraffic H5 缓存的模型 |
+| P0 | RADS 气候态基线在拟合前使用事故记录排除训练时刻 | 严格的 `label-free` 主张不成立 |
+| P0 | `severity` 和最终事故持续时间由事故后的真实流量或完整事件生成 | DIST-Net、ICSF 与事故特征模型不满足因果部署 |
+| P1 | 事件样本与全滑窗样本在相邻切分间共享目标时刻 | 验证集和测试集不完全独立 |
+| P1 | 一个 IGSTGNN 转换入口右移 11 步，并将 79.01% 到 97.08% 的样本错绑到其他活跃事件 | 对应的 Setting A 与事故分组结论需要重建 |
 
-Seeds 42/1/2 means, equiparam single GraphWaveNet (+2 params), **3/3 regions, zero per-seed
-overlap in every region**. An ablation splits the gain ~half global persistence blend,
-~half adaptive anomaly weighting. v0c ties or edges STAEformer on Alameda and Orange (within
-noise / slightly ahead) using one fifth to one sixth the parameters, and trails it on Contra
-Costa. A STAEformer-backbone version is in progress.
+旧缓存和旧结果没有被覆盖。修复后的协议使用 `outputs/dist_net/region_data_v2_noleak`，新训练默认写入 `outputs/protocol_v2_noleak`。本地数据回归测试位于 `tests/data/`。
 
-## Full report
+## 方法关系
 
-**[XTraffic项目完整汇报.md](XTraffic项目完整汇报.md)** is the single authoritative report and
-progress doc — full narrative, every number with its on-disk source, evolution path, the
-IGSTGNN audit, honest publishability assessment, and next steps. Superseded docs are kept
-under `docs/archive/`.
+三个名称是逐层包含关系，不是三个并列模型：
 
-## Repo layout
-
-```
-fourier_dual_net/   FDN (FFT decomposition + 2 GraphWaveNet backbones) and rgdn.py
-                    (de-seasonalization + AdaptiveAlpha: v0a/v0b/v0c/v0d variants)
-dist_net/           event-anchored + full-window data pipeline (region cache, loaders)
-baselines/
-  GraphWaveNet/     single-branch GraphWaveNet
-  STAEformer/       vendored ICCV'23 STAEformer (strongest label-free baseline)
-  IGSTGNN/          vendored KDD'26 IGSTGNN with our dataloader threading-bug fix
-scripts/            training, evaluation, plotting, and data-prep scripts
-tests/              model and de-seasonalization unit tests
-docs/               design docs; docs/archive/ holds superseded progress docs
-outputs/            result tables, diagnostics, and paper artifacts (no raw predictions)
+```text
+RADS
+└── RADS-O
+    └── NDR-Net
 ```
 
-## Key scripts
+- **RADS**：在周期基线与当前持续水平之间按历史状态选择预测锚点。
+- **RADS-O**：增加逐预测步门控，并在训练期用未来真值构造 oracle 软目标。
+- **NDR-Net**：在 RADS-O 上增加正常态与扰动态双残差头。
 
-- `scripts/build_full_county_cache.py` — build the h5 flow cache and climatology baseline.
-- `scripts/train_rgdn.py` — de-seasonalization variants (v0a raw, v0b de-season, v0c adaptive,
-  v0d const-alpha, plus the older RGDN dual-branch variants).
-- `scripts/train_staeformer_xtraffic.py` / `scripts/train_staeformer_deseason.py` — STAEformer
-  baseline and the de-seasonalization wrapper around it (backbone-agnostic test).
-- `scripts/train_fourier_dual_net.py` / `scripts/train_graphwavenet.py` — FDN and GWN.
-- `scripts/significance_tests.py` — paired significance and seed noise bands.
+审计前的完整方法演进、负结果和数值记录仍保留在 [XTraffic 项目完整汇报](XTraffic项目完整汇报.md) 中。阅读时以文首的 2026-07-18 有效性说明为准。
 
-## Data
+## 仓库导航
 
-Raw XTraffic h5 caches, climatology baselines, model checkpoints, and full
-`test_predictions.npz` arrays are not in this repo (multiple GB). The pipeline regenerates
-them from the scripts above; defaults match the numbers in the full report.
+| 路径 | 内容 |
+|---|---|
+| `dist_net/` | XTraffic 数据集接口、采样协议、损失与旧 DIST-Net |
+| `fourier_dual_net/` | FDN、去季节化、RADS 与相关探索模型 |
+| `baselines/` | GraphWaveNet、STAEformer、IGSTGNN 等基线 |
+| `scripts/` | 数据构建、训练、评估和诊断入口，分类见 [scripts/README.md](scripts/README.md) |
+| `tests/` | 模型与数据辅助函数测试 |
+| `docs/` | 当前文档、审计与历史设计，索引见 [docs/README.md](docs/README.md) |
+| `config/` | 实验室共享主机与运行配置 |
+| `outputs/` | 已提交摘要、历史产物和本地生成结果，说明见 [outputs/README.md](outputs/README.md) |
+| `archive/` | 本地原始 XTraffic 数据，不进入 Git |
 
-## Notes on the IGSTGNN baseline
+## 建议阅读顺序
 
-Our IGSTGNN numbers use IGSTGNN's official code with a one-line fix to
-`src/utils/dataloader.py`: the per-thread inner loop indexes `batch_samples[i-start_idx]`,
-collapsing every thread's view of the batch to the first `chunk_size` samples. With
-`batch_size=48` and `num_threads=24`, the effective batch was 2 unique samples repeated 24×.
-The correct index is `batch_samples[i]`. All our comparisons use the fixed version, which is
-the setting most favorable to IGSTGNN.
+1. [CLAUDE.md](CLAUDE.md)：会话入口、当前阻塞与协作约定。
+2. [数据泄露审计](docs/audits/data_leakage_2026-07-18.md)：已确认问题、影响范围与修复验收条件。
+3. [结果有效性清单](docs/audits/result_validity.csv)：实验族当前是否可用于论文。
+4. [XTraffic 项目完整汇报](XTraffic项目完整汇报.md)：审计前的完整研究史与全部落盘数字。
+5. [RADS 与 NDR 汇报讲稿](docs/RADS_NDR_汇报讲稿.md)：方法结构和诚实的新颖性定位。
 
-## License
+## 关键入口
 
-The FDN code, scripts, and result artifacts in this repo are released under the same terms as
-the underlying baselines. Vendored baselines keep their original licenses.
+- `scripts/build_full_county_cache.py`：v2 区域缓存构建入口，默认拒绝覆盖既有文件。
+- `dist_net/protocol.py`：因果填充、切分、窗口和事故特征的共享协议实现。
+- `dist_net/data.py`：事件锚定和全滑窗数据集定义，默认拒绝旧协议缓存。
+- `scripts/train_graphwavenet.py`：GWN 训练。
+- `scripts/train_fourier_dual_net.py`：FDN 训练。
+- `scripts/train_staeformer_xtraffic.py`：STAEformer 的 XTraffic 训练。
+- `scripts/train_rgdn.py`：GWN 骨干上的去季节化与 RADS 变体。
+- `scripts/train_staeformer_deseason.py`：STAEformer 骨干上的 RADS、RADS-O 与 NDR-Net。
+- `scripts/audit_experiment_integrity.py`：现有实验文件完整性检查。它不覆盖本次数据因果性审计。
+
+## 数据与复现边界
+
+- 原始数据、H5 缓存、模型权重和大体积预测数组默认不提交。
+- Git 中的 `outputs/` 只保存选定的文本、表格和论文产物。本地目录可能包含大量被忽略的预测文件。
+- 当前没有冻结的根级环境锁文件。v2 缓存会记录 schema、协议、切分边界、拟合范围、源文件 SHA-256、Git SHA、分支与 dirty 状态。
+- GraphWaveNet 与 STAEformer 的来源版本和许可仍需补充到基线目录。
+- 仓库根目录目前没有统一 LICENSE，因此不对本仓库新增代码做超出上游许可的声明。
+- 实验室共享远程连接和密码集中明文维护在 `config/lab_hosts.env`，使用方式见 `config/README.md`。
+
+## 结果管理原则
+
+- 旧结果只读保留，并在有效性清单中标记，不原地覆盖。
+- 新协议使用独立缓存版本和独立输出标签，例如 `protocol_v2_noleak`。
+- 每个新结果必须记录协议版本、切分边界、预处理拟合范围、缓存哈希、Git SHA 和 dirty 状态。
+- 所有论文数字必须来自已落盘文件，不用估算值补表。

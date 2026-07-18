@@ -45,7 +45,7 @@ def pick_samples(samples_h5, n_affected, n_normal, seed=0):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--region", default="Alameda")
-    p.add_argument("--data_dir", default="outputs/dist_net/region_data")
+    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v2_noleak")
     p.add_argument("--out_dir", default="outputs/fourier_test")
     p.add_argument("--channel", type=int, default=0, help="0=flow, 1=occ, 2=speed (likely)")
     p.add_argument("--n_affected", type=int, default=3)
