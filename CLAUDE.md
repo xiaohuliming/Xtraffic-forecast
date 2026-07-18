@@ -1,6 +1,6 @@
 # XTraffic 项目导航与协作约定
 
-最近更新：2026-07-18
+最近更新：2026-07-19
 
 ## 新会话先读
 
@@ -39,14 +39,18 @@
 
 因此，所有旧 XTraffic 绝对数值和配对结论均暂停进入论文。旧结果只读保留，不能删除或原地覆盖。
 
-无泄露 v2 代码已经完成：共享协议位于 `dist_net/protocol.py`，正式构建入口为 `scripts/build_full_county_cache.py`，数据测试位于 `tests/data/`。当前完整测试结果为 28 项通过。仓库已同步远端 main 的 `c9425e2`，组员提交中可用的修复已经并入正式 `scripts/` 入口，根目录重复脚本和远程运行产物已经归位。当前还没有生成完整 v2 缓存，也没有重跑实验。
+无泄露 v2 代码已经完成：共享协议位于 `dist_net/protocol.py`，正式构建入口为 `scripts/build_full_county_cache.py`，数据测试位于 `tests/data/`。当前完整测试结果为 28 项通过。仓库已同步远端 main 的组员修复，可用部分已经并入正式 `scripts/` 入口，根目录重复脚本和远程运行产物已经归位。
+
+2026-07-19 已在 Mac 上从完整原始数据生成三地区正式缓存与事故关系缓存，并传到 5080。缓存 provenance 指向 main 的 `bf3045ac`，构建工作区为 clean。事件样本 train、val、test 数分别为 Alameda 43973、9450、9366，ContraCosta 19159、4026、4040，Orange 75395、15727、14368。三地区 event group 与目标时刻集合均无交集，full-window 三地区均为 73561、10501、21013，远端 28 项测试全部通过。
+
+5080 的 Tailscale 地址在线。旧的 contaminated baseline zoo 队列已停止并保留日志。45 项 v2 最小判别队列于 2026-07-19 00:39 启动，严格串行，首项为 Alameda STAEformer s0a seed 42。启动判活时 GPU 利用率为 91%，显存使用约 6.0 GiB。当前还没有新 summary，因此旧 XTraffic 结论仍不可恢复。
 
 ## 下一步顺序
 
-1. 在具备完整原始数据的机器上生成三个区域的 `region_data_v2_noleak`。
-2. 运行 cache smoke test、目标集合互斥检查和 provenance 检查。
-3. 用 `protocol_v2_noleak` 新结果目录重跑最小判别矩阵。
-4. 根据复跑结果决定论文主张，再恢复 baseline zoo。
+1. 三地区 `region_data_v2_noleak` 与事故关系缓存已生成。
+2. cache smoke test、目标集合互斥检查和 provenance 检查已通过。
+3. 正在用 `protocol_v2_noleak` 新结果目录重跑最小判别矩阵。
+4. 队列完成后根据新结果决定论文主张，再恢复 baseline zoo。
 
 ## 最小判别矩阵
 

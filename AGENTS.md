@@ -9,7 +9,7 @@
 
 当前 XTraffic 旧缓存已被标记为 `contaminated`。不得把旧结果写成已验证论文结论，不得覆盖旧 summary。数据修复必须使用新 schema、新缓存版本和新输出目录。
 
-无泄露 v2 代码已经实现，默认缓存目录为 `outputs/dist_net/region_data_v2_noleak`，默认结果根目录为 `outputs/protocol_v2_noleak`。完整缓存和最小判别矩阵尚未重跑。
+无泄露 v2 代码已经实现，默认缓存目录为 `outputs/dist_net/region_data_v2_noleak`，默认结果根目录为 `outputs/protocol_v2_noleak`。三地区正式缓存已于 2026-07-19 完成构建与验收，最小判别矩阵正在 5080 上串行重跑，尚未产生可恢复论文结论的新结果。
 
 项目方法层级为 `RADS ⊂ RADS-O ⊂ NDR-Net`。完整研究史和数字出处见主报告，当前有效性见审计文件。
 

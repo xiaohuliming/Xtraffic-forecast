@@ -20,8 +20,8 @@
 | `fourier_dual_net/` | FDN 与相关实验 | XTraffic 结果待 v2 重跑 |
 | `rgdn/` | RGDN 与 RADS 系列 | 待 label-free baseline 和 v2 重跑 |
 | `dist_net/region_data/` | 旧 XTraffic H5 缓存 | `contaminated`，只读冻结 |
-| `dist_net/region_data_v2_noleak/` | v2 XTraffic H5 缓存 | 尚未正式生成 |
-| `protocol_v2_noleak/` | v2 训练结果统一根目录 | 尚未重跑 |
+| `dist_net/region_data_v2_noleak/` | v2 XTraffic H5 缓存 | 已在实验机器生成并验收，Git 忽略 |
+| `protocol_v2_noleak/` | v2 训练结果统一根目录 | 45 项最小判别矩阵正在串行重跑 |
 | `paper_artifacts/` | 旧事故双支论文资产 | Legacy，不代表当前论文方向 |
 | `impact_guided_next_stage/` | 大量旧事故增强实验 | Legacy，不再扩展 |
 | `remote_runs/` | 本地远程回传包与队列日志 | Git 忽略 |

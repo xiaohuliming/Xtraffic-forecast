@@ -1,7 +1,7 @@
 # XTraffic 数据泄露审计
 
 审计日期：2026-07-18
-审计状态：问题已确认，v2 代码修复完成，正式缓存生成与重跑待执行
+审计状态：问题已确认，v2 代码修复与正式缓存验收完成，最小判别矩阵正在重跑
 审计对象：仓库代码与 `outputs/dist_net/region_data/` 中的三个区域缓存
 
 ## 当前修复状态
@@ -18,10 +18,11 @@
 - `scripts/build_igstgnn_data_from_h5.py` 与 RegionData 使用同一 forecast origin，并校验 anchor event。
 - `tests/data/` 覆盖 prefix invariance、完整目标窗、event group、full-window 目标互斥、label-free 拟合范围、事后字段不变性、主事故保留、窗口对齐、v2 加载和 cache 元数据。
 
-尚未完成：
+执行进展：
 
-- 尚未用完整原始数据生成三个区域的 v2 H5。
-- 尚未执行最小判别矩阵重跑。
+- 2026-07-19 已用完整原始数据生成三个区域的 v2 H5 与事故关系缓存。
+- 事件协议、full-window 协议、schema、provenance 与远端 28 项测试均已通过验收。
+- 45 项最小判别矩阵已经在 5080 上串行启动，尚未产生完整的新结果。
 - 因此下文旧结果的 `contaminated` 状态不变。
 
 下文“代码证据”描述审计时的旧实现，可在 Git 历史提交 `c89bcfb` 中复核，不代表当前 v2 文件仍含同一代码。

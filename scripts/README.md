@@ -6,7 +6,7 @@
 
 | 入口 | 状态 | 用途 |
 |---|---|---|
-| `build_full_county_cache.py` | v2 已实现，待生成缓存 | 因果填充、label-free train-only baseline、目标窗与 event group 隔离、版本和 provenance |
+| `build_full_county_cache.py` | v2 已生成并验收 | 因果填充、label-free train-only baseline、目标窗与 event group 隔离、版本和 provenance |
 | `build_impact_labels.py` | 分析专用 | 生成事后 severity 与 affected，不得作为可部署特征 |
 | `build_event_rel_feat.py` | v2 已接通 | 校验缓存协议和事件排序后生成事故与节点关系特征 |
 | `build_region_sampling_graph.py` | 可复用 | 区域采样图 |
@@ -29,7 +29,7 @@
 | `train_benchmark.py` | METR-LA、PEMS04 与 PEMS08 标准基准 |
 | `train_baseline_zoo.py` | 统一 baseline zoo，旧 XTraffic 缓存结果暂不汇总为正式结论 |
 
-以上 XTraffic 训练入口默认读取 `outputs/dist_net/region_data_v2_noleak`，并将新结果写入 `outputs/protocol_v2_noleak`。v2 缓存尚未正式生成和重跑，旧结果仍不可用于论文。
+以上 XTraffic 训练入口默认读取 `outputs/dist_net/region_data_v2_noleak`，并将新结果写入 `outputs/protocol_v2_noleak`。v2 缓存已经正式生成并验收，最小判别矩阵正在重跑。旧结果和尚未完成的新结果均不可用于恢复论文结论。
 
 ## 事故标签对撞
 
