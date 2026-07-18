@@ -1,5 +1,7 @@
 # FDN Gated Fusion (D3) Implementation Plan
 
+> 归档说明：该计划已执行完毕，仅用于追溯。下方远程命令使用环境变量；实验室共享连接参数可直接从 `config/lab_hosts.env` 加载。旧训练命令仍应先核对当前协议和输出目录。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a per-(node, horizon) learned gate on top of FourierDualNet's two-branch output, replacing unconditional `y_main + y_pert` with `2 * (α·y_main + (1-α)·y_pert)`, where α is conditioned on spectral energy (flow channel only), node identity, and time-of-day.
@@ -556,20 +558,20 @@ rm -rf outputs/fourier_dual_net/smoke_d3/
 
 ```bash
 tar -czf /tmp/fdn_d3.tar.gz fourier_dual_net/model.py scripts/train_fourier_dual_net.py scripts/analyze_gate.py tests/fourier_dual_net/
-sshpass -p 'Hzj050916' scp -o StrictHostKeyChecking=no /tmp/fdn_d3.tar.gz asus@100.126.189.30:C:/Users/asus/traffic_fourier/fdn_d3.tar.gz
-sshpass -p 'Hzj050916' ssh -o StrictHostKeyChecking=no asus@100.126.189.30 "cd C:/Users/asus/traffic_fourier && tar -xzf fdn_d3.tar.gz && ls fourier_dual_net/model.py"
+scp /tmp/fdn_d3.tar.gz "$XTRAFFIC_REMOTE:$XTRAFFIC_REMOTE_DIR/fdn_d3.tar.gz"
+ssh "$XTRAFFIC_REMOTE" "cd \"$XTRAFFIC_REMOTE_DIR\" && tar -xzf fdn_d3.tar.gz && ls fourier_dual_net/model.py"
 ```
 
 - [ ] **Step 6.2: Launch S1 (no --use_time_emb — confound control)**
 
 ```bash
-sshpass -p 'Hzj050916' ssh -o StrictHostKeyChecking=no asus@100.126.189.30 "cd C:/Users/asus/traffic_fourier && nohup python scripts/train_fourier_dual_net.py --region Alameda --decomp_mode learnable --K 3 --use_gated_fusion --epochs 30 --tag fdn_d3_gate --out_dir outputs/fourier_dual_net --device cuda > train_Alameda_D3.log 2>&1 &"
+ssh "$XTRAFFIC_REMOTE" "cd \"$XTRAFFIC_REMOTE_DIR\" && nohup python scripts/train_fourier_dual_net.py --region Alameda --decomp_mode learnable --K 3 --use_gated_fusion --epochs 30 --tag fdn_d3_gate --out_dir outputs/fourier_dual_net --device cuda > train_Alameda_D3.log 2>&1 &"
 ```
 
 - [ ] **Step 6.3: Monitor (covers progress AND crashes)** — Monitor tool:
 
 ```bash
-sshpass -p 'Hzj050916' ssh -o StrictHostKeyChecking=no asus@100.126.189.30 "powershell -Command \"Get-Content C:/Users/asus/traffic_fourier/train_Alameda_D3.log -Wait -Tail 0\"" | grep -E --line-buffered "==> ep|test MAE|Traceback|Error|OOM|nan|saved best"
+ssh "$XTRAFFIC_REMOTE" "powershell -Command \"Get-Content $XTRAFFIC_REMOTE_DIR/train_Alameda_D3.log -Wait -Tail 0\"" | grep -E --line-buffered "==> ep|test MAE|Traceback|Error|OOM|nan|saved best"
 ```
 
 - [ ] **Step 6.4: Pull artifacts (ckpt_best.pt)**
@@ -577,9 +579,9 @@ sshpass -p 'Hzj050916' ssh -o StrictHostKeyChecking=no asus@100.126.189.30 "powe
 ```bash
 mkdir -p outputs/fourier_dual_net/fdn_d3_gate/Alameda
 for f in test_predictions.npz ckpt_best.pt summary.json; do
-  sshpass -p 'Hzj050916' scp -o StrictHostKeyChecking=no asus@100.126.189.30:C:/Users/asus/traffic_fourier/outputs/fourier_dual_net/fdn_d3_gate/Alameda/$f outputs/fourier_dual_net/fdn_d3_gate/Alameda/$f
+  scp "$XTRAFFIC_REMOTE:$XTRAFFIC_REMOTE_DIR/outputs/fourier_dual_net/fdn_d3_gate/Alameda/$f" outputs/fourier_dual_net/fdn_d3_gate/Alameda/$f
 done
-sshpass -p 'Hzj050916' scp -o StrictHostKeyChecking=no asus@100.126.189.30:C:/Users/asus/traffic_fourier/train_Alameda_D3.log outputs/fourier_dual_net/fdn_d3_gate/Alameda/train.log
+scp "$XTRAFFIC_REMOTE:$XTRAFFIC_REMOTE_DIR/train_Alameda_D3.log" outputs/fourier_dual_net/fdn_d3_gate/Alameda/train.log
 ```
 
 - [ ] **Step 6.5: Compute S1 MAE + decision gate**
@@ -629,13 +631,13 @@ git commit -m "S1+S2 D3 gated fusion results on Alameda + sanity checks"
 - [ ] **Step 8.1: Launch CC + Orange (no --use_time_emb)**
 
 ```bash
-sshpass -p 'Hzj050916' ssh -o StrictHostKeyChecking=no asus@100.126.189.30 "cd C:/Users/asus/traffic_fourier && nohup bash -c 'python scripts/train_fourier_dual_net.py --region ContraCosta --decomp_mode learnable --K 3 --use_gated_fusion --epochs 30 --tag fdn_d3_gate --out_dir outputs/fourier_dual_net --device cuda > train_CC_D3.log 2>&1 && python scripts/train_fourier_dual_net.py --region Orange --decomp_mode learnable --K 3 --use_gated_fusion --epochs 30 --tag fdn_d3_gate --out_dir outputs/fourier_dual_net --device cuda > train_Orange_D3.log 2>&1 && touch D3_ALL_DONE' &"
+ssh "$XTRAFFIC_REMOTE" "cd \"$XTRAFFIC_REMOTE_DIR\" && nohup bash -c 'python scripts/train_fourier_dual_net.py --region ContraCosta --decomp_mode learnable --K 3 --use_gated_fusion --epochs 30 --tag fdn_d3_gate --out_dir outputs/fourier_dual_net --device cuda > train_CC_D3.log 2>&1 && python scripts/train_fourier_dual_net.py --region Orange --decomp_mode learnable --K 3 --use_gated_fusion --epochs 30 --tag fdn_d3_gate --out_dir outputs/fourier_dual_net --device cuda > train_Orange_D3.log 2>&1 && touch D3_ALL_DONE' &"
 ```
 
 - [ ] **Step 8.2: Wait (single notification)** — background Bash:
 
 ```bash
-sshpass -p 'Hzj050916' ssh -o StrictHostKeyChecking=no asus@100.126.189.30 "until [ -f C:/Users/asus/traffic_fourier/D3_ALL_DONE ]; do sleep 60; done; echo DONE"
+ssh "$XTRAFFIC_REMOTE" "until [ -f \"$XTRAFFIC_REMOTE_DIR/D3_ALL_DONE\" ]; do sleep 60; done; echo DONE"
 ```
 
 - [ ] **Step 8.3: Pull artifacts**
@@ -644,7 +646,7 @@ sshpass -p 'Hzj050916' ssh -o StrictHostKeyChecking=no asus@100.126.189.30 "unti
 for region in ContraCosta Orange; do
   mkdir -p outputs/fourier_dual_net/fdn_d3_gate/$region
   for f in test_predictions.npz ckpt_best.pt summary.json; do
-    sshpass -p 'Hzj050916' scp -o StrictHostKeyChecking=no asus@100.126.189.30:C:/Users/asus/traffic_fourier/outputs/fourier_dual_net/fdn_d3_gate/$region/$f outputs/fourier_dual_net/fdn_d3_gate/$region/$f
+    scp "$XTRAFFIC_REMOTE:$XTRAFFIC_REMOTE_DIR/outputs/fourier_dual_net/fdn_d3_gate/$region/$f" outputs/fourier_dual_net/fdn_d3_gate/$region/$f
   done
 done
 ```
@@ -660,7 +662,7 @@ done
 - [ ] **Step 8.5: Seed robustness (noise band)** — baseline + D3 on 2 extra seeds for Alameda:
 
 ```bash
-sshpass -p 'Hzj050916' ssh -o StrictHostKeyChecking=no asus@100.126.189.30 "cd C:/Users/asus/traffic_fourier && nohup bash -c 'for s in 1 2; do python scripts/train_fourier_dual_net.py --region Alameda --decomp_mode learnable --K 3 --epochs 30 --seed \$s --tag base_seed\$s --out_dir outputs/fourier_dual_net --device cuda > base_s\$s.log 2>&1; python scripts/train_fourier_dual_net.py --region Alameda --decomp_mode learnable --K 3 --use_gated_fusion --epochs 30 --seed \$s --tag d3_seed\$s --out_dir outputs/fourier_dual_net --device cuda > d3_s\$s.log 2>&1; done; touch SEEDS_DONE' &"
+ssh "$XTRAFFIC_REMOTE" "cd \"$XTRAFFIC_REMOTE_DIR\" && nohup bash -c 'for s in 1 2; do python scripts/train_fourier_dual_net.py --region Alameda --decomp_mode learnable --K 3 --epochs 30 --seed \$s --tag base_seed\$s --out_dir outputs/fourier_dual_net --device cuda > base_s\$s.log 2>&1; python scripts/train_fourier_dual_net.py --region Alameda --decomp_mode learnable --K 3 --use_gated_fusion --epochs 30 --seed \$s --tag d3_seed\$s --out_dir outputs/fourier_dual_net --device cuda > d3_s\$s.log 2>&1; done; touch SEEDS_DONE' &"
 ```
 Report baseline mean±std vs D3 mean±std; the S1 gap must exceed the band.
 

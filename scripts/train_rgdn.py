@@ -66,8 +66,7 @@ def make_model(variant, N, supports, T_h, T_p, device, args):
 def train_stats(rdata, T_h, T_p):
     flows = rdata.flow_series[:, :, 0]
     fmask = rdata.flow_mask[:, :, 0].astype(bool)
-    tr_ss = rdata.sample_start[rdata.split == 0]
-    hi = int(tr_ss.max()) + T_h + T_p
+    hi = rdata.train_end
     seg, segm = flows[:hi], fmask[:hi]
     mu, sd = float(seg[segm].mean()), float(seg[segm].std() + 1e-6)
     sd_qov = np.array([train_residual_std(rdata.flow_series, rdata.flow_mask,
@@ -88,9 +87,13 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--region", default="Alameda", choices=["Alameda", "ContraCosta", "Orange"])
     p.add_argument("--variant", required=True, choices=list(VARIANTS))
-    p.add_argument("--data_dir", default="outputs/dist_net/region_data")
+    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v2_noleak")
     p.add_argument("--graph_dir", default="outputs/region_graphs")
-    p.add_argument("--out_dir", type=Path, default=Path("outputs/rgdn"))
+    p.add_argument(
+        "--out_dir",
+        type=Path,
+        default=Path("outputs/protocol_v2_noleak/rgdn"),
+    )
     p.add_argument("--epochs", type=int, default=30)
     p.add_argument("--batch_size", type=int, default=16)
     p.add_argument("--lr", type=float, default=1e-3)
@@ -222,6 +225,7 @@ def main():
            "affected": float(diff[y_mask_flow & aff3].mean()),
            "unaffected": float(diff[y_mask_flow & ~aff3].mean()),
            "best_val": best, "seed": args.seed, "variant": args.variant, "params": nparam}
+    res.update(rdata.result_metadata())
     if alpha_all is not None:
         a_aff = float(alpha_all[affected].mean()) if affected.any() else float("nan")
         a_unaff = float(alpha_all[~affected].mean()) if (~affected).any() else float("nan")

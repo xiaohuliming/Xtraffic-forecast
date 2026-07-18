@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local numpy-only sanity test for FullWindowRegionData (no torch needed)."""
+"""Local sanity test for the v2 target-disjoint full-window loader."""
 from __future__ import annotations
 import sys
 from pathlib import Path
@@ -15,7 +15,7 @@ STRIDE = int(sys.argv[2]) if len(sys.argv) > 2 else 1
 
 
 def main():
-    rd = FullWindowRegionData(REGION, "outputs/dist_net/region_data",
+    rd = FullWindowRegionData(REGION, "outputs/dist_net/region_data_v2_noleak",
                               "outputs/region_graphs", lazy=True,
                               stride=STRIDE, train_frac=0.7, val_frac=0.1)
     T, T_h, T_p, N = rd.T, rd.T_h, rd.T_p, rd.N
@@ -25,13 +25,25 @@ def main():
     # 1. window range valid: every anchor has full history + future in-bounds
     assert starts.min() == T_h - 1, (starts.min(), T_h - 1)
     assert starts.max() <= T - T_p - 1, (starts.max(), T - T_p - 1)
-    assert (starts[1:] - starts[:-1] == STRIDE).all(), "non-uniform stride"
+    for code in (0, 1, 2):
+        split_starts = starts[rd.split == code]
+        assert (np.diff(split_starts) == STRIDE).all(), "non-uniform stride"
 
-    # 2. chronological split: train before val before test, fractions correct
+    # 2. chronological split and target sets are pairwise disjoint.
     tr = starts[rd.split == 0]; va = starts[rd.split == 1]; te = starts[rd.split == 2]
     assert tr.max() < va.min() < te.min(), "splits overlap in time"
     fr = (len(tr) / n, len(va) / n, len(te) / n)
-    assert abs(fr[0] - 0.70) < 0.01 and abs(fr[1] - 0.10) < 0.01, fr
+    targets = {
+        code: {
+            target
+            for anchor in starts[rd.split == code]
+            for target in range(int(anchor) + 1, int(anchor) + T_p + 1)
+        }
+        for code in (0, 1, 2)
+    }
+    assert targets[0].isdisjoint(targets[1])
+    assert targets[0].isdisjoint(targets[2])
+    assert targets[1].isdisjoint(targets[2])
 
     # 3. event fields zeroed and sized to n
     assert rd.affected_mask.shape == (n, N) and not rd.affected_mask.any()
@@ -55,9 +67,9 @@ def main():
     assert np.allclose(s["x_hist"], np.transpose(raw_hist, (1, 0, 2))), "x_hist mismatch"
     assert np.allclose(s["y_true"], np.transpose(raw_fut, (1, 0, 2))), "y_true mismatch"
 
-    # 5. train z-score window (flows[:tr.max()+T_h+T_p]) sits at the train/val
-    #    boundary; report the ~T_h+T_p step adjacency (inherent to contiguous splits).
-    train_stat_hi = int(tr.max()) + T_h + T_p
+    # 5. scaler/climatology fitting uses the explicit raw timeline boundary.
+    assert rd.train_end == int(T * 0.7)
+    train_stat_hi = rd.train_end
 
     print(f"[OK] {REGION} stride={STRIDE}: T={T} N={N} windows={n} "
           f"train/val/test={len(tr)}/{len(va)}/{len(te)} "

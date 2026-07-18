@@ -10,7 +10,7 @@ encoding spatial geometry between the event and every sensor in the region:
   rel_feat[:, 3] = same_freeway   0/1
 
 Output per region:
-  outputs/dist_net/region_data/{region}_event_rel_feat.npz
+  outputs/dist_net/region_data_v2_noleak/{region}_event_rel_feat.npz
     rel_feat   (n_events, N, 4) float32
 
 This addresses the rel_feat deferred in build_full_county_cache.py and lets
@@ -21,15 +21,19 @@ export_to_igstgnn.py).
 from __future__ import annotations
 
 import argparse
+import sys
 import time
 from pathlib import Path
 
+import h5py
 import numpy as np
 import pandas as pd
 
-from build_impact_labels import (
-    load_incidents_2023,
-    load_region_traffic,  # noqa: F401  — kept for parity; not used here
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from dist_net.protocol import PROTOCOL_VERSION
+from scripts.build_impact_labels import (
     load_sensor_meta,
     region_specs,
 )
@@ -148,8 +152,13 @@ def main() -> None:
     p.add_argument("--archive", type=Path, default=Path("archive"))
     p.add_argument("--event-root", type=Path,
                    default=Path("outputs/impact_labels_aggregated/region_area_sensor_window"))
-    p.add_argument("--out-dir", type=Path, default=Path("outputs/dist_net/region_data"))
+    p.add_argument(
+        "--out-dir",
+        type=Path,
+        default=Path("outputs/dist_net/region_data_v2_noleak"),
+    )
     p.add_argument("--regions", nargs="+", default=REGIONS_DEFAULT)
+    p.add_argument("--overwrite", action="store_true")
     args = p.parse_args()
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -176,6 +185,21 @@ def main() -> None:
         events = events.sort_values("start_idx").reset_index(drop=True)
         n_events = len(events)
         print(f"  events (sorted by start_idx): {n_events}")
+        event_start_idx = events["start_idx"].to_numpy(dtype=np.int64)
+
+        samples_path = args.out_dir / f"{region_name}_samples.h5"
+        with h5py.File(samples_path, "r") as samples:
+            protocol = str(samples.attrs.get("protocol_version", "legacy"))
+            if protocol != PROTOCOL_VERSION:
+                raise RuntimeError(
+                    f"{samples_path} uses {protocol!r}; "
+                    f"required {PROTOCOL_VERSION!r}"
+                )
+            cached_starts = samples["event_start_idx"][:]
+        if not np.array_equal(event_start_idx, cached_starts):
+            raise RuntimeError(
+                f"event ordering mismatch between {events_path} and {samples_path}"
+            )
 
         t0 = time.time()
         rel_feat = compute_event_rel_feat(events, region_meta, region_node_idx, dis_matrix)
@@ -183,11 +207,17 @@ def main() -> None:
               f"in {time.time() - t0:.1f}s")
 
         out_path = args.out_dir / f"{region_name}_event_rel_feat.npz"
+        if out_path.exists() and not args.overwrite:
+            raise FileExistsError(
+                f"refusing to overwrite {out_path}; pass --overwrite"
+            )
         np.savez_compressed(
             out_path,
             rel_feat=rel_feat,
             n_events=np.int32(n_events),
             max_road_km=np.float32(MAX_ROAD_KM),
+            event_start_idx=event_start_idx,
+            protocol_version=np.array(PROTOCOL_VERSION),
         )
         sz = out_path.stat().st_size / (1024 ** 2)
         print(f"  saved -> {out_path} ({sz:.1f} MB)")

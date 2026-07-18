@@ -1,5 +1,9 @@
 # Paper Artifacts
 
+> **Legacy**
+>
+> 本目录属于早期事故影响双支论文路线，不代表当前 RADS/NDR 论文方向。2026-07-18 数据审计又确认其上游 XTraffic 缓存和部分事故特征存在未来信息问题。目录仅用于历史追溯，修复与重跑前不得将其中表格或图直接用于论文。
+
 Generated from existing experiment outputs.
 
 ## Tables

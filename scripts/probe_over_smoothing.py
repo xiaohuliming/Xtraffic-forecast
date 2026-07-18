@@ -146,7 +146,7 @@ def main() -> None:
     torch.manual_seed(0)
     ds = MultiRegionDataset(
         region_names=["Alameda", "ContraCosta", "Orange"],
-        data_dir="outputs/dist_net/region_data",
+        data_dir="outputs/dist_net/region_data_v2_noleak",
         graph_dir="outputs/region_graphs",
         split="train", lazy=False,
     )

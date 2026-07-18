@@ -86,9 +86,13 @@ def evaluate(model, loader, device):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--region", required=True, choices=["Alameda", "ContraCosta", "Orange"])
-    p.add_argument("--data_dir", default="outputs/dist_net/region_data")
+    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v2_noleak")
     p.add_argument("--graph_dir", default="outputs/region_graphs")
-    p.add_argument("--out_dir", type=Path, default=Path("outputs/baselines/stid"))
+    p.add_argument(
+        "--out_dir",
+        type=Path,
+        default=Path("outputs/protocol_v2_noleak/baselines/stid"),
+    )
     p.add_argument("--tag", default=None)
     p.add_argument("--d", type=int, default=32)
     p.add_argument("--n_layers", type=int, default=3)
@@ -196,7 +200,8 @@ def main():
     print(f"\ntest MAE: all={mae_all:.3f}  affected={mae_aff:.3f}  unaffected={mae_un:.3f}", flush=True)
     (out_dir / "summary.json").write_text(json.dumps(
         {"all": mae_all, "affected": mae_aff, "unaffected": mae_un,
-         "best_val": best_val, "params": n_params, "seed": args.seed}, indent=2))
+         "best_val": best_val, "params": n_params, "seed": args.seed,
+         **rdata.result_metadata()}, indent=2))
 
 
 if __name__ == "__main__":

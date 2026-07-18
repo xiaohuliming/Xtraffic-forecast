@@ -39,7 +39,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ckpt", type=Path, required=True)        # ckpt_best.pt
     ap.add_argument("--region", type=str, required=True)
-    ap.add_argument("--data_dir", type=Path, default=Path("outputs/dist_net/region_data"))
+    ap.add_argument(
+        "--data_dir",
+        type=Path,
+        default=Path("outputs/dist_net/region_data_v2_noleak"),
+    )
     ap.add_argument("--graph_dir", type=Path, default=Path("outputs/region_graphs"))
     ap.add_argument("--out_dir", type=Path, required=True)
     ap.add_argument("--batch_size", type=int, default=16)

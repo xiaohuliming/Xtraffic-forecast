@@ -26,7 +26,11 @@ from dist_net.model import DISTNet, DISTNetConfig, count_parameters
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
-    p.add_argument("--data-dir", type=Path, default=Path("outputs/dist_net/region_data"))
+    p.add_argument(
+        "--data-dir",
+        type=Path,
+        default=Path("outputs/dist_net/region_data_v2_noleak"),
+    )
     p.add_argument("--graph-dir", type=Path, default=Path("outputs/region_graphs"))
     p.add_argument("--batch-size", type=int, default=8)
     p.add_argument("--n-batches", type=int, default=3,
@@ -47,13 +51,23 @@ def main() -> None:
         split="train", lazy=False,
     )
     print(f"  built in {time.time() - t0:.1f}s; |train|={len(ds)}")
+    missing_rel = [
+        name for name, region in ds.regions.items()
+        if not region.has_rel_feat
+    ]
+    if missing_rel:
+        raise RuntimeError(
+            "v2 event relation cache missing for: " + ", ".join(missing_rel)
+        )
 
     loader = make_loader(ds, batch_size=args.batch_size, shuffle=True, seed=args.seed)
 
     print("\n=== Building DISTNet (all stubs) ===", flush=True)
+    first_region = ds.regions["Alameda"]
     cfg = DISTNetConfig(
-        c_x=3, c_meta=ds.regions["Alameda"].C_meta, c_e=13, d_t=5,
-        n_regions=3, hidden_dim=64, t_h=12, t_p=12,
+        c_x=3, c_meta=first_region.C_meta, c_e=first_region.C_e, d_t=5,
+        n_regions=3, hidden_dim=64,
+        t_h=first_region.T_h, t_p=first_region.T_p,
     )
     model = DISTNet(cfg)
     pc = count_parameters(model)

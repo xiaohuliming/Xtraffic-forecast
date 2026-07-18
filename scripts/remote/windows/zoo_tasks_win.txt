@@ -1,0 +1,38 @@
+# missing zoo cells 2026-07-16: quick single-seed completions first, slow models last
+agcrn Orange 2
+sttn Orange 2
+dstagnn Alameda 1 16
+dstagnn Orange 42 16
+astgcn Alameda 42
+astgcn Alameda 1
+astgcn Alameda 2
+astgcn ContraCosta 1
+astgcn Orange 42
+astgcn Orange 1
+astgcn Orange 2
+dcrnn Alameda 42
+dcrnn Alameda 1
+dcrnn Alameda 2
+dcrnn ContraCosta 1
+dcrnn ContraCosta 2
+dcrnn Orange 42
+dcrnn Orange 1
+dcrnn Orange 2
+dgcrn Alameda 42 16
+dgcrn Alameda 1 16
+dgcrn Alameda 2 16
+dgcrn ContraCosta 42 16
+dgcrn ContraCosta 1 16
+dgcrn ContraCosta 2 16
+dgcrn Orange 42 16
+dgcrn Orange 1 16
+dgcrn Orange 2 16
+d2stgnn Alameda 42 16
+d2stgnn Alameda 1 16
+d2stgnn Alameda 2 16
+d2stgnn ContraCosta 42 16
+d2stgnn ContraCosta 1 16
+d2stgnn ContraCosta 2 16
+d2stgnn Orange 42 16
+d2stgnn Orange 1 16
+d2stgnn Orange 2 16

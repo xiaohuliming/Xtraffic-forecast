@@ -17,7 +17,7 @@ Deviations from LargeST engines (documented, uniform across models):
   - D2STGNN warm-up/curriculum disabled (full-horizon loss from epoch 1).
 
 Writes:
-  outputs/baselines/zoo_<model>/<region>/
+  outputs/protocol_v2_noleak/baselines/zoo_<model>/<region>/
     ckpt_best.pt  test_predictions.npz  summary.json  train.log
 """
 from __future__ import annotations
@@ -57,10 +57,14 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("--model", required=True, choices=MODELS)
     p.add_argument("--region", required=True, choices=list(REGION_TO_GRAPH_KEY.keys()))
-    p.add_argument("--data-dir", type=Path, default=Path("outputs/dist_net/region_data"))
+    p.add_argument(
+        "--data-dir",
+        type=Path,
+        default=Path("outputs/dist_net/region_data_v2_noleak"),
+    )
     p.add_argument("--graph-dir", type=Path, default=Path("outputs/region_graphs"))
     p.add_argument("--out-dir", type=Path, default=None,
-                   help="default outputs/baselines/zoo_<model>")
+                   help="default outputs/protocol_v2_noleak/baselines/zoo_<model>")
     p.add_argument("--epochs", type=int, default=30)
     p.add_argument("--batch-size", type=int, default=32)
     p.add_argument("--seed", type=int, default=42)
@@ -91,13 +95,11 @@ def dense_adj(edge_index: np.ndarray, N: int) -> np.ndarray:
     return A
 
 
-def train_flow_stats(traffic_path: Path, train_frac: float = 0.7) -> tuple[float, float]:
+def train_flow_stats(traffic_path: Path, train_end: int) -> tuple[float, float]:
     """Scalar mean/std of train-window flow over valid sensors (LargeST-style scaler)."""
     with h5py.File(traffic_path, "r") as f:
-        T = f["flow_series_imputed"].shape[0]
-        t_end = int(T * train_frac)
-        flow = f["flow_series_imputed"][:t_end, :, 0]
-        mask = f["flow_mask"][:t_end, :, 0].astype(bool)
+        flow = f["flow_series_imputed"][:train_end, :, 0]
+        mask = f["flow_mask"][:train_end, :, 0].astype(bool)
     vals = flow[mask]
     return float(vals.mean()), float(vals.std())
 
@@ -269,7 +271,9 @@ def main() -> None:
         suffix = "_fullwindow"
     else:
         rd_cls, rd_kw, suffix = RegionData, {}, ""
-    out_base = args.out_dir or Path(f"outputs/baselines/zoo_{args.model}{suffix}")
+    out_base = args.out_dir or Path(
+        f"outputs/protocol_v2_noleak/baselines/zoo_{args.model}{suffix}"
+    )
     out_dir = out_base / args.region
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -285,8 +289,9 @@ def main() -> None:
     print(f"N={N}  T_h={T_h}  T_p={T_p}", flush=True)
     print(f"|train|={len(train_ds)}  |val|={len(val_ds)}  |test|={len(test_ds)}", flush=True)
 
-    tf = args.train_frac if args.protocol == "full_window" else 0.7
-    mean, std = train_flow_stats(args.data_dir / f"{args.region}_traffic.h5", tf)
+    mean, std = train_flow_stats(
+        args.data_dir / f"{args.region}_traffic.h5", rdata.train_end
+    )
     print(f"flow scaler: mean={mean:.3f} std={std:.3f}", flush=True)
 
     A = dense_adj(rdata.edge_index, N)
@@ -431,8 +436,38 @@ def write_test_outputs(model, name, test_loader, test_ds, rdata, device,
                  best_val, n_params)
 
 
-def save_outputs(out_dir, rc, ss, rdata, pred, actual, msk, aff, best_val, n_params) -> None:
+def flow_metrics(pred: np.ndarray, actual: np.ndarray, msk: np.ndarray,
+                 aff: np.ndarray) -> dict:
+    """Masked MAE/RMSE/MAPE over all/affected/unaffected + per-horizon lists.
+    MAPE follows LargeST (null_val=0): only entries with actual != 0 count."""
     S, T_p, N = pred.shape
+    diff = np.abs(pred - actual)
+    a_abs = np.abs(actual)
+    aff3 = np.broadcast_to(aff[:, None, :], (S, T_p, N))
+
+    def stats(d, a, sel):
+        dd = d[sel].astype(np.float64)
+        p = sel & (a > 1e-4)
+        rr = (d[p] / a[p]).astype(np.float64)
+        return (float(dd.mean()) if dd.size else float("nan"),
+                float(np.sqrt((dd ** 2).mean())) if dd.size else float("nan"),
+                float(rr.mean() * 100.0) if rr.size else float("nan"))
+
+    mae_all, rmse_all, mape_all = stats(diff, a_abs, msk)
+    mae_aff, rmse_aff, mape_aff = stats(diff, a_abs, msk & aff3)
+    mae_un, rmse_un, mape_un = stats(diff, a_abs, msk & ~aff3)
+    mae_h, rmse_h, mape_h = [], [], []
+    for h in range(T_p):
+        m, r, p = stats(diff[:, h], a_abs[:, h], msk[:, h])
+        mae_h.append(m); rmse_h.append(r); mape_h.append(p)
+    return {"all": mae_all, "affected": mae_aff, "unaffected": mae_un,
+            "rmse": rmse_all, "rmse_affected": rmse_aff, "rmse_unaffected": rmse_un,
+            "mape": mape_all, "mape_affected": mape_aff, "mape_unaffected": mape_un,
+            "h3": mae_h[2], "h6": mae_h[5], "h12": mae_h[T_p - 1],
+            "mae_h": mae_h, "rmse_h": rmse_h, "mape_h": mape_h}
+
+
+def save_outputs(out_dir, rc, ss, rdata, pred, actual, msk, aff, best_val, n_params) -> None:
     np.savez_compressed(
         out_dir / "test_predictions.npz",
         region_code=rc, sample_start=ss,
@@ -440,21 +475,13 @@ def save_outputs(out_dir, rc, ss, rdata, pred, actual, msk, aff, best_val, n_par
         pred_raw_flow=pred, actual_future_flow=actual,
         y_mask_flow=msk, affected_mask=aff,
     )
-    diff = np.abs(pred - actual)
-    aff_TpN = np.broadcast_to(aff[:, None, :], (S, T_p, N))
-    mae_all = float(diff[msk].mean()) if msk.any() else float("nan")
-    v_aff = msk & aff_TpN
-    v_un = msk & (~aff_TpN)
-    mae_aff = float(diff[v_aff].mean()) if v_aff.any() else float("nan")
-    mae_un = float(diff[v_un].mean()) if v_un.any() else float("nan")
-    horizons = {}
-    for h in (3, 6, 12):
-        vh = msk[:, h - 1]
-        horizons[f"h{h}"] = float(diff[:, h - 1][vh].mean()) if vh.any() else float("nan")
-    summary = {"all": mae_all, "affected": mae_aff, "unaffected": mae_un,
-               "best_val_L_main": best_val, "n_params": n_params, **horizons}
-    print(f"\ntest MAE: all={mae_all:.3f}  affected={mae_aff:.3f}  unaffected={mae_un:.3f}  "
-          f"h3={horizons['h3']:.3f} h6={horizons['h6']:.3f} h12={horizons['h12']:.3f}",
+    summary = {**flow_metrics(pred, actual, msk, aff),
+               "best_val_L_main": best_val, "n_params": n_params,
+               **rdata.result_metadata()}
+    print(f"\ntest MAE: all={summary['all']:.3f}  affected={summary['affected']:.3f}  "
+          f"unaffected={summary['unaffected']:.3f}  "
+          f"h3={summary['h3']:.3f} h6={summary['h6']:.3f} h12={summary['h12']:.3f}\n"
+          f"test RMSE={summary['rmse']:.3f}  MAPE={summary['mape']:.2f}%",
           flush=True)
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
