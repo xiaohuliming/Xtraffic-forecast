@@ -2,7 +2,7 @@
 
 > 2026-07-19 有效性说明：本文讲解审计前的方法设计与无效历史结果。旧 XTraffic 缓存存在未来插值，RADS 基线使用事故标签清洗。v2 又存在重复 forecast origin、active event 跨 split、验证累计和训练契约问题，因此 v2 已冻结，最先完成的 4 个远程结果也仅为 `contaminated preliminary`。本文所有性能数字、配对结论、机制量化和 label-free 验证均不得作为论文或导师汇报中的实证结论。
 >
-> 当前修复协议为 `protocol_v3_noleak_dedup`，cache schema 为 3。正式缓存构建代码 SHA 为 `29159f626494de52c69b36fe5bba9854f13cb56c`。它不是最终训练代码 SHA。纳入 `origin/fu` 的合理修复后，完整测试为 143 项通过，1 个既有 warning。最终训练代码 SHA 等 main 合并后锁定。v3 正式缓存已在 `outputs/dist_net/region_data_v3_noleak_dedup` 落盘，并通过两次严格复验。bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。正式样本数与 train、val、test 切分为 Alameda 45760 和 32001/6954/6805，ContraCosta 23337 和 16414/3472/3451，Orange 60015 和 42372/9098/8545。缓存状态为 `verified`，训练尚未启动。当前有效性见 [v3 协议复审](audits/protocol_v3_review_2026-07-19.md) 和 [结果有效性清单](audits/result_validity.csv)。
+> 当前修复协议为 `protocol_v3_noleak_dedup`，cache schema 为 3。正式缓存构建代码 SHA 为 `29159f626494de52c69b36fe5bba9854f13cb56c`，最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。纳入 `origin/fu` 的合理修复并补齐 Windows 路径测试后，Mac 与 5080 均为 143 项通过，1 个既有 warning。v3 正式缓存已在 `outputs/dist_net/region_data_v3_noleak_dedup` 落盘，并通过本地两次及 5080 一次严格复验。bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。正式样本数与 train、val、test 切分为 Alameda 45760 和 32001/6954/6805，ContraCosta 23337 和 16414/3472/3451，Orange 60015 和 42372/9098/8545。缓存状态为 `verified`，45 项 v3 队列运行中，尚无完成并验收的新结果。当前有效性见 [v3 协议复审](audits/protocol_v3_review_2026-07-19.md) 和 [结果有效性清单](audits/result_validity.csv)。
 
 用途:保留方法线的历史讲稿,用于追溯设计与准备 v3 待检验假设。所有数字出自旧协议落盘文件,与《XTraffic项目完整汇报.md》第 4.10 到 4.15 节一致,但因协议污染已经失效。遵守写作规范,不用破折号,不用括号内插说明。
 
@@ -80,4 +80,4 @@ g 是逐节点逐 horizon 的连续旋钮,同时拨两样,其一锚点配比,g �
 
 ## 收尾一句话
 
-待 v3 检验的命题是,事故标签可能没有额外预测信息,但流量自身可能包含可用于锚点选择的状态。RADS 系列用训练期 oracle 教门控选择状态。v3 缓存已经通过最终审计,下一步是传输、远端哈希复验和 clean clone 启动。它是否能在两个骨干三个区域上一致有效,以及能否改善最强基线,必须等待正式重跑后再回答。旧协议的 10.888 只保留为无效历史数字。
+待 v3 检验的命题是,事故标签可能没有额外预测信息,但流量自身可能包含可用于锚点选择的状态。RADS 系列用训练期 oracle 教门控选择状态。v3 缓存、远端哈希、clean checkout 和正式队列启动均已验收,45 项矩阵正在运行。它是否能在两个骨干三个区域上一致有效,以及能否改善最强基线,必须等待正式重跑后再回答。旧协议的 10.888 只保留为无效历史数字。

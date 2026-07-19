@@ -17,11 +17,11 @@
 
 第 5 项 Orange s0a seed 42 没有形成可用 summary，队列已经停止。日志与不完整 checkpoint 只读保留。
 
-当前协议已升级为 `protocol_v3_noleak_dedup`，缓存 schema 为 3。默认缓存目录是 `outputs/dist_net/region_data_v3_noleak_dedup`，默认结果根目录是 `outputs/protocol_v3_noleak_dedup`。正式缓存构建代码 SHA 为 `29159f626494de52c69b36fe5bba9854f13cb56c`，训练代码 SHA 将在 v3 修复合并到 main 时锁定。完整测试结果为 143 项通过，另有 1 条既有张量转标量警告。
+当前协议已升级为 `protocol_v3_noleak_dedup`，缓存 schema 为 3。默认缓存目录是 `outputs/dist_net/region_data_v3_noleak_dedup`，默认结果根目录是 `outputs/protocol_v3_noleak_dedup`。正式缓存构建代码 SHA 为 `29159f626494de52c69b36fe5bba9854f13cb56c`，最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。Mac 与 5080 的完整测试结果均为 143 项通过，另有 1 条既有张量转标量警告。
 
 组员 Fu 在 `origin/fu` 的 `625aacf` 提出了空 mask batch 可跳过的处理思路。v3 已通过共享 `MaskedMAEAccumulator` 与远程 runner 的全预测有限性检查吸收这一正确性要求，没有直接 cherry-pick 落后于当前协议的旧分支。
 
-三地区正式 v3 缓存已经落盘到 `outputs/dist_net/region_data_v3_noleak_dedup`。缓存先在 staging 路径完成严格审计，发布到正式路径后再次执行同一审计，两次结果均为 verified。cache bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。
+三地区正式 v3 缓存已经落盘到 `outputs/dist_net/region_data_v3_noleak_dedup`。缓存先在 staging 路径完成严格审计，发布到正式路径后再次执行同一审计，两次结果均为 verified。缓存传到 5080 后又完成一次只读严格审计，结果仍为 verified。cache bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。远端传输归档大小为 1,896,581,632 字节，SHA-256 为 `6c5d3ccb53af30d6d90c1032453c83cb463711456839dad151ba676e2bb80ea5`。
 
 正式事件样本与 train、val、test 切分如下：
 
@@ -31,7 +31,7 @@
 | ContraCosta | 23337 | 16414 | 3472 | 3451 |
 | Orange | 60015 | 42372 | 9098 | 8545 |
 
-训练尚未重启。当前优先级依次是推送代码，在 5080 建立准确提交的 clean clone，传输正式缓存与图文件，复验 bundle ID、bundle digest、传输包哈希和逐文件哈希，运行远端严格审计，然后在全新 v3 结果目录启动最小判别矩阵。
+45 项 v3 最小判别矩阵已于 2026-07-19 20:18 新加坡时间在 RTX 5080 上严格串行启动。远端 worktree clean，代码 SHA、bundle ID 与 bundle digest 均由 runner 记录。启动时首项 `001_event_staeformer_s0a_alameda_seed42` 为 `running`，GPU 利用率为 93%，显存使用为 10522 MiB。首项 epoch 1 日志已落盘，train loss 为 18.7316，val loss 为 14.7119，用时 351 秒，并保存当前 best checkpoint。随后复查时 GPU 利用率为 96%。当前没有任务完成 runner 的 prediction artifact 与 summary 复验，因此仍无可用于论文的新结果。当前优先级是监控队列，逐项保留诚实结果，全部完成后再汇总配对比较与多种子统计。
 
 方法实现层级固定为 `RADS ⊂ RADS-O ⊂ NDR-Net`。这一层级只说明组件包含关系，不恢复任何 contaminated 性能主张。
 

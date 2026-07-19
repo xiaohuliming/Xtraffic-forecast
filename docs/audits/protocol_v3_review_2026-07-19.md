@@ -2,13 +2,13 @@
 
 复核日期：2026-07-19
 
-复核状态：v3 代码审查与回归测试完成，正式缓存已在 staging 路径与正式路径各通过一次严格审计，训练尚未启动
+复核状态：v3 代码审查与回归测试完成，正式缓存已在本地两次及 5080 一次通过严格审计，45 项最小判别矩阵正在运行
 
 正式缓存构建代码 SHA：`29159f626494de52c69b36fe5bba9854f13cb56c`
 
-最终训练代码 SHA：待 main 合并后锁定
+最终训练代码 SHA：`3a4952837aaf6fbda1403d50b610b1bf40c6098a`
 
-测试结果：143 passed、1 warning
+测试结果：Mac 与 5080 均为 143 passed、1 warning
 协议版本：`protocol_v3_noleak_dedup`
 
 缓存 schema：3
@@ -27,7 +27,7 @@ v2 修复了 2026-07-18 审计发现的主要因果泄露，但后续全面复�
 
 v3 已完成相应代码修复，并为缓存、训练和远程 runner 增加严格身份契约。正式缓存已经落盘，并在 staging 路径和正式路径各执行一次严格审计，两次均为 `verified`。本报告中的正式样本数、split 数、区域 digest 与 artifact SHA-256 均来自正式路径的 `cache_bundle_manifest.json`。
 
-训练尚未启动，因此当前没有新的 v3 模型结果。缓存通过审计不能证明模型性能，也不能恢复任何旧论文结论。最小判别矩阵和 baseline zoo 继续保持 `pending`。
+45 项 v3 最小判别矩阵已于 2026-07-19 20:18 新加坡时间在 5080 严格串行启动。启动时首项 `001_event_staeformer_s0a_alameda_seed42` 为 `running`，GPU 利用率为 93%，显存使用为 10522 MiB。首项 epoch 1 日志已落盘，train loss 为 18.7316，val loss 为 14.7119，用时 351 秒，并保存当前 best checkpoint。随后复查时 GPU 利用率为 96%。当前还没有任务完成并通过 runner 的 prediction artifact 与 summary 复验，因此没有新的 v3 模型结果。缓存通过审计和训练开始都不能证明模型性能，也不能恢复任何旧论文结论。baseline zoo 继续保持 `pending`。
 
 ## 复核范围
 
@@ -76,7 +76,9 @@ manifest 状态为 `verified`，cache schema 为 3，协议为 `protocol_v3_nole
 | ContraCosta | `c6b76456c8b2bb759bdad58380ccbd5b108fc21b0e6502a6811255a888dc04b3` | `d456779a9f730cc58afab1616d63ca40815431af0a5ac0c77a016eac20e3576f` | `62afe8b8b70e96f0a427ce8bae8965668ae0fd34a3bc463c6383c15fa2bacf86` | `b00bdbbb7898f674f29ba8752dc53ee8c4abed9e787e1b92dfca2a50798555e9` |
 | Orange | `5bfde78529aef84fac8bbc3de13b7bb76416a27725f3be9209a3aa7c041c439b` | `39cd470ab815d7d455ef0b401d68f5746dce402b46b02ae1c42a986e73da7f24` | `ba47f7b282741d0861f97796b4c49fd36fb1898e92257a1346e28b347b8b36d2` | `34e7656620964e6df778b67b86fc8df2a17900f87963b67b95499ef618343074` |
 
-构建器身份均为 clean worktree，正式缓存构建代码 SHA 为 `29159f626494de52c69b36fe5bba9854f13cb56c`。该 SHA 属于缓存 provenance，不等同于最终训练代码 SHA。远程 runner 必须精确匹配本节的 cache bundle 身份，并使用 main 合并后锁定的最终训练代码 SHA。
+构建器身份均为 clean worktree，正式缓存构建代码 SHA 为 `29159f626494de52c69b36fe5bba9854f13cb56c`。该 SHA 属于缓存 provenance，不等同于最终训练代码 SHA。
+
+缓存与图文件传到 5080 时使用的归档大小为 1,896,581,632 字节，归档 SHA-256 为 `6c5d3ccb53af30d6d90c1032453c83cb463711456839dad151ba676e2bb80ea5`。远端合并分块后先核对归档哈希，再解包到最终 clean clone。远端随后以 `--no-write-manifest` 再次运行严格缓存审计，结果为 `verified`，bundle ID 与 bundle digest 和本节完全一致。
 
 ## v2 落盘复核
 
@@ -185,7 +187,7 @@ runner 在启动前验证 clean Git checkout、精确代码 SHA、缓存审计�
 
 ## 回归测试
 
-当前代码已纳入 `origin/fu` 提交 `625aacf` 中经复核合理的部分，全套测试结果为 143 passed、1 warning。最终训练代码 SHA 将在 main 合并后锁定。新增与加强的测试覆盖：
+最终训练代码 SHA `3a4952837aaf6fbda1403d50b610b1bf40c6098a` 已纳入 `origin/fu` 提交 `625aacf` 中经复核合理的部分，并修正了协议路径测试在 Windows 上的分隔符断言。Mac 与 5080 的全套测试结果均为 143 passed、1 warning。新增与加强的测试覆盖：
 
 - forecast origin 唯一化和最近 anchor 选择。
 - 完整 origin event 与 active event 保留。
@@ -208,9 +210,9 @@ runner 在启动前验证 clean Git checkout、精确代码 SHA、缓存审计�
 | 旧 XTraffic 缓存与结果 | contaminated | 否 |
 | v2 最先完成的四项远程结果 | contaminated preliminary | 否 |
 | v2 其余最小判别矩阵 | stopped | 否 |
-| v3 训练代码 | reviewed, SHA pending | 已通过代码审查与测试，最终 SHA 待 main 合并后锁定 |
+| v3 训练代码 | verified checkout | 是正式训练输入，SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`，远端 worktree clean |
 | v3 正式缓存 | verified | 可作为 v3 训练输入，不能单独产生模型结论 |
-| v3 最小判别矩阵 | pending | 否，训练尚未启动 |
+| v3 最小判别矩阵 | running | 否，尚无完成并验收的新结果 |
 | v3 baseline zoo | pending | 否，尚未启动 |
 
 ## 正式启动门槛
@@ -221,10 +223,10 @@ runner 在启动前验证 clean Git checkout、精确代码 SHA、缓存审计�
 2. 缓存审计脚本通过全部 schema、唯一性、split 隔离、边界、图配对和内容哈希检查。
 3. 审计清单落盘并记录正式 cache bundle ID 与 digest。
 
-训练启动前仍需完成：
+训练侧启动门槛也已完成：
 
 4. 远程 checkout 与指定代码 SHA 完全一致，worktree clean。
 5. runner 环境中的代码 SHA、cache bundle ID 与 digest 和本地审计清单一致。
 6. 新结果写入 `outputs/protocol_v3_noleak_dedup` 下的新 attempt，不读取或覆盖 v2 输出。
 
-正式缓存状态已经从 `pending` 更新为 `verified`。最小判别矩阵在训练实际启动前继续保持 `pending`。
+远端正式 checkout 的 Git SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`，worktree clean。runner 的 queue status 记录同一代码 SHA、cache bundle ID、bundle digest、schema 3 和 45 项任务。首项已进入新的 attempt 目录运行，未读取或覆盖 v2 输出。正式缓存保持 `verified`，最小判别矩阵状态更新为 `running`。

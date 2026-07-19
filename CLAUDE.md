@@ -49,7 +49,7 @@ v2 随后修复了原始泄露问题，但全面复审又确认了四类影响�
 
 因此 v2 已冻结，5080 队列已停止。队列最先完成的 4 个结果只能标记为 `contaminated preliminary`，不能用于论文、模型选择或恢复旧结论。v2 的三地区样本数、远端测试记录和启动时 GPU 状态保留为历史运维记录，不再视为正式协议验收证据。
 
-当前修复版本为 `protocol_v3_noleak_dedup`，cache schema 为 3。正式缓存构建代码 SHA 为 clean commit `29159f626494de52c69b36fe5bba9854f13cb56c`。它不是最终训练代码 SHA。纳入 `origin/fu` 的合理修复后，完整测试结果为 143 项通过，1 个既有 warning。最终训练代码 SHA 等 main 合并后锁定。默认缓存目录为 `outputs/dist_net/region_data_v3_noleak_dedup`，默认结果根目录为 `outputs/protocol_v3_noleak_dedup`。
+当前修复版本为 `protocol_v3_noleak_dedup`，cache schema 为 3。正式缓存构建代码 SHA 为 clean commit `29159f626494de52c69b36fe5bba9854f13cb56c`，它只代表缓存 provenance。最终训练代码 SHA 已锁定为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。纳入 `origin/fu` 的合理修复并补齐 Windows 路径测试后，Mac 与 5080 均为 143 项通过，1 个既有 warning。默认缓存目录为 `outputs/dist_net/region_data_v3_noleak_dedup`，默认结果根目录为 `outputs/protocol_v3_noleak_dedup`。
 
 三地区 v3 正式缓存已在 `outputs/dist_net/region_data_v3_noleak_dedup` 落盘，并通过两次严格复验。正式 bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。
 
@@ -59,7 +59,9 @@ v2 随后修复了原始泄露问题，但全面复审又确认了四类影响�
 | ContraCosta | 23337 | 16414 | 3472 | 3451 |
 | Orange | 60015 | 42372 | 9098 | 8545 |
 
-缓存状态现为 `verified`。v3 训练仍未启动，当前没有任何可恢复论文结论的 v3 结果。实时状态和验收记录见 `docs/audits/protocol_v3_review_2026-07-19.md`，实验族机器可读状态见 `docs/audits/result_validity.csv`。
+缓存状态现为 `verified`。远端传输归档 SHA-256 为 `6c5d3ccb53af30d6d90c1032453c83cb463711456839dad151ba676e2bb80ea5`，5080 解包后再次运行严格缓存审计，结果仍为同一 bundle ID、bundle digest 和 `verified`。
+
+45 项 v3 最小判别矩阵已于 2026-07-19 20:18 新加坡时间在 RTX 5080 上严格串行启动。正式 remote checkout 为 clean worktree，代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。启动判活时首项为 `001_event_staeformer_s0a_alameda_seed42`，队列状态为 `running`，GPU 利用率为 93%，显存使用为 10522 MiB。首项已落盘 epoch 1 日志，train loss 为 18.7316，val loss 为 14.7119，用时 351 秒，并保存当前 best checkpoint。随后复查时 GPU 利用率为 96%，说明训练继续运行。当前尚无完成并通过 runner 结果验收的 v3 summary，因此仍没有可恢复论文结论的新结果。实时状态和验收记录见 `docs/audits/protocol_v3_review_2026-07-19.md`，实验族机器可读状态见 `docs/audits/result_validity.csv`。
 
 ## v2 冻结记录
 
@@ -69,11 +71,10 @@ v2 随后修复了原始泄露问题，但全面复审又确认了四类影响�
 
 ## 下一步顺序
 
-1. 把已验证的 v3 cache bundle 传输到 5080。
-2. 在远端复验 archive、bundle manifest 和三地区缓存文件哈希。
-3. main 合并后锁定最终训练代码 SHA，从该精确 SHA 创建 clean clone，并核对 worktree、代码 SHA、bundle ID 与 bundle digest。
-4. 使用 `protocol_v3_noleak_dedup` 的新输出目录启动 45 项最小判别矩阵。
-5. 队列完成后根据新结果决定论文主张，再评估是否恢复 baseline zoo。
+1. 持续监控 45 项 v3 最小判别矩阵的队列状态、任务日志和 GPU 状态。
+2. 每项完成后由 runner 复算 prediction artifact 的有效点数与 all、affected、unaffected 指标，再原子提升到正式任务目录。
+3. 队列全部完成后汇总新结果，重新执行配对比较、显著性检验和跨种子统计。
+4. 只根据 v3 落盘结果决定论文主张，再评估是否恢复 baseline zoo。
 
 ## 最小判别矩阵
 

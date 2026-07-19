@@ -43,15 +43,15 @@ v2 缓存会记录 schema version、协议版本、精确切分边界、预处�
 
 全面审查已经覆盖数据构建、事件去重、切分隔离、掩码传播、验证指标聚合、图支持矩阵、训练输入边界、输出身份校验和远程队列恢复策略。v3 将同一预测时刻规范化为唯一样本，按距预测时刻最近的事故锚点选择主事故，并用稳定事件身份处理并列情况。所有活跃事故参与 split 污染检查与 affected 并集计算，模型可见的事故槽位截断不再改变分析标签。验证 MAE 统一按全部有效观测点聚合，IGSTGNN 的 `x_mask` 与 `y_mask` 从转换、加载、训练到比较全链路保留。正式训练默认拒绝缺少身份、哈希、掩码或结果清单的产物。
 
-新协议为 `protocol_v3_noleak_dedup`，缓存 schema 为 3。默认缓存目录是 `outputs/dist_net/region_data_v3_noleak_dedup`，默认结果根目录是 `outputs/protocol_v3_noleak_dedup`。正式缓存构建代码 SHA 为 `29159f626494de52c69b36fe5bba9854f13cb56c`。训练代码 SHA 将在 v3 修复合并到 main 时锁定。完整回归测试结果为 143 项通过，另有 1 条既有张量转标量警告，没有测试失败。
+新协议为 `protocol_v3_noleak_dedup`，缓存 schema 为 3。默认缓存目录是 `outputs/dist_net/region_data_v3_noleak_dedup`，默认结果根目录是 `outputs/protocol_v3_noleak_dedup`。正式缓存构建代码 SHA 为 `29159f626494de52c69b36fe5bba9854f13cb56c`。最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。Mac 与 5080 的完整回归测试结果均为 143 项通过，另有 1 条既有张量转标量警告，没有测试失败。
 
 组员 Fu 在 `origin/fu` 的 `625aacf` 提出了空 mask batch 可跳过的处理思路。v3 已通过共享 `MaskedMAEAccumulator` 与远程 runner 的全预测有限性检查吸收这一正确性要求，没有直接 cherry-pick 落后于当前协议的旧分支。
 
-截至本次更新，三地区正式 v3 缓存已经落盘到 `outputs/dist_net/region_data_v3_noleak_dedup`。缓存先在 staging 路径完成严格审计，发布到正式路径后再次执行同一审计，两次结果均为 verified。cache bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。
+截至本次更新，三地区正式 v3 缓存已经落盘到 `outputs/dist_net/region_data_v3_noleak_dedup`。缓存先在 staging 路径完成严格审计，发布到正式路径后再次执行同一审计，两次结果均为 verified。缓存传到 5080 后又完成一次只读严格审计，结果仍为 verified。cache bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。远端传输归档大小为 1,896,581,632 字节，SHA-256 为 `6c5d3ccb53af30d6d90c1032453c83cb463711456839dad151ba676e2bb80ea5`。
 
 正式 v3 事件样本与 train、val、test 切分如下。Alameda 共 45760 个样本，切分为 32001、6954、6805。ContraCosta 共 23337 个样本，切分为 16414、3472、3451。Orange 共 60015 个样本，切分为 42372、9098、8545。
 
-v3 训练尚未重新启动，5080 当前不应被描述为正在产出正式结果。下一步是推送代码，建立远端 clean clone，传输正式缓存并复验哈希，然后启动全新 v3 队列。旧结果与四个 v2 preliminary summary 的 contaminated 状态保持不变，论文写作继续暂停。
+45 项 v3 最小判别矩阵已于 2026-07-19 20:18 新加坡时间在 RTX 5080 上严格串行启动。远端 worktree clean，代码 SHA、bundle ID、bundle digest 与 45 项 manifest 均由 runner 锁定。启动时首项 `001_event_staeformer_s0a_alameda_seed42` 为 `running`，GPU 利用率为 93%，显存使用为 10522 MiB。首项 epoch 1 日志已落盘，train loss 为 18.7316，val loss 为 14.7119，用时 351 秒，并保存当前 best checkpoint。随后复查时 GPU 利用率为 96%。当前没有任务完成 prediction artifact 与 summary 复验，所以 5080 可以描述为正在训练，但不能描述为已经产出正式模型结果。旧结果与四个 v2 preliminary summary 的 contaminated 状态保持不变，论文写作继续暂停。
 
 ---
 
@@ -87,7 +87,7 @@ v3 训练尚未重新启动，5080 当前不应被描述为正在产出正式结
 
 45 项最小判别队列曾在 5080 上串行启动。全面复核随后确认 v2 仍存在同一预测时刻重复采样、主事故选择不规范和验证指标聚合不精确等问题，队列已经停止。已完成的四个 summary 统一标记为 `preliminary contaminated`，第 5 项没有形成可用 summary。
 
-v3 已完成代码修复，schema 为 3，协议名为 `protocol_v3_noleak_dedup`。正式缓存构建代码 SHA 是 `29159f626494de52c69b36fe5bba9854f13cb56c`，训练代码 SHA 将在 main 合并时锁定。完整测试为 143 项通过与 1 条既有警告。三地区正式缓存已经落盘，staging 与正式路径两次严格审计均为 verified。训练尚未重启。
+v3 已完成代码修复，schema 为 3，协议名为 `protocol_v3_noleak_dedup`。正式缓存构建代码 SHA 是 `29159f626494de52c69b36fe5bba9854f13cb56c`，最终训练代码 SHA 是 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。Mac 与 5080 均为 143 项通过与 1 条既有警告。三地区正式缓存已经落盘，本地两次及 5080 一次严格审计均为 verified。45 项队列已于 20:18 启动，当前首项运行中，尚无完成并验收的新结果。
 
 ### 最新进展，2026-06-25
 
@@ -126,10 +126,11 @@ Orange 的 s0a 对 s0c 三种子完成，配对差负 0.114 与负 0.132 与负 
 1. v2 缓存与四个 preliminary summary 已冻结为 contaminated，不再续跑。
 2. 三地区 `region_data_v3_noleak_dedup` 已从 clean 提交重建完成。
 3. staging 与正式路径的 schema、哈希、去重、split、掩码、关系特征与 provenance 全量审计均为 verified。
-4. 推送当前代码并在 5080 建立远端 clean clone。
-5. 传输正式缓存，逐级复验 bundle ID、bundle digest 与文件哈希。
-6. 复验通过后启动全新的 v3 结果目录与严格身份校验队列。
-7. v3 最小判别矩阵完成后重新判断论文主张，再决定 baseline zoo 与论文写作是否恢复。
+4. 当前代码已推送并合并，5080 正式 checkout 为 clean，训练代码 SHA 已锁定。
+5. 正式缓存已经传输，归档哈希、bundle ID、bundle digest 与远端只读严格审计均通过。
+6. 全新的 v3 结果目录与 45 项严格身份校验队列已经启动。
+7. 当前持续监控队列，并由 runner 逐项复算与验收结果。
+8. v3 最小判别矩阵完成后重新判断论文主张，再决定 baseline zoo 与论文写作是否恢复。
 
 ---
 
@@ -157,7 +158,8 @@ Orange 的 s0a 对 s0c 三种子完成，配对差负 0.114 与负 0.132 与负 
 18. 第十六阶段，2026-07-19：三地区正式 v2 缓存与事故关系缓存生成完成，事件协议、full-window 协议、schema、provenance 和远端 28 项测试通过。45 项最小判别矩阵在 5080 上开始串行重跑。
 19. 第十七阶段，2026-07-19：v2 后续复核发现同一预测时刻重复采样、主事故选择不规范、验证 MAE 聚合不精确，以及活跃事故、分析标签、IGSTGNN 掩码、图支持和远程结果身份仍有完整性缺口。队列停止，四个已完成 summary 降级为 preliminary contaminated，第 5 项未形成可用 summary。
 20. 第十八阶段，2026-07-19：v3 全面修复完成。schema 升级为 3，协议切换为 `protocol_v3_noleak_dedup`，143 项测试通过并保留 1 条既有警告。`origin/fu` 的 `625aacf` 所提空 mask batch 正确性要求已通过共享指标累加器与 runner 有限性检查吸收，没有直接合并旧分支。
-21. 第十九阶段，2026-07-19：三地区正式 v3 缓存从构建代码 SHA `29159f626494de52c69b36fe5bba9854f13cb56c` 重建完成。staging 与正式路径两次严格审计均为 verified。训练代码 SHA 将在 main 合并时锁定。下一步为推送、远端 clean clone、缓存传输与哈希复验，训练尚未重启。
+21. 第十九阶段，2026-07-19：三地区正式 v3 缓存从构建代码 SHA `29159f626494de52c69b36fe5bba9854f13cb56c` 重建完成。staging 与正式路径两次严格审计均为 verified。
+22. 第二十阶段，2026-07-19：v3 修复经 PR #3 合并到 main，补齐 Windows 路径测试后将最终训练代码 SHA 锁定为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。正式缓存归档传到 5080 并通过 SHA-256 与只读严格审计复验。45 项最小判别矩阵于 20:18 启动，首项运行中，尚无完成并验收的新结果。
 
 ---
 
@@ -554,7 +556,7 @@ Orange 区域已于 2026-06-23 在云 5090 补齐，all 12.500，affected 18.107
 
 ## 第十部分：接下来要做什么
 
-2026-07-06 时项目曾判断全部实验证据关账。2026-07-18 数据有效性审计推翻了这一状态判断。2026-07-19 对 v2 的后续全面复核又确认，仅修复最初泄露点仍不足以保证样本唯一性、验证选择和全链路结果身份正确。v2 队列已经停止，v3 正式缓存重建与两次最终审计已经完成，当前进入代码推送与远端部署阶段。审计前最低历史数字为 Alameda NDR-Net 11.052，四个 v2 preliminary summary 也均不能作为当前有效结果。
+2026-07-06 时项目曾判断全部实验证据关账。2026-07-18 数据有效性审计推翻了这一状态判断。2026-07-19 对 v2 的后续全面复核又确认，仅修复最初泄露点仍不足以保证样本唯一性、验证选择和全链路结果身份正确。v2 队列已经停止，v3 正式缓存重建、本地两次审计、5080 传输复验与远端审计已经完成。45 项 v3 最小判别矩阵正在 5080 串行运行。审计前最低历史数字为 Alameda NDR-Net 11.052，四个 v2 preliminary summary 也均不能作为当前有效结果。
 
 已经完成的代码与管理事项如下。
 
@@ -567,7 +569,10 @@ Orange 区域已于 2026-06-23 在云 5090 补齐，all 12.500，affected 18.107
 7. 让 scaler 和残差统计严格使用显式 train_end，并修复 IGSTGNN 的 forecast origin、目标对齐、事件绑定与目标缺失掩码传播。
 8. 对同一预测时刻去重，按最近锚点与稳定事件身份选择主事故，并用全部活跃事故计算 affected 并集。
 9. 将验证 MAE 统一为所有有效观测点的总误差除以总有效点数，同时修复反向邻接归一化与 blind 模式的分析标签隔离。
-10. 增加数据、训练与远程运行完整性回归测试。当前完整测试结果为 143 项通过，另有 1 条既有警告。
+10. 增加数据、训练与远程运行完整性回归测试。Mac 与 5080 的完整测试结果均为 143 项通过，另有 1 条既有警告。
+11. 将最终训练代码 SHA 锁定为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`，并在 5080 建立相同 SHA 的 clean checkout。
+12. 完成缓存归档 SHA-256、bundle ID、bundle digest 与远端严格审计复验。
+13. 在独立 v3 结果目录启动 45 项串行队列，runner 对每项 prediction artifact 与 summary 执行复算和身份校验。
 11. 将正式训练入口默认切换到 `region_data_v3_noleak_dedup` 与 `protocol_v3_noleak_dedup`，旧缓存默认拒绝加载。
 12. 增加正式运行的代码 SHA、缓存 bundle、任务清单、新鲜输出目录与 summary 身份校验。
 13. 整理根目录、脚本索引、文档索引、远程启动文件和实验室共享配置。
@@ -650,4 +655,4 @@ Orange 区域已于 2026-06-23 在云 5090 补齐，all 12.500，affected 18.107
 
 数据现实，三类协变量的可用性。第一，节假日已在数据内。time_enc 的第五列是 2023 年美国联邦假日标志，构建见 scripts/build_full_county_cache.py 的 US_FEDERAL_HOLIDAYS_2023。但气候态基线 baseline_median 形状为 2 乘 288 乘 N 乘 3，只分工作日与周末两类日型，没有单独建假日类，假日当前错用工作日或周末基线。改进点是把基线粒度扩成三类，或把假日当协变量喂给学习式基线，预期对 all 影响很小，因为假日只占全年约 3%，是正确性修补而非主增益。第二，天气数据集里没有，要用需外接 Meteostat 或 NOAA ISD，按传感器经纬度找最近站取 2023 年逐小时再广播到 5 分钟，属独立数据工程，有站点稀疏与对齐与仅 2023 一年的风险，先不外接，作后续可插拔项。第三，活动不可行，数据里除事故外无其他活动事件，投入产出比太低，放下。
 
-当时已定的下一步顺序是先用 in-data 的 holiday 与自适应把骨架搭通，再做骨干无关性验证。两项后来均已完成，审计前结果见第 4.8 至 4.12 节。天气仍作为后续可插拔项，holiday 感知基线仍是正确性小修补。无泄露 v3 缓存重建与两次严格审计现已完成，当前优先级是推送、远端 clean clone、缓存传输与哈希复验，然后重启证据矩阵。所有判读继续坚持等参数、多种子和显著性，不在单种子结果上收官。方法实现层级始终为 `RADS ⊂ RADS-O ⊂ NDR-Net`。
+当时已定的下一步顺序是先用 in-data 的 holiday 与自适应把骨架搭通，再做骨干无关性验证。两项后来均已完成，审计前结果见第 4.8 至 4.12 节。天气仍作为后续可插拔项，holiday 感知基线仍是正确性小修补。无泄露 v3 缓存重建、本地和远端严格审计、clean checkout 与正式队列启动现已完成，当前优先级是监控 45 项证据矩阵并逐项验收落盘结果。所有判读继续坚持等参数、多种子和显著性，不在单种子结果上收官。方法实现层级始终为 `RADS ⊂ RADS-O ⊂ NDR-Net`。

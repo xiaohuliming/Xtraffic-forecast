@@ -30,7 +30,7 @@ v2 已因重复 forecast origin、active event 跨 split、验证累计和训练
 | `train_benchmark.py` | METR-LA、PEMS04 与 PEMS08 标准基准 |
 | `train_baseline_zoo.py` | 统一 baseline zoo，旧 XTraffic 缓存结果暂不汇总为正式结论 |
 
-以上 XTraffic 训练入口默认读取 `outputs/dist_net/region_data_v3_noleak_dedup`，并将新结果写入 `outputs/protocol_v3_noleak_dedup`。正式入口通过 `dist_net/training_runtime.py` 校验 cache bundle、Git SHA、输出隔离和 summary 契约。v3 正式缓存已经两次严格复验，状态为 `verified`。bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。正式样本数与 train、val、test 切分为 Alameda 45760 和 32001/6954/6805，ContraCosta 23337 和 16414/3472/3451，Orange 60015 和 42372/9098/8545。训练尚未启动。旧结果和最先完成的 4 个 v2 远程结果均不可用于恢复论文结论。
+以上 XTraffic 训练入口默认读取 `outputs/dist_net/region_data_v3_noleak_dedup`，并将新结果写入 `outputs/protocol_v3_noleak_dedup`。正式入口通过 `dist_net/training_runtime.py` 校验 cache bundle、Git SHA、输出隔离和 summary 契约。v3 正式缓存已经通过本地两次及 5080 一次严格复验，状态为 `verified`。bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。正式样本数与 train、val、test 切分为 Alameda 45760 和 32001/6954/6805，ContraCosta 23337 和 16414/3472/3451，Orange 60015 和 42372/9098/8545。45 项 v3 队列运行中，尚无完成并验收的新结果。旧结果和最先完成的 4 个 v2 远程结果均不可用于恢复论文结论。
 
 ## 事故标签对撞
 
@@ -75,7 +75,7 @@ posthoc
 
 ## 队列与远程运行
 
-`run_*.sh`、`watch_*.sh`、`shutdown_*.sh` 与 `run_zoo_queue_win.py` 是历史机器相关入口。实验室共享连接参数集中在 `config/lab_hosts.env`。v3 的 Windows 正式入口为 `scripts/remote/windows/protocol_v3_launch.bat`，队列实现为 `protocol_v3_runner.py`，固定 45 项任务表为 `protocol_v3_manifest.json`。runner 要求 clean Git、精确代码 SHA、cache bundle identity 和全新结果目录。`29159f626494de52c69b36fe5bba9854f13cb56c` 是正式缓存构建代码 SHA，不是最终训练代码 SHA。缓存已通过本地审计。下一步先传输到远端并复验哈希，再等待 main 合并锁定最终训练 SHA，从该 SHA 的 clean clone 启动队列。
+`run_*.sh`、`watch_*.sh`、`shutdown_*.sh` 与 `run_zoo_queue_win.py` 是历史机器相关入口。实验室共享连接参数集中在 `config/lab_hosts.env`。v3 的 Windows 正式入口为 `scripts/remote/windows/protocol_v3_launch.bat`，队列实现为 `protocol_v3_runner.py`，固定 45 项任务表为 `protocol_v3_manifest.json`。runner 要求 clean Git、精确代码 SHA、cache bundle identity 和全新结果目录。`29159f626494de52c69b36fe5bba9854f13cb56c` 是正式缓存构建代码 SHA，最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。缓存已通过本地与远端审计，45 项队列已从该 SHA 的 clean clone 启动。
 
 `cleanup_dead_outputs.sh` 是历史输出清理辅助脚本。执行前必须先使用其 dry-run 模式核对候选，不能把它当成仓库整理的默认步骤。
 

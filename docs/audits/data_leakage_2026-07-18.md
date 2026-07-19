@@ -2,14 +2,14 @@
 
 审计日期：2026-07-18
 复核日期：2026-07-19
-审计状态：旧问题已确认，v2 复核又发现重复预测时刻、事件跨切分与训练评估实现问题。v3 代码已修复，正式缓存已通过两次严格审计，训练尚未启动
+审计状态：旧问题已确认，v2 复核又发现重复预测时刻、事件跨切分与训练评估实现问题。v3 代码已修复，正式缓存已通过本地两次及 5080 一次严格审计，45 项队列运行中
 审计对象：仓库代码与 `outputs/dist_net/region_data/` 中的三个区域缓存
 
 ## 当前修复状态
 
 旧缓存、v2 缓存和旧输出保持只读。v2 最小判别矩阵已经停止。其最先完成的四项只能作为 `contaminated preliminary` 保留，不能恢复论文结论。
 
-v3 代码使用 `protocol_v3_noleak_dedup`，默认缓存目录为 `outputs/dist_net/region_data_v3_noleak_dedup`，默认结果目录为 `outputs/protocol_v3_noleak_dedup`。正式缓存构建代码 SHA 为 `29159f626494de52c69b36fe5bba9854f13cb56c`。当前代码已纳入 `origin/fu` 提交 `625aacf` 中经复核合理的部分，全套测试结果为 143 passed、1 warning。最终训练代码 SHA 待 main 合并后锁定。正式缓存已在 staging 路径和正式路径各通过一次严格审计，状态为 `verified`。正式 bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，总 digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。训练尚未启动。
+v3 代码使用 `protocol_v3_noleak_dedup`，默认缓存目录为 `outputs/dist_net/region_data_v3_noleak_dedup`，默认结果目录为 `outputs/protocol_v3_noleak_dedup`。正式缓存构建代码 SHA 为 `29159f626494de52c69b36fe5bba9854f13cb56c`，最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。当前代码已纳入 `origin/fu` 提交 `625aacf` 中经复核合理的部分。Mac 与 5080 的全套测试结果均为 143 passed、1 warning。正式缓存已在 staging 路径、正式路径和 5080 各通过一次严格审计，状态为 `verified`。正式 bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，总 digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。45 项 v3 队列已启动，尚无完成并验收的新结果。
 
 完整 v3 复核记录见 [protocol_v3_review_2026-07-19.md](protocol_v3_review_2026-07-19.md)。
 
@@ -32,9 +32,9 @@ v3 代码使用 `protocol_v3_noleak_dedup`，默认缓存目录为 `outputs/dist
 
 - 2026-07-19 完成 v2 缓存复核，确认三个区域均存在同一 forecast origin 的重复样本。
 - 2026-07-19 停止 v2 的 5080 串行队列。最先完成的四项保留原文件，但状态均为 `contaminated preliminary`。
-- 2026-07-19 完成 v3 代码复核，全套测试结果为 143 passed、1 warning。
-- 正式 v3 缓存已完成构建，并在 staging 路径与正式路径各通过一次严格审计。
-- v3 最小判别矩阵训练尚未启动。
+- 2026-07-19 完成 v3 代码复核，Mac 与 5080 的全套测试结果均为 143 passed、1 warning。
+- 正式 v3 缓存已完成构建，并在 staging 路径、正式路径和 5080 各通过一次严格审计。
+- v3 最小判别矩阵已于 2026-07-19 20:18 新加坡时间启动，首项运行中，尚无完成并验收的新结果。
 - 因此下文旧结果和 v2 初步结果的 `contaminated` 状态不变。
 
 下文“代码证据”描述审计时的旧实现，可在 Git 历史提交 `c89bcfb` 中复核，不代表当前 v2 文件仍含同一代码。
@@ -326,8 +326,8 @@ NDR-Net 在训练期使用真实 y 构造 oracle 门控蒸馏目标，本身属�
 | H5 转 IGSTGNN | contaminated | 双向插值、事后 duration 与时间语义错位 |
 | v2 最先完成的四项远程结果 | contaminated preliminary | forecast origin 重复计权，active event 跨 split，验证指标与训练实现仍有问题 |
 | v2 其余最小判别矩阵 | stopped | v3 全面复核开始后停止 |
-| v3 正式缓存 | verified | staging 与正式路径各通过一次严格审计 |
-| v3 最小判别矩阵 | pending | 正式缓存已验收，训练尚未启动 |
+| v3 正式缓存 | verified | staging、正式路径与 5080 各通过一次严格审计 |
+| v3 最小判别矩阵 | running | 首项运行中，尚无完成并验收的新结果 |
 | XTraffic baseline zoo | pending | 等待 v3 最小判别矩阵 |
 | METR-LA、PEMS04 与 PEMS08 | not affected by this audit | 不经过 XTraffic H5 缓存 |
 

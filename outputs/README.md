@@ -24,13 +24,13 @@
 | `dist_net/region_data/` | 旧 XTraffic H5 缓存 | `contaminated`，只读冻结 |
 | `dist_net/region_data_v2_noleak/` | v2 XTraffic H5 缓存 | `contaminated`，只读冻结，Git 忽略 |
 | `protocol_v2_noleak/` | v2 训练结果统一根目录 | 已停止，最先完成的 4 项为 `contaminated preliminary` |
-| `dist_net/region_data_v3_noleak_dedup/` | schema 3 的 v3 XTraffic 缓存 | 已落盘并通过两次严格复验，状态为 `verified` |
-| `protocol_v3_noleak_dedup/` | v3 训练结果统一根目录 | 训练尚未启动，不应存在正式 summary |
+| `dist_net/region_data_v3_noleak_dedup/` | schema 3 的 v3 XTraffic 缓存 | 已通过本地两次及 5080 一次严格复验，状态为 `verified` |
+| `protocol_v3_noleak_dedup/` | v3 训练结果统一根目录 | 5080 队列运行中，尚无完成并验收的新 summary |
 | `paper_artifacts/` | 旧事故双支论文资产 | Legacy，不代表当前论文方向 |
 | `impact_guided_next_stage/` | 大量旧事故增强实验 | Legacy，不再扩展 |
 | `remote_runs/` | 本地远程回传包与队列日志 | Git 忽略 |
 
-v3 正式缓存的 bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。正式缓存构建代码 SHA 为 `29159f626494de52c69b36fe5bba9854f13cb56c`，它不是最终训练代码 SHA。正式样本数与 train、val、test 切分为 Alameda 45760 和 32001/6954/6805，ContraCosta 23337 和 16414/3472/3451，Orange 60015 和 42372/9098/8545。训练仍未启动。最终训练代码 SHA 等 main 合并后锁定。下一步是传输缓存、执行远端哈希复验，再从最终训练 SHA 的 clean clone 启动队列。
+v3 正式缓存的 bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。正式缓存构建代码 SHA 为 `29159f626494de52c69b36fe5bba9854f13cb56c`，最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。正式样本数与 train、val、test 切分为 Alameda 45760 和 32001/6954/6805，ContraCosta 23337 和 16414/3472/3451，Orange 60015 和 42372/9098/8545。远端传输归档 SHA-256 为 `6c5d3ccb53af30d6d90c1032453c83cb463711456839dad151ba676e2bb80ea5`。45 项 v3 队列已于 2026-07-19 20:18 新加坡时间启动，当前只可标记为 `running`，不能把未完成任务写成正式结果。
 
 ## 保留与命名规则
 

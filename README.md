@@ -7,7 +7,7 @@
 
 ## 当前状态
 
-> **v2 已冻结。v3 正式缓存已从 cache-build clean commit `29159f626494de52c69b36fe5bba9854f13cb56c` 构建并通过两次严格复验。该 SHA 不是最终训练代码 SHA。训练尚未启动，论文写作继续暂停。**
+> **v2 已冻结。v3 正式缓存已从 cache-build clean commit `29159f626494de52c69b36fe5bba9854f13cb56c` 构建并通过本地两次及 5080 一次严格复验。最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。45 项 v3 队列已在 5080 启动，尚无完成的新结果，论文写作继续暂停。**
 >
 > 2026-07-18 的审计确认旧版 XTraffic 数据管线存在未来信息泄露和切分边界污染。2026-07-19 的全面复审进一步确认 v2 存在重复 forecast origin、active event 跨 split、验证累计和训练契约问题。此前报告的所有 XTraffic 数值与最先完成的 4 个 v2 远程结果均保留为历史记录，不应作为论文结论或最终基准引用。完整证据见 [v3 协议复审](docs/audits/protocol_v3_review_2026-07-19.md) 和 [数据泄露审计](docs/audits/data_leakage_2026-07-18.md)。
 
@@ -19,7 +19,7 @@
 - 完成三地区、多种子、等参数消融和一批标准基准实验。
 - 启动统一管线下的 baseline zoo，但结果尚未完成权威汇总。
 
-这些工作仍有方法设计和工程价值，但 XTraffic 上的数值证据需要按新协议重建。当前 v3 代码实现了因果填充、label-free train-only 气候态、完整目标窗切分、forecast origin 去重、active event split 隔离、可部署事故特征、显式 mask、全局有效观测点指标累计、缓存身份校验、输出隔离和 IGSTGNN 对齐。协议为 `protocol_v3_noleak_dedup`，cache schema 为 3。纳入 `origin/fu` 的合理修复后，完整测试为 143 项通过，1 个既有 warning。最终训练代码 SHA 等 main 合并后锁定。
+这些工作仍有方法设计和工程价值，但 XTraffic 上的数值证据需要按新协议重建。当前 v3 代码实现了因果填充、label-free train-only 气候态、完整目标窗切分、forecast origin 去重、active event split 隔离、可部署事故特征、显式 mask、全局有效观测点指标累计、缓存身份校验、输出隔离和 IGSTGNN 对齐。协议为 `protocol_v3_noleak_dedup`，cache schema 为 3。纳入 `origin/fu` 的合理修复并补齐 Windows 路径测试后，Mac 与 5080 均为 143 项通过，1 个既有 warning。
 
 正式缓存位于 `outputs/dist_net/region_data_v3_noleak_dedup`。它已通过两次严格复验，状态为 `verified`。bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。
 
@@ -29,7 +29,7 @@
 | ContraCosta | 23337 | 16414 | 3472 | 3451 |
 | Orange | 60015 | 42372 | 9098 | 8545 |
 
-训练仍未启动。下一步是把 bundle 传到 5080，执行远端哈希复验，然后从 main 合并后锁定的最终训练 SHA 创建 clean clone，启动 45 项队列。
+45 项最小判别矩阵已于 2026-07-19 20:18 新加坡时间在 5080 串行启动。远端 clean checkout、代码 SHA、传输归档 SHA-256、bundle ID、bundle digest 和严格缓存审计均已复验。首项 `001_event_staeformer_s0a_alameda_seed42` 已进入运行状态，启动判活时 GPU 利用率为 93%，显存使用为 10522 MiB。当前尚无完成并通过结果验收的新 summary。
 
 ## 已确认的数据问题
 
@@ -45,7 +45,7 @@
 | P0 | 部分验证 MAE 按 batch 或样本均值累计 | 最佳 checkpoint 可能选择错误 |
 | P1 | 多个训练入口的 mask、图支持和结果恢复契约不一致 | 对比结果不能可靠配对 |
 
-旧缓存、v2 缓存和旧结果没有被覆盖。v3 默认缓存目录为 `outputs/dist_net/region_data_v3_noleak_dedup`，新训练默认写入 `outputs/protocol_v3_noleak_dedup`。三地区正式缓存已经通过最终 cache audit 与独立严格复验，5080 上的 v3 训练尚未开始。本地回归测试位于 `tests/data/`、`tests/training/` 和 `tests/remote/`。
+旧缓存、v2 缓存和旧结果没有被覆盖。v3 默认缓存目录为 `outputs/dist_net/region_data_v3_noleak_dedup`，新训练默认写入 `outputs/protocol_v3_noleak_dedup`。三地区正式缓存已经通过本地与 5080 的严格复验，v3 队列正在独立的新结果目录运行。本地回归测试位于 `tests/data/`、`tests/training/` 和 `tests/remote/`。
 
 ## 方法关系
 
