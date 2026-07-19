@@ -8,7 +8,9 @@ Per Q4 decision: joint training across 3 regions with region-bucketed batches
 """
 from __future__ import annotations
 
+import hashlib
 import json
+from functools import lru_cache
 from pathlib import Path
 
 import h5py
@@ -21,6 +23,7 @@ from dist_net.protocol import (
     CACHE_SCHEMA_VERSION,
     PROTOCOL_VERSION,
     build_full_window_index,
+    classify_forecast_window,
     forecast_window_bounds,
     git_worktree_provenance,
 )
@@ -35,6 +38,48 @@ SPLIT_TO_CODE = {"train": 0, "val": 1, "test": 2}
 TRAINING_GIT = git_worktree_provenance(
     Path(__file__).resolve().parent.parent
 )
+
+
+@lru_cache(maxsize=64)
+def _sha256_file_cached(
+    path_text: str, size: int, modified_ns: int
+) -> str:
+    digest = hashlib.sha256()
+    path = Path(path_text)
+    with path.open("rb") as source:
+        for block in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _sha256_file(path: Path) -> str:
+    stat = path.stat()
+    return _sha256_file_cached(
+        str(path.resolve()), stat.st_size, stat.st_mtime_ns
+    )
+
+
+def _require_h5_members(
+    h5: h5py.File, names: tuple[str, ...], artifact: Path
+) -> None:
+    missing = [name for name in names if name not in h5]
+    if missing:
+        raise RuntimeError(
+            f"{artifact} is missing required v3 fields: {', '.join(missing)}"
+        )
+
+
+def _require_attrs(
+    attrs: h5py.AttributeManager,
+    names: tuple[str, ...],
+    artifact: Path,
+) -> None:
+    missing = [name for name in names if name not in attrs]
+    if missing:
+        raise RuntimeError(
+            f"{artifact} is missing required v3 attributes: "
+            + ", ".join(missing)
+        )
 
 
 def gather_primary_incident(
@@ -76,16 +121,29 @@ class RegionData:
     For memory-tight runs, pass lazy=True (lazy h5 access, slower but ~0 RAM).
     """
 
-    def __init__(self, region_name: str, data_dir: str | Path,
-                 graph_dir: str | Path, lazy: bool = False,
-                 required_protocol: str | None = PROTOCOL_VERSION):
+    def __init__(
+        self,
+        region_name: str,
+        data_dir: str | Path,
+        graph_dir: str | Path,
+        lazy: bool = False,
+        required_protocol: str | None = PROTOCOL_VERSION,
+        include_analysis_labels: bool = False,
+        require_rel_feat: bool = False,
+        verify_artifact_hashes: bool = True,
+    ):
         self.region_name = region_name
         self.region_code = REGION_NAME_TO_CODE[region_name]
         self.lazy = lazy
         self.sampling_protocol = "event"
+        self.include_analysis_labels = bool(include_analysis_labels)
+        self.require_rel_feat = bool(require_rel_feat)
+        self.verify_artifact_hashes = bool(verify_artifact_hashes)
+        strict_v3 = required_protocol == PROTOCOL_VERSION
 
         # ---- samples file (always loaded fully — small) ----
         samples_path = Path(data_dir) / f"{region_name}_samples.h5"
+        self.samples_path = samples_path
         with h5py.File(samples_path, "r") as f:
             self.cache_schema_version = int(
                 f.attrs.get("cache_schema_version", 1)
@@ -102,7 +160,7 @@ class RegionData:
                     f"required {required_protocol!r}"
                 )
             if (
-                required_protocol == PROTOCOL_VERSION
+                strict_v3
                 and self.cache_schema_version != CACHE_SCHEMA_VERSION
             ):
                 raise RuntimeError(
@@ -110,22 +168,99 @@ class RegionData:
                     f"{self.cache_schema_version}; required "
                     f"{CACHE_SCHEMA_VERSION}"
                 )
+            if strict_v3:
+                _require_h5_members(
+                    f,
+                    (
+                        "sample_start",
+                        "split",
+                        "event_idx",
+                        "event_start_idx",
+                        "event_id",
+                        "anchor_region_idx",
+                        "sample_offset",
+                        "incident_feat",
+                        "incident_mask",
+                        "n_active_incidents",
+                        "n_packed_incidents",
+                        "active_event_idx",
+                        "primary_incident_slot",
+                        "anchor_event_mask",
+                        "n_origin_events",
+                        "analysis_labels/affected_mask",
+                    ),
+                    samples_path,
+                )
+                _require_attrs(
+                    f.attrs,
+                    (
+                        "bundle_id",
+                        "traffic_cache_id",
+                        "samples_cache_id",
+                        "artifact_id",
+                        "cache_role",
+                        "cache_mode",
+                        "git_sha",
+                        "git_branch",
+                        "git_dirty",
+                        "N",
+                        "T",
+                        "T_h",
+                        "T_p",
+                        "train_end",
+                        "val_end",
+                        "baseline_fit_start",
+                        "baseline_fit_end",
+                    ),
+                    samples_path,
+                )
+                if "affected_mask" in f:
+                    raise RuntimeError(
+                        f"{samples_path} must keep affected_mask under "
+                        "analysis_labels only"
+                    )
+                if str(f.attrs["cache_role"]) != "samples":
+                    raise RuntimeError(
+                        f"{samples_path} cache_role must be 'samples'"
+                    )
+                if str(f.attrs["cache_mode"]) != "formal":
+                    raise RuntimeError(
+                        f"{samples_path} is not a formal cache"
+                    )
+                if str(f.attrs["artifact_id"]) != str(
+                    f.attrs["samples_cache_id"]
+                ):
+                    raise RuntimeError(
+                        f"{samples_path} samples artifact_id does not match "
+                        "samples_cache_id"
+                    )
+                if bool(f.attrs["git_dirty"]):
+                    raise RuntimeError(
+                        f"{samples_path} is a dirty formal cache"
+                    )
             self.sample_start = f["sample_start"][...]
             self.split = f["split"][...]
             self.event_idx = f["event_idx"][...]
-            self.event_start_idx = (
-                f["event_start_idx"][...] if "event_start_idx" in f else None
+            self.event_start_idx = f["event_start_idx"][...]
+            self.event_id = (
+                f["event_id"].asstr()[...] if "event_id" in f else None
             )
             self.anchor_region_idx = f["anchor_region_idx"][...]
             self.sample_offset = f["sample_offset"][...]
             self.incident_feat = f["incident_feat"][...]
             self.incident_mask = f["incident_mask"][...]
             if "analysis_labels/affected_mask" in f:
-                self.affected_mask = f["analysis_labels/affected_mask"][...]
+                self._analysis_affected_mask = f[
+                    "analysis_labels/affected_mask"
+                ][...]
             else:
-                self.affected_mask = f["affected_mask"][...]
+                self._analysis_affected_mask = f["affected_mask"][...]
             self.n_active_incidents = f["n_active_incidents"][...]
-            # active_event_idx is new (v0.3 cache). Optional for back-compat.
+            self.n_packed_incidents = (
+                f["n_packed_incidents"][...]
+                if "n_packed_incidents" in f
+                else self.incident_mask.sum(axis=1).astype(np.int32)
+            )
             if "active_event_idx" in f:
                 self.active_event_idx = f["active_event_idx"][...]
             else:
@@ -141,13 +276,40 @@ class RegionData:
                 self.primary_incident_slot = np.zeros(
                     len(self.sample_start), dtype=np.int16
                 )
+            self.anchor_event_mask = (
+                f["anchor_event_mask"][...]
+                if "anchor_event_mask" in f
+                else np.zeros_like(self.incident_mask)
+            )
+            self.n_origin_events = (
+                f["n_origin_events"][...]
+                if "n_origin_events" in f
+                else np.ones(len(self.sample_start), dtype=np.int16)
+            )
             self.M_max = int(f.attrs["M_max"])
             self.C_e = int(f.attrs["C_e"])
             self.N = int(f.attrs["N"])
+            self.sample_T = int(f.attrs.get("T", -1))
             self.T_h = int(f.attrs["T_h"])
             self.T_p = int(f.attrs["T_p"])
             self.train_end = int(f.attrs.get("train_end", -1))
             self.val_end = int(f.attrs.get("val_end", -1))
+            self.bundle_id = str(f.attrs.get("bundle_id", ""))
+            self.traffic_cache_id = str(
+                f.attrs.get("traffic_cache_id", "")
+            )
+            self.samples_cache_id = str(
+                f.attrs.get("samples_cache_id", "")
+            )
+            self.samples_cache_mode = str(
+                f.attrs.get("cache_mode", "legacy")
+            )
+            self.samples_baseline_fit_start = int(
+                f.attrs.get("baseline_fit_start", 0)
+            )
+            self.samples_baseline_fit_end = int(
+                f.attrs.get("baseline_fit_end", self.train_end)
+            )
             sample_manifest_json = str(
                 f.attrs.get("source_manifest_json", "[]")
             )
@@ -163,36 +325,146 @@ class RegionData:
                 "git_dirty": bool(f.attrs.get("git_dirty", True)),
             }
 
+        if strict_v3:
+            self._validate_sample_contract(samples_path)
+
         # ---- event rel_feat (n_events, N, 4) — incident↔sensor geometry ----
         rel_feat_path = Path(data_dir) / f"{region_name}_event_rel_feat.npz"
+        self.rel_feat_path = rel_feat_path
+        self.relation_cache_id = ""
+        self.relation_cache_git: dict[str, object] = {}
         if rel_feat_path.exists() and self.active_event_idx is not None:
-            rel = np.load(rel_feat_path)
-            rel_protocol = (
-                str(rel["protocol_version"].item())
-                if "protocol_version" in rel
-                else "legacy"
-            )
-            if (
-                required_protocol is not None
-                and rel_protocol != required_protocol
-            ):
-                raise RuntimeError(
-                    f"{rel_feat_path} uses protocol {rel_protocol!r}; "
-                    f"required {required_protocol!r}"
+            with np.load(rel_feat_path, allow_pickle=False) as rel:
+                if strict_v3:
+                    required_rel = {
+                        "rel_feat",
+                        "event_start_idx",
+                        "event_id",
+                        "protocol_version",
+                        "cache_schema_version",
+                        "bundle_id",
+                        "traffic_cache_id",
+                        "samples_cache_id",
+                        "relation_cache_id",
+                        "artifact_id",
+                        "cache_role",
+                        "cache_mode",
+                        "git_sha",
+                        "git_branch",
+                        "git_dirty",
+                    }
+                    missing_rel = sorted(required_rel.difference(rel.files))
+                    if missing_rel:
+                        raise RuntimeError(
+                            f"{rel_feat_path} is missing required v3 fields: "
+                            + ", ".join(missing_rel)
+                        )
+                rel_protocol = (
+                    str(rel["protocol_version"].item())
+                    if "protocol_version" in rel
+                    else "legacy"
                 )
-            if (
-                self.event_start_idx is not None
-                and "event_start_idx" in rel
-                and not np.array_equal(
+                rel_schema = int(
+                    rel["cache_schema_version"].item()
+                    if "cache_schema_version" in rel
+                    else -1
+                )
+                if (
+                    required_protocol is not None
+                    and rel_protocol != required_protocol
+                ):
+                    raise RuntimeError(
+                        f"{rel_feat_path} uses protocol {rel_protocol!r}; "
+                        f"required {required_protocol!r}"
+                    )
+                if strict_v3 and rel_schema != CACHE_SCHEMA_VERSION:
+                    raise RuntimeError(
+                        f"{rel_feat_path} uses cache schema {rel_schema}; "
+                        f"required {CACHE_SCHEMA_VERSION}"
+                    )
+                if not np.array_equal(
                     self.event_start_idx, rel["event_start_idx"]
-                )
+                ):
+                    raise RuntimeError(
+                        f"event ordering mismatch in {rel_feat_path}"
+                    )
+                if self.event_id is not None and (
+                    "event_id" not in rel
+                    or not np.array_equal(
+                        self.event_id.astype(str),
+                        rel["event_id"].astype(str),
+                    )
+                ):
+                    raise RuntimeError(
+                        f"event identity mismatch in {rel_feat_path}"
+                    )
+                if strict_v3:
+                    relation_ids = {
+                        "bundle_id": self.bundle_id,
+                        "traffic_cache_id": self.traffic_cache_id,
+                        "samples_cache_id": self.samples_cache_id,
+                    }
+                    for key, expected in relation_ids.items():
+                        actual = str(rel[key].item())
+                        if actual != expected:
+                            raise RuntimeError(
+                                f"{key} mismatch in {rel_feat_path}: "
+                                f"{actual!r} != {expected!r}"
+                            )
+                    if str(rel["cache_role"].item()) != "relation":
+                        raise RuntimeError(
+                            f"{rel_feat_path} cache_role must be 'relation'"
+                        )
+                    if str(rel["cache_mode"].item()) != "formal":
+                        raise RuntimeError(
+                            f"{rel_feat_path} is not a formal relation cache"
+                        )
+                    if str(rel["artifact_id"].item()) != str(
+                        rel["relation_cache_id"].item()
+                    ):
+                        raise RuntimeError(
+                            f"{rel_feat_path} relation artifact_id does not "
+                            "match relation_cache_id"
+                        )
+                    if bool(rel["git_dirty"].item()):
+                        raise RuntimeError(
+                            f"{rel_feat_path} is a dirty formal relation cache"
+                        )
+                self.event_rel_feat = rel["rel_feat"].astype(np.float32)
+                self.relation_cache_id = str(
+                    rel["relation_cache_id"].item()
+                ) if "relation_cache_id" in rel else ""
+                self.relation_cache_git = {
+                    "git_sha": str(rel["git_sha"].item())
+                    if "git_sha" in rel
+                    else "unknown",
+                    "git_branch": str(rel["git_branch"].item())
+                    if "git_branch" in rel
+                    else "unknown",
+                    "git_dirty": bool(rel["git_dirty"].item())
+                    if "git_dirty" in rel
+                    else True,
+                }
+            if self.event_rel_feat.shape != (
+                len(self.event_start_idx),
+                self.N,
+                4,
             ):
                 raise RuntimeError(
-                    f"event ordering mismatch in {rel_feat_path}"
+                    f"{rel_feat_path} rel_feat shape "
+                    f"{self.event_rel_feat.shape} does not match "
+                    f"({len(self.event_start_idx)}, {self.N}, 4)"
                 )
-            self.event_rel_feat = rel["rel_feat"].astype(np.float32)   # (n_events, N, 4)
+            if not np.isfinite(self.event_rel_feat).all():
+                raise RuntimeError(
+                    f"{rel_feat_path} contains non-finite relation features"
+                )
             self.has_rel_feat = True
         else:
+            if require_rel_feat:
+                raise RuntimeError(
+                    f"required relation cache is missing: {rel_feat_path}"
+                )
             self.event_rel_feat = None
             self.has_rel_feat = False
 
@@ -213,6 +485,74 @@ class RegionData:
                     f"({self.cache_schema_version}) and "
                     f"{self.traffic_path.name} ({traffic_schema})"
                 )
+            if strict_v3:
+                _require_h5_members(
+                    f,
+                    (
+                        "flow_series_imputed",
+                        "flow_mask",
+                        "time_enc",
+                        "static_meta",
+                        "baseline_median",
+                        "baseline_scale",
+                        "region_idx",
+                        "times_ns",
+                    ),
+                    self.traffic_path,
+                )
+                _require_attrs(
+                    f.attrs,
+                    (
+                        "bundle_id",
+                        "traffic_cache_id",
+                        "artifact_id",
+                        "cache_role",
+                        "cache_mode",
+                        "git_sha",
+                        "git_branch",
+                        "git_dirty",
+                        "N",
+                        "T",
+                        "train_end",
+                        "val_end",
+                        "baseline_fit_start",
+                        "baseline_fit_end",
+                        "imputation_method",
+                        "baseline_method",
+                    ),
+                    self.traffic_path,
+                )
+                paired_attrs = {
+                    "bundle_id": self.bundle_id,
+                    "traffic_cache_id": self.traffic_cache_id,
+                }
+                for key, expected in paired_attrs.items():
+                    actual = str(f.attrs[key])
+                    if actual != expected:
+                        raise RuntimeError(
+                            f"{key} mismatch between {samples_path.name} "
+                            f"and {self.traffic_path.name}: "
+                            f"{expected!r} != {actual!r}"
+                        )
+                if str(f.attrs["cache_role"]) != "traffic":
+                    raise RuntimeError(
+                        f"{self.traffic_path} cache_role must be 'traffic'"
+                    )
+                if str(f.attrs["cache_mode"]) != "formal":
+                    raise RuntimeError(
+                        f"{self.traffic_path} is not a formal cache"
+                    )
+                if str(f.attrs["artifact_id"]) != str(
+                    f.attrs["traffic_cache_id"]
+                ):
+                    raise RuntimeError(
+                        f"{self.traffic_path} traffic artifact_id does not "
+                        "match traffic_cache_id"
+                    )
+                if bool(f.attrs["git_dirty"]):
+                    raise RuntimeError(
+                        f"{self.traffic_path} is a dirty formal cache"
+                    )
             # small stuff: load eagerly always
             self.time_enc = f["time_enc"][...]          # (T, 5) float32
             self.static_meta = f["static_meta"][...]    # (N, C_meta) float32
@@ -221,6 +561,11 @@ class RegionData:
             self.region_idx = f["region_idx"][...]      # (N,) int64
             self.times_ns = f["times_ns"][...]          # (T,) int64
             self.T = int(f.attrs["T"])
+            traffic_n = int(f.attrs.get("N", self.static_meta.shape[0]))
+            traffic_train_end = int(f.attrs.get("train_end", -1))
+            traffic_val_end = int(f.attrs.get("val_end", -1))
+            flow_shape = f["flow_series_imputed"].shape
+            flow_mask_shape = f["flow_mask"].shape
             self.C_meta = int(self.static_meta.shape[1])
             self.meta_feature_names = np.asarray(
                 f.attrs.get("meta_feature_names", []), dtype=object
@@ -258,10 +603,70 @@ class RegionData:
                 self.flow_series = None
                 self.flow_mask = None
 
+        if strict_v3:
+            paired_numeric = {
+                "N": (self.N, traffic_n),
+                "T": (self.sample_T, self.T),
+                "train_end": (self.train_end, traffic_train_end),
+                "val_end": (self.val_end, traffic_val_end),
+                "baseline_fit_start": (
+                    self.samples_baseline_fit_start,
+                    self.baseline_fit_start,
+                ),
+                "baseline_fit_end": (
+                    self.samples_baseline_fit_end,
+                    self.baseline_fit_end,
+                ),
+            }
+            for key, (sample_value, traffic_value) in paired_numeric.items():
+                if sample_value != traffic_value:
+                    raise RuntimeError(
+                        f"{key} mismatch between {samples_path.name} and "
+                        f"{self.traffic_path.name}: "
+                        f"{sample_value} != {traffic_value}"
+                    )
+            expected_traffic_shapes = {
+                "time_enc": (self.T, 5),
+                "static_meta_nodes": self.N,
+                "region_idx": (self.N,),
+                "times_ns": (self.T,),
+            }
+            if self.time_enc.shape != expected_traffic_shapes["time_enc"]:
+                raise RuntimeError(
+                    f"{self.traffic_path} time_enc shape is invalid"
+                )
+            if self.static_meta.shape[0] != self.N:
+                raise RuntimeError(
+                    f"{self.traffic_path} static_meta node count is invalid"
+                )
+            if self.region_idx.shape != expected_traffic_shapes["region_idx"]:
+                raise RuntimeError(
+                    f"{self.traffic_path} region_idx shape is invalid"
+                )
+            if self.times_ns.shape != expected_traffic_shapes["times_ns"]:
+                raise RuntimeError(
+                    f"{self.traffic_path} times_ns shape is invalid"
+                )
+            if self.baseline_fit_end > self.train_end:
+                raise RuntimeError(
+                    "baseline_fit_end exceeds the cached training boundary"
+                )
+            expected_flow_shape = (self.T, self.N, 3)
+            if (
+                flow_shape != expected_flow_shape
+                or flow_mask_shape != expected_flow_shape
+            ):
+                raise RuntimeError(
+                    f"{self.traffic_path} flow tensors must have shape "
+                    f"{expected_flow_shape}"
+                )
+
         if self.train_end < 0:
             self.train_end = int(self.T * 0.70)
         if self.val_end < 0:
             self.val_end = int(self.T * 0.85)
+        if strict_v3:
+            self._validate_forecast_windows(samples_path)
 
         # Pre-compute day_kind / tod arrays for fast baseline lookup
         times = pd.to_datetime(self.times_ns)
@@ -272,16 +677,231 @@ class RegionData:
 
         # ---- region graph ----
         graph_key = REGION_NAME_TO_KEY[region_name]
-        graph = np.load(Path(graph_dir) / f"{graph_key}_sparse_adj.npz")
-        self.edge_index = graph["edge_index"].astype(np.int64)  # (2, E)
-        self.core_idx = graph["core_idx"].astype(np.int64)
-        if not np.array_equal(self.region_idx, graph["region_idx"]):
+        self.graph_path = (
+            Path(graph_dir) / f"{graph_key}_sparse_adj.npz"
+        )
+        with np.load(self.graph_path, allow_pickle=False) as graph:
+            for field in ("edge_index", "core_idx", "region_idx"):
+                if field not in graph:
+                    raise RuntimeError(
+                        f"{self.graph_path} is missing required field {field}"
+                    )
+            self.edge_index = graph["edge_index"].astype(np.int64)
+            self.core_idx = graph["core_idx"].astype(np.int64)
+            graph_region_idx = graph["region_idx"]
+        if not np.array_equal(self.region_idx, graph_region_idx):
             raise RuntimeError(
                 f"region_idx mismatch: {region_name} traffic.h5 vs sparse_adj.npz"
             )
+        if self.edge_index.ndim != 2 or self.edge_index.shape[0] != 2:
+            raise RuntimeError(
+                f"{self.graph_path} edge_index must have shape (2, E)"
+            )
+        if self.edge_index.size and (
+            self.edge_index.min() < 0 or self.edge_index.max() >= self.N
+        ):
+            raise RuntimeError(
+                f"{self.graph_path} edge_index is outside [0, {self.N})"
+            )
+
+        artifact_paths = {
+            "traffic": self.traffic_path,
+            "samples": self.samples_path,
+            "graph": self.graph_path,
+        }
+        if self.rel_feat_path.exists():
+            artifact_paths["relation"] = self.rel_feat_path
+        self.artifact_sha256 = (
+            {
+                role: _sha256_file(path)
+                for role, path in artifact_paths.items()
+            }
+            if self.verify_artifact_hashes
+            else {}
+        )
+        identity_payload = {
+            "protocol_version": self.protocol_version,
+            "cache_schema_version": self.cache_schema_version,
+            "bundle_id": self.bundle_id,
+            "traffic_cache_id": self.traffic_cache_id,
+            "samples_cache_id": self.samples_cache_id,
+            "relation_cache_id": self.relation_cache_id,
+            "artifact_sha256": self.artifact_sha256,
+        }
+        self.cache_bundle_digest = hashlib.sha256(
+            json.dumps(
+                identity_payload, sort_keys=True, separators=(",", ":")
+            ).encode("utf-8")
+        ).hexdigest()
 
         self._lazy_traffic_f: h5py.File | None = None
         self.training_git = dict(TRAINING_GIT)
+
+    def _validate_sample_contract(self, samples_path: Path) -> None:
+        sample_count = len(self.sample_start)
+        if self.sample_start.ndim != 1 or sample_count == 0:
+            raise RuntimeError(
+                f"{samples_path} sample_start must be a non-empty vector"
+            )
+        if np.unique(self.sample_start).size != sample_count:
+            raise RuntimeError(
+                f"{samples_path} sample_start must be unique"
+            )
+        if np.any(np.diff(self.sample_start) <= 0):
+            raise RuntimeError(
+                f"{samples_path} sample_start must be strictly increasing"
+            )
+        if not np.isin(self.split, (0, 1, 2)).all():
+            raise RuntimeError(f"{samples_path} contains an invalid split code")
+
+        vector_fields = {
+            "split": self.split,
+            "event_idx": self.event_idx,
+            "anchor_region_idx": self.anchor_region_idx,
+            "sample_offset": self.sample_offset,
+            "n_active_incidents": self.n_active_incidents,
+            "n_packed_incidents": self.n_packed_incidents,
+            "primary_incident_slot": self.primary_incident_slot,
+            "n_origin_events": self.n_origin_events,
+        }
+        for name, values in vector_fields.items():
+            if values.shape != (sample_count,):
+                raise RuntimeError(
+                    f"{samples_path} {name} shape must be ({sample_count},)"
+                )
+
+        expected_matrix_shapes = {
+            "incident_feat": (sample_count, self.M_max, self.C_e),
+            "incident_mask": (sample_count, self.M_max),
+            "active_event_idx": (sample_count, self.M_max),
+            "anchor_event_mask": (sample_count, self.M_max),
+            "affected_mask": (sample_count, self.N),
+        }
+        actual_matrix_shapes = {
+            "incident_feat": self.incident_feat.shape,
+            "incident_mask": self.incident_mask.shape,
+            "active_event_idx": self.active_event_idx.shape,
+            "anchor_event_mask": self.anchor_event_mask.shape,
+            "affected_mask": self._analysis_affected_mask.shape,
+        }
+        for name, expected in expected_matrix_shapes.items():
+            if actual_matrix_shapes[name] != expected:
+                raise RuntimeError(
+                    f"{samples_path} {name} shape "
+                    f"{actual_matrix_shapes[name]} != {expected}"
+                )
+
+        event_count = len(self.event_start_idx)
+        if (
+            self.event_id is None
+            or self.event_id.shape != (event_count,)
+            or np.unique(self.event_id).size != event_count
+        ):
+            raise RuntimeError(
+                f"{samples_path} event_id must be unique and aligned"
+            )
+        if np.any(np.diff(self.event_start_idx) < 0):
+            raise RuntimeError(
+                f"{samples_path} event_start_idx must be sorted"
+            )
+        if (
+            self.event_idx.min(initial=0) < 0
+            or self.event_idx.max(initial=-1) >= event_count
+        ):
+            raise RuntimeError(
+                f"{samples_path} event_idx is outside the event table"
+            )
+
+        valid_active = self.active_event_idx >= 0
+        if not np.array_equal(valid_active, self.incident_mask.astype(bool)):
+            raise RuntimeError(
+                f"{samples_path} active_event_idx padding does not match "
+                "incident_mask"
+            )
+        if valid_active.any() and (
+            self.active_event_idx[valid_active].max() >= event_count
+        ):
+            raise RuntimeError(
+                f"{samples_path} active_event_idx is outside the event table"
+            )
+        packed = valid_active.sum(axis=1)
+        if not np.array_equal(packed, self.n_packed_incidents):
+            raise RuntimeError(
+                f"{samples_path} n_packed_incidents is inconsistent"
+            )
+        if np.any(self.n_active_incidents < self.n_packed_incidents):
+            raise RuntimeError(
+                f"{samples_path} n_active_incidents is smaller than packed"
+            )
+
+        slots = self.primary_incident_slot.astype(np.int64)
+        if np.any((slots < 0) | (slots >= self.M_max)):
+            raise RuntimeError(
+                f"{samples_path} primary_incident_slot is out of range"
+            )
+        rows = np.arange(sample_count)
+        if not np.array_equal(
+            self.active_event_idx[rows, slots], self.event_idx
+        ):
+            raise RuntimeError(
+                f"{samples_path} primary_incident_slot is misaligned"
+            )
+        if np.any(self.anchor_event_mask & ~self.incident_mask):
+            raise RuntimeError(
+                f"{samples_path} anchor_event_mask includes padding"
+            )
+        if not np.array_equal(
+            self.anchor_event_mask.sum(axis=1), self.n_origin_events
+        ):
+            raise RuntimeError(
+                f"{samples_path} n_origin_events is inconsistent"
+            )
+        if not self.anchor_event_mask[rows, slots].all():
+            raise RuntimeError(
+                f"{samples_path} canonical event is not an origin event"
+            )
+
+        split_event_sets = []
+        for code in (0, 1, 2):
+            active = self.active_event_idx[self.split == code]
+            split_event_sets.append(set(active[active >= 0].tolist()))
+        if (
+            not split_event_sets[0].isdisjoint(split_event_sets[1])
+            or not split_event_sets[0].isdisjoint(split_event_sets[2])
+            or not split_event_sets[1].isdisjoint(split_event_sets[2])
+        ):
+            raise RuntimeError(
+                f"{samples_path} active event identity crosses splits"
+            )
+
+    def _validate_forecast_windows(self, samples_path: Path) -> None:
+        expected = np.asarray(
+            [
+                classify_forecast_window(
+                    int(anchor),
+                    self.T_p,
+                    self.train_end,
+                    self.val_end,
+                    self.T,
+                )
+                for anchor in self.sample_start
+            ],
+            dtype=object,
+        )
+        if any(value is None for value in expected) or not np.array_equal(
+            expected.astype(np.int8), self.split
+        ):
+            raise RuntimeError(
+                f"{samples_path} has a forecast target crossing split bounds"
+            )
+
+    def analysis_labels(self, idx: int) -> dict[str, np.ndarray]:
+        """Return post-event labels through an explicit analysis-only API."""
+        return {
+            "affected_mask": self._analysis_affected_mask[idx].astype(
+                np.bool_
+            )
+        }
 
     def result_metadata(self) -> dict[str, object]:
         """JSON-safe protocol and provenance fields for every new summary."""
@@ -300,10 +920,17 @@ class RegionData:
                 "baseline_fit_end": self.baseline_fit_end,
             },
             "cache_provenance": {
+                "bundle_id": self.bundle_id,
+                "traffic_cache_id": self.traffic_cache_id,
+                "samples_cache_id": self.samples_cache_id,
+                "relation_cache_id": self.relation_cache_id,
+                "cache_bundle_digest": self.cache_bundle_digest,
+                "artifact_sha256": dict(self.artifact_sha256),
                 "traffic_source_manifest": self.traffic_source_manifest,
                 "sample_source_manifest": self.sample_source_manifest,
                 "traffic_builder_git": self.traffic_cache_git,
                 "sample_builder_git": self.sample_cache_git,
+                "relation_builder_git": self.relation_cache_git,
             },
             "training_git": self.training_git,
         }
@@ -378,7 +1005,7 @@ class RegionData:
         else:
             rel_feat = np.zeros((self.M_max, self.N, 4), dtype=np.float32)
 
-        return {
+        sample = {
             "x_hist":         x_hist,                            # (N, T_h, 3)
             "x_hist_mask":    x_hist_mask,                       # (N, T_h, 3) bool
             "y_true":         y_true,                            # (N, T_p, 3)
@@ -392,7 +1019,6 @@ class RegionData:
             "region_code":    np.int64(self.region_code),
             "incident_feat":  self.incident_feat[idx].astype(np.float32),  # (M_max, C_e)
             "incident_mask":  self.incident_mask[idx].astype(np.bool_),    # (M_max,)
-            "affected_mask":  self.affected_mask[idx].astype(np.bool_),    # (N,)
             "rel_feat":       rel_feat,                           # (M_max, N, 4)
             "n_active_incidents": np.int32(self.n_active_incidents[idx]),
             "primary_incident_slot": np.int16(
@@ -401,6 +1027,11 @@ class RegionData:
             "sample_start":   np.int64(t),
             "sample_idx":     np.int64(idx),
         }
+        if self.include_analysis_labels:
+            sample["affected_mask"] = self._analysis_affected_mask[
+                idx
+            ].astype(np.bool_)
+        return sample
 
 
 class FullWindowRegionData(RegionData):
@@ -430,7 +1061,17 @@ class FullWindowRegionData(RegionData):
             raise ValueError("full-window fractions must satisfy 0 < train < train+val < 1")
         self.train_end = int(T * train_frac)
         self.val_end = int(T * (train_frac + val_frac))
+        if self.baseline_fit_end > self.train_end:
+            raise RuntimeError(
+                "baseline_fit_end exceeds the full-window training boundary; "
+                "rebuild baseline statistics for this split"
+            )
         self.sampling_protocol = "full_window"
+        self.full_window_config = {
+            "stride": int(stride),
+            "train_frac": float(train_frac),
+            "val_frac": float(val_frac),
+        }
         starts, split = build_full_window_index(
             total_steps=T,
             history=T_h,
@@ -446,7 +1087,12 @@ class FullWindowRegionData(RegionData):
         self.event_idx = np.full(n, -1, dtype=np.int32)
         self.anchor_region_idx = np.full(n, -1, dtype=np.int32)
         self.sample_offset = np.full(n, -1, dtype=np.int8)
-        self.affected_mask = np.zeros((n, self.N), dtype=np.bool_)
+        self._analysis_affected_mask = np.zeros(
+            (n, self.N), dtype=np.bool_
+        )
+        # This field is generated as an all-false structural placeholder for
+        # full-window evaluation; it is not a post-event label.
+        self.include_analysis_labels = True
         self.n_active_incidents = np.zeros(n, dtype=np.int32)
         self.incident_feat = np.zeros((n, self.M_max, self.C_e), dtype=np.float32)
         self.incident_mask = np.zeros((n, self.M_max), dtype=np.bool_)
@@ -504,14 +1150,28 @@ class RegionBucketedSampler(Sampler[list[int]]):
         self.shuffle = shuffle
         self.seed = seed
         self.drop_last = drop_last
+        self.epoch = 0
+        self._seed_entropy = (
+            int(seed) if seed is not None else int(np.random.SeedSequence().entropy)
+        )
 
         self.bucket: dict[str, np.ndarray] = {}
         for gi, (region_name, _li) in enumerate(dataset.index_table):
             self.bucket.setdefault(region_name, []).append(gi)
         self.bucket = {k: np.asarray(v, dtype=np.int64) for k, v in self.bucket.items()}
 
+    def set_epoch(self, epoch: int) -> None:
+        """Select an epoch deterministically for reproducible resumed runs."""
+        if epoch < 0:
+            raise ValueError("epoch must be non-negative")
+        self.epoch = int(epoch)
+
     def __iter__(self):
-        rng = np.random.default_rng(self.seed)
+        epoch = self.epoch
+        self.epoch += 1
+        rng = np.random.default_rng(
+            np.random.SeedSequence([self._seed_entropy, epoch])
+        )
         batches: list[list[int]] = []
         for region_name, gis in self.bucket.items():
             order = gis.copy()

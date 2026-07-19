@@ -46,7 +46,8 @@ def main():
     assert targets[1].isdisjoint(targets[2])
 
     # 3. event fields zeroed and sized to n
-    assert rd.affected_mask.shape == (n, N) and not rd.affected_mask.any()
+    assert rd.analysis_labels(0)["affected_mask"].shape == (N,)
+    assert not rd.analysis_labels(0)["affected_mask"].any()
     assert rd.n_active_incidents.shape == (n,) and not rd.n_active_incidents.any()
     assert not rd.has_rel_feat
 

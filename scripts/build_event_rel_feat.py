@@ -10,7 +10,7 @@ encoding spatial geometry between the event and every sensor in the region:
   rel_feat[:, 3] = same_freeway   0/1
 
 Output per region:
-  outputs/dist_net/region_data_v2_noleak/{region}_event_rel_feat.npz
+  outputs/dist_net/region_data_v3_noleak_dedup/{region}_event_rel_feat.npz
     rel_feat   (n_events, N, 4) float32
 
 This addresses the rel_feat deferred in build_full_county_cache.py and lets
@@ -21,8 +21,11 @@ export_to_igstgnn.py).
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import sys
 import time
+import uuid
 from pathlib import Path
 
 import h5py
@@ -32,7 +35,18 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from dist_net.protocol import PROTOCOL_VERSION
+from dist_net.protocol import (
+    CACHE_SCHEMA_VERSION,
+    DEFAULT_REGION_DATA_DIR,
+    PROTOCOL_VERSION,
+    git_worktree_provenance,
+)
+from scripts.build_full_county_cache import (
+    canonicalize_events,
+    resolve_cache_mode,
+    sha256_file,
+    source_manifest,
+)
 from scripts.build_impact_labels import (
     load_sensor_meta,
     region_specs,
@@ -155,12 +169,22 @@ def main() -> None:
     p.add_argument(
         "--out-dir",
         type=Path,
-        default=Path("outputs/dist_net/region_data_v2_noleak"),
+        default=DEFAULT_REGION_DATA_DIR,
     )
     p.add_argument("--regions", nargs="+", default=REGIONS_DEFAULT)
     p.add_argument("--overwrite", action="store_true")
+    p.add_argument(
+        "--allow-dirty",
+        action="store_true",
+        help="Allow a dirty Git worktree for local smoke/debug builds only.",
+    )
     args = p.parse_args()
     args.out_dir.mkdir(parents=True, exist_ok=True)
+    git_info = git_worktree_provenance(ROOT)
+    if git_info["git_dirty"] and not args.allow_dirty:
+        raise RuntimeError(
+            "formal relation builds require a clean Git worktree"
+        )
 
     print("loading global sensor metadata + dis_matrix ...")
     meta = load_sensor_meta(args.archive)
@@ -181,25 +205,45 @@ def main() -> None:
         print(f"  N = {N}")
 
         events_path = args.event_root / region_name / "event_labels.csv"
-        events = pd.read_csv(events_path)
-        events = events.sort_values("start_idx").reset_index(drop=True)
+        events = canonicalize_events(pd.read_csv(events_path))
         n_events = len(events)
-        print(f"  events (sorted by start_idx): {n_events}")
+        print(f"  events (canonical identity order): {n_events}")
         event_start_idx = events["start_idx"].to_numpy(dtype=np.int64)
+        event_id = events["_event_id"].astype(str).to_numpy()
 
         samples_path = args.out_dir / f"{region_name}_samples.h5"
         with h5py.File(samples_path, "r") as samples:
             protocol = str(samples.attrs.get("protocol_version", "legacy"))
-            if protocol != PROTOCOL_VERSION:
+            schema = int(samples.attrs.get("cache_schema_version", -1))
+            if (
+                protocol != PROTOCOL_VERSION
+                or schema != CACHE_SCHEMA_VERSION
+            ):
                 raise RuntimeError(
-                    f"{samples_path} uses {protocol!r}; "
-                    f"required {PROTOCOL_VERSION!r}"
+                    f"{samples_path} uses protocol/schema "
+                    f"{protocol!r}/{schema}; required "
+                    f"{PROTOCOL_VERSION!r}/{CACHE_SCHEMA_VERSION}"
                 )
             cached_starts = samples["event_start_idx"][:]
-        if not np.array_equal(event_start_idx, cached_starts):
+            if "event_id" not in samples:
+                raise RuntimeError(f"{samples_path} is missing event_id")
+            cached_event_id = samples["event_id"].asstr()[:]
+            bundle_id = str(samples.attrs.get("bundle_id", ""))
+            traffic_cache_id = str(
+                samples.attrs.get("traffic_cache_id", "")
+            )
+            samples_cache_id = str(
+                samples.attrs.get("samples_cache_id", "")
+            )
+            cache_mode = str(samples.attrs.get("cache_mode", ""))
+        if not np.array_equal(event_start_idx, cached_starts) or not np.array_equal(
+            event_id, cached_event_id
+        ):
             raise RuntimeError(
                 f"event ordering mismatch between {events_path} and {samples_path}"
             )
+        if not bundle_id or not traffic_cache_id or not samples_cache_id:
+            raise RuntimeError(f"{samples_path} is missing v3 cache identities")
 
         t0 = time.time()
         rel_feat = compute_event_rel_feat(events, region_meta, region_node_idx, dis_matrix)
@@ -211,14 +255,47 @@ def main() -> None:
             raise FileExistsError(
                 f"refusing to overwrite {out_path}; pass --overwrite"
             )
-        np.savez_compressed(
-            out_path,
-            rel_feat=rel_feat,
-            n_events=np.int32(n_events),
-            max_road_km=np.float32(MAX_ROAD_KM),
-            event_start_idx=event_start_idx,
-            protocol_version=np.array(PROTOCOL_VERSION),
+        relation_cache_id = f"relation-{uuid.uuid4().hex}"
+        relation_cache_mode = (
+            cache_mode
+            if cache_mode != "formal"
+            else resolve_cache_mode(
+                smoke_events=0,
+                git_dirty=bool(git_info["git_dirty"]),
+            )
         )
+        relation_manifest = source_manifest([events_path, samples_path])
+        tmp_path = out_path.with_name(
+            f".{out_path.stem}.{uuid.uuid4().hex}.tmp.npz"
+        )
+        try:
+            np.savez_compressed(
+                tmp_path,
+                rel_feat=rel_feat,
+                n_events=np.int32(n_events),
+                max_road_km=np.float32(MAX_ROAD_KM),
+                event_start_idx=event_start_idx,
+                event_id=event_id,
+                protocol_version=np.array(PROTOCOL_VERSION),
+                cache_schema_version=np.int32(CACHE_SCHEMA_VERSION),
+                bundle_id=np.array(bundle_id),
+                traffic_cache_id=np.array(traffic_cache_id),
+                samples_cache_id=np.array(samples_cache_id),
+                relation_cache_id=np.array(relation_cache_id),
+                artifact_id=np.array(relation_cache_id),
+                cache_role=np.array("relation"),
+                cache_mode=np.array(relation_cache_mode),
+                samples_sha256=np.array(sha256_file(samples_path)),
+                source_manifest_json=np.array(
+                    json.dumps(relation_manifest, sort_keys=True)
+                ),
+                git_sha=np.array(git_info["git_sha"]),
+                git_branch=np.array(git_info["git_branch"]),
+                git_dirty=np.bool_(git_info["git_dirty"]),
+            )
+            os.replace(tmp_path, out_path)
+        finally:
+            tmp_path.unlink(missing_ok=True)
         sz = out_path.stat().st_size / (1024 ** 2)
         print(f"  saved -> {out_path} ({sz:.1f} MB)")
 

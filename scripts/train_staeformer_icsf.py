@@ -27,6 +27,8 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from dist_net.data import MultiRegionDataset, gather_primary_incident, make_loader
+from dist_net.metrics import MaskedMAEAccumulator, masked_mae_loss
+from dist_net.training_runtime import TrainingRunContext
 from STAEformer import STAEformer
 
 SIGMA_EUC, SIGMA_ROAD, CUT_EUC, CUT_ROAD = 1.5, 1.5, 4.0, 5.0
@@ -122,19 +124,18 @@ class STAEformerICSF(nn.Module):
 
 
 def masked_mae(pred, target, mask):
-    mask = mask.float()
-    return ((pred - target).abs() * mask).sum() / mask.sum().clamp(min=1.0)
+    return masked_mae_loss(pred, target, mask)
 
 
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--region", required=True, choices=["Alameda", "ContraCosta", "Orange"])
-    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v2_noleak")
+    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v3_noleak_dedup")
     p.add_argument("--graph_dir", default="outputs/region_graphs")
     p.add_argument(
         "--out_dir",
         type=Path,
-        default=Path("outputs/protocol_v2_noleak/baselines/staeformer_icsf"),
+        default=Path("outputs/protocol_v3_noleak_dedup/baselines/staeformer_icsf"),
     )
     p.add_argument("--use_icsf", action="store_true")
     p.add_argument("--d_icsf", type=int, default=32)
@@ -152,17 +153,49 @@ def main():
         torch.device("cuda" if torch.cuda.is_available() else "cpu")
     tag = "icsf" if args.use_icsf else "base"
     out_dir = args.out_dir / args.region / tag
-    out_dir.mkdir(parents=True, exist_ok=True)
+    run_context = TrainingRunContext.prepare(
+        out_dir,
+        data_dir=args.data_dir,
+        region=args.region,
+        model="staeformer_icsf",
+        variant=tag,
+        seed=args.seed,
+        sampling_protocol="event",
+    )
+    out_dir = run_context.output_dir
     print(f"device: {device}  region: {args.region}  seed: {args.seed}  use_icsf: {args.use_icsf}",
           flush=True)
 
-    train_ds = MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split="train")
-    val_ds = MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split="val")
-    test_ds = MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split="test")
+    rel_kwargs = {"require_rel_feat": True}
+    train_ds = MultiRegionDataset(
+        [args.region],
+        args.data_dir,
+        args.graph_dir,
+        split="train",
+        region_data_kwargs=rel_kwargs,
+    )
+    val_ds = MultiRegionDataset(
+        [args.region],
+        args.data_dir,
+        args.graph_dir,
+        split="val",
+        region_data_kwargs=rel_kwargs,
+    )
+    test_ds = MultiRegionDataset(
+        [args.region],
+        args.data_dir,
+        args.graph_dir,
+        split="test",
+        region_data_kwargs={
+            "require_rel_feat": True,
+            "include_analysis_labels": True,
+        },
+    )
     rdata = train_ds.regions[args.region]
+    run_context.verify_region_cache(rdata)
     if not rdata.has_rel_feat:
         raise RuntimeError(
-            "ICSF requires the v2 event relation cache; "
+            "ICSF requires the v3 event relation cache; "
             "run scripts/build_event_rel_feat.py first"
         )
     N, T_h, T_p = int(rdata.N), int(rdata.T_h), int(rdata.T_p)
@@ -193,16 +226,15 @@ def main():
 
     def ev(loader):
         model.eval()
-        tot, n = 0.0, 0
+        metric = MaskedMAEAccumulator()
         with torch.no_grad():
             for batch in loader:
-                pred, bs = fwd(batch)
+                pred, _bs = fwd(batch)
                 y = batch["y_true"][..., 0].to(device)
                 m = batch["y_mask"][..., 0].to(device)
-                tot += float(masked_mae(pred, y, m).item()) * bs
-                n += bs
+                metric.update(pred, y, m)
         model.train()
-        return tot / max(n, 1)
+        return metric.compute()
 
     best = float("inf")
     no_improve = 0
@@ -246,6 +278,8 @@ def main():
     actual_flow = np.empty((S, T_p, N), dtype=np.float32)
     y_mask_flow = np.empty((S, T_p, N), dtype=bool)
     affected = np.empty((S, N), dtype=bool)
+    sample_start = np.empty((S,), dtype=np.int64)
+    region_code = np.empty((S,), dtype=np.int64)
     cursor = 0
     with torch.no_grad():
         for batch in test_loader:
@@ -255,8 +289,20 @@ def main():
             actual_flow[cursor:cursor + bs] = batch["y_true"][..., 0].permute(0, 2, 1).numpy()
             y_mask_flow[cursor:cursor + bs] = batch["y_mask"][..., 0].permute(0, 2, 1).numpy()
             affected[cursor:cursor + bs] = batch["affected_mask"].numpy()
+            sample_start[cursor:cursor + bs] = batch["sample_start"].numpy()
+            region_code[cursor:cursor + bs] = batch["region_code"].numpy()
             cursor += bs
 
+    np.savez_compressed(
+        out_dir / "test_predictions.npz",
+        region_code=region_code,
+        sample_start=sample_start,
+        region_node_idx=rdata.region_idx.astype(np.int64),
+        pred_raw_flow=pred_flow,
+        actual_future_flow=actual_flow,
+        y_mask_flow=y_mask_flow,
+        affected_mask=affected,
+    )
     diff = np.abs(pred_flow - actual_flow)
     aff3 = np.broadcast_to(affected[:, None, :], (S, T_p, N))
     res = {"all": float(diff[y_mask_flow].mean()),
@@ -267,7 +313,11 @@ def main():
     res.update(rdata.result_metadata())
     print(f"\ntest MAE: all={res['all']:.3f}  affected={res['affected']:.3f}  "
           f"unaffected={res['unaffected']:.3f}", flush=True)
-    (out_dir / "summary.json").write_text(json.dumps(res, indent=2))
+    run_context.write_summary(
+        res,
+        valid_count=int(y_mask_flow.sum()),
+        required_metrics=("all", "affected", "unaffected"),
+    )
 
 
 if __name__ == "__main__":

@@ -23,6 +23,8 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from dist_net.data import MultiRegionDataset, make_loader
+from dist_net.graph import bidirectional_random_walk_supports
+from dist_net.metrics import MaskedMAEAccumulator, masked_mae_loss
 from fourier_dual_net.rgdn import RGDN
 from fourier_dual_net.deseason import train_residual_std
 
@@ -42,18 +44,11 @@ VARIANTS = {
 
 
 def build_adj_supports(edge_index, N, device):
-    A = np.zeros((N, N), dtype=np.float32)
-    A[edge_index[0], edge_index[1]] = 1.0
-    np.fill_diagonal(A, 1.0)
-    deg = A.sum(axis=1)
-    deg_inv = np.where(deg > 0, 1.0 / deg, 0.0)
-    return [torch.from_numpy(deg_inv[:, None] * A).to(device),
-            torch.from_numpy(deg_inv[:, None] * A.T).to(device)]
+    return bidirectional_random_walk_supports(edge_index, N, device)
 
 
 def masked_mae(pred, target, mask):
-    mask = mask.float()
-    return ((pred - target).abs() * mask).sum() / mask.sum().clamp(min=1.0)
+    return masked_mae_loss(pred, target, mask)
 
 
 def make_model(variant, N, supports, T_h, T_p, device, args):
@@ -87,12 +82,12 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--region", default="Alameda", choices=["Alameda", "ContraCosta", "Orange"])
     p.add_argument("--variant", required=True, choices=list(VARIANTS))
-    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v2_noleak")
+    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v3_noleak_dedup")
     p.add_argument("--graph_dir", default="outputs/region_graphs")
     p.add_argument(
         "--out_dir",
         type=Path,
-        default=Path("outputs/protocol_v2_noleak/rgdn"),
+        default=Path("outputs/protocol_v3_noleak_dedup/rgdn"),
     )
     p.add_argument("--epochs", type=int, default=30)
     p.add_argument("--batch_size", type=int, default=16)
@@ -140,7 +135,13 @@ def main():
         return
 
     val_ds = MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split="val")
-    test_ds = MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split="test")
+    test_ds = MultiRegionDataset(
+        [args.region],
+        args.data_dir,
+        args.graph_dir,
+        split="test",
+        region_data_kwargs={"include_analysis_labels": True},
+    )
     out_dir = args.out_dir / args.region / f"{args.variant}_seed{args.seed}"
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -161,13 +162,15 @@ def main():
     sched = CosineAnnealingLR(opt, T_max=max(args.epochs, 1) * max(nb, 1), eta_min=args.lr * 1e-2)
 
     def ev(loader):
-        model.eval(); tot, n = 0.0, 0
+        model.eval()
+        metric = MaskedMAEAccumulator()
         with torch.no_grad():
             for batch in loader:
                 y = forward_batch(model, batch, device)
                 t = batch["y_true"][..., 0].to(device); msk = batch["y_mask"][..., 0].to(device)
-                tot += float(masked_mae(y, t, msk).item()) * y.size(0); n += y.size(0)
-        model.train(); return tot / max(n, 1)
+                metric.update(y, t, msk)
+        model.train()
+        return metric.compute()
 
     best = float("inf")
     for ep in range(1, args.epochs + 1):

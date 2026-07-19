@@ -83,8 +83,19 @@ def main() -> None:
             print(f"[{display}] missing IGSTGNN predictions {igs_pred_path} — skipping")
             continue
         igs_npz = np.load(igs_pred_path)
+        if "y_mask" not in igs_npz.files:
+            raise RuntimeError(
+                f"{igs_pred_path} is missing required y_mask; rerun the "
+                "mask-aware IGSTGNN pipeline before fair comparison"
+            )
         igs_preds = igs_npz["preds"]   # (N_igs, 12, N_county)
         igs_labels = igs_npz["labels"]
+        igs_y_mask = igs_npz["y_mask"].astype(bool)
+        if igs_preds.shape != igs_labels.shape or igs_y_mask.shape != igs_labels.shape:
+            raise RuntimeError(
+                f"IGSTGNN prediction shapes must match, got preds={igs_preds.shape}, "
+                f"labels={igs_labels.shape}, y_mask={igs_y_mask.shape}"
+            )
         igs_samples = np.load(igs_samples_path, allow_pickle=True)
         n_igs = min(len(igs_samples), igs_preds.shape[0])
         igs_t_idx = np.array([int(igs_samples[i].get("_t_idx", -1)) for i in range(n_igs)])
@@ -119,10 +130,12 @@ def main() -> None:
         K = m_node_idx.shape[1]
         igs_pred_subset = np.empty((m, 12, K), dtype=np.float32)
         igs_label_subset = np.empty((m, 12, K), dtype=np.float32)
+        igs_mask_subset = np.empty((m, 12, K), dtype=bool)
         for k, i in enumerate(igs_idx):
             cols = m_node_idx[k]
             igs_pred_subset[k] = igs_preds[i][:, cols]
             igs_label_subset[k] = igs_labels[i][:, cols]
+            igs_mask_subset[k] = igs_y_mask[i][:, cols]
 
         # Time-aligned overlap: ours horizons 2..12 (idx 1..11) vs IGSTGNN horizons 1..11 (idx 0..10)
         ours_align_pred = m_pred[:, 1:12, :]          # (m, 11, K) — predicts T+1..T+11
@@ -131,8 +144,7 @@ def main() -> None:
         ours_align_mask = m_y_mask[:, 1:12, :]
         igs_align_pred = igs_pred_subset[:, 0:11, :]  # (m, 11, K)
         igs_align_label = igs_label_subset[:, 0:11, :]
-        # IGSTGNN's own valid-label mask: label > 0
-        igs_label_valid = igs_align_label > 0
+        igs_label_valid = igs_mask_subset[:, 0:11, :]
 
         # Joint mask: both methods have valid targets, both nodes valid
         node_valid_b = m_node_valid[:, None, :]                     # (m, 1, K)

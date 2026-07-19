@@ -18,50 +18,73 @@ def parse_args():
     return p.parse_args()
 
 
-def masked_mae(pred, label, mask_value):
-    mask = label > mask_value
+def load_prediction_bundle(path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    with np.load(path) as npz:
+        if "y_mask" not in npz.files:
+            raise RuntimeError(
+                f"{path} is missing required y_mask; rerun IGSTGNN with "
+                "observation-mask-aware data and evaluation"
+            )
+        preds = np.asarray(npz["preds"])
+        labels = np.asarray(npz["labels"])
+        y_mask = np.asarray(npz["y_mask"]).astype(bool, copy=False)
+    if preds.shape != labels.shape or y_mask.shape != labels.shape:
+        raise RuntimeError(
+            f"prediction bundle shapes must match, got preds={preds.shape}, "
+            f"labels={labels.shape}, y_mask={y_mask.shape}"
+        )
+    return preds, labels, y_mask
+
+
+def masked_mae(pred, label, mask):
     err = np.abs(pred - label) * mask
     return err.sum() / np.maximum(mask.sum(), 1)
 
 
-def masked_rmse(pred, label, mask_value):
-    mask = label > mask_value
+def masked_rmse(pred, label, mask):
     sq = ((pred - label) ** 2) * mask
     return np.sqrt(sq.sum() / np.maximum(mask.sum(), 1))
 
 
-def masked_mape(pred, label, mask_value):
-    mask = label > mask_value
+def masked_mape(pred, label, mask):
     err = np.abs((pred - label) / np.maximum(np.abs(label), 1e-6)) * mask
     return err.sum() / np.maximum(mask.sum(), 1) * 100.0
 
 
-def evaluate(preds, labels, mask_value):
+def evaluate(preds, labels, y_mask):
     horizons = preds.shape[1]
-    out = {"per_horizon": []}
+    valid_count = int(y_mask.sum())
+    if valid_count <= 0:
+        raise RuntimeError("evaluation has no observed target values")
+    out = {
+        "aggregation": "all_observed_targets",
+        "valid_count": valid_count,
+        "per_horizon": [],
+    }
     for h in range(horizons):
         p = preds[:, h, :]
         y = labels[:, h, :]
+        mask = y_mask[:, h, :]
         out["per_horizon"].append({
             "h": h + 1,
-            "MAE": float(masked_mae(p, y, mask_value)),
-            "RMSE": float(masked_rmse(p, y, mask_value)),
-            "MAPE": float(masked_mape(p, y, mask_value)),
+            "MAE": float(masked_mae(p, y, mask)),
+            "RMSE": float(masked_rmse(p, y, mask)),
+            "MAPE": float(masked_mape(p, y, mask)),
         })
     out["average"] = {
-        "MAE": float(np.mean([h["MAE"] for h in out["per_horizon"]])),
-        "RMSE": float(np.mean([h["RMSE"] for h in out["per_horizon"]])),
-        "MAPE": float(np.mean([h["MAPE"] for h in out["per_horizon"]])),
+        "MAE": float(masked_mae(preds, labels, y_mask)),
+        "RMSE": float(masked_rmse(preds, labels, y_mask)),
+        "MAPE": float(masked_mape(preds, labels, y_mask)),
     }
     return out
 
 
-def evaluate_subset(preds, labels, mask_value, subset_mask, name):
+def evaluate_subset(preds, labels, y_mask, subset_mask, name):
     if subset_mask.sum() == 0:
         return {"name": name, "n": 0}
     sub_preds = preds[subset_mask]
     sub_labels = labels[subset_mask]
-    res = evaluate(sub_preds, sub_labels, mask_value)
+    res = evaluate(sub_preds, sub_labels, y_mask[subset_mask])
     res["name"] = name
     res["n"] = int(subset_mask.sum())
     return res
@@ -77,17 +100,11 @@ def main():
         raise FileNotFoundError(f"Predictions not found: {pred_path}\n"
                                 "Run training first (it auto-runs test at the end).")
 
-    npz = np.load(pred_path)
-    preds = npz["preds"]
-    labels = npz["labels"]
+    preds, labels, y_mask = load_prediction_bundle(pred_path)
     print(f"Loaded preds {preds.shape} labels {labels.shape}")
 
-    mask_value = float(labels[labels >= 0].min()) if (labels >= 0).any() else 0.0
-    if mask_value < 1:
-        mask_value = 0.0
-
     print("\n=== Overall test metrics (raw flow units) ===")
-    overall = evaluate(preds, labels, mask_value)
+    overall = evaluate(preds, labels, y_mask)
     for h in overall["per_horizon"]:
         print(f"  Horizon {h['h']:>2}: MAE={h['MAE']:.4f}  RMSE={h['RMSE']:.4f}  MAPE={h['MAPE']:.4f}")
     print(f"  Average  : MAE={overall['average']['MAE']:.4f}  RMSE={overall['average']['RMSE']:.4f}  MAPE={overall['average']['MAPE']:.4f}")
@@ -97,12 +114,10 @@ def main():
     print(f"\nLoaded {len(test_samples)} test sample metadata entries")
 
     if len(test_samples) != preds.shape[0]:
-        # Engine may drop trailing partial batch
-        n = min(len(test_samples), preds.shape[0])
-        print(f"Note: trimming to first {n} aligned samples")
-        test_samples = test_samples[:n]
-        preds = preds[:n]
-        labels = labels[:n]
+        raise RuntimeError(
+            "prediction/sample count mismatch: "
+            f"{preds.shape[0]} predictions for {len(test_samples)} samples"
+        )
 
     types = np.array([str(s["event_features"].get("Type", 0)) for s in test_samples])
     descs = np.array([str(s["event_features"].get("Description", 0)) for s in test_samples])
@@ -113,7 +128,7 @@ def main():
     type_results = []
     for t in np.unique(types):
         mask = types == t
-        res = evaluate_subset(preds, labels, mask_value, mask, f"type_{t}")
+        res = evaluate_subset(preds, labels, y_mask, mask, f"type_{t}")
         if res.get("n", 0) > 0:
             print(f"  Type={t:<3} n={res['n']:>5}  MAE_avg={res['average']['MAE']:.4f}")
             type_results.append(res)
@@ -122,7 +137,7 @@ def main():
     duration_results = []
     for label, lo, hi in [("short_<30min", 0, 30), ("medium_30-120min", 30, 120), ("long_>=120min", 120, 1e9)]:
         mask = (durations >= lo) & (durations < hi)
-        res = evaluate_subset(preds, labels, mask_value, mask, label)
+        res = evaluate_subset(preds, labels, y_mask, mask, label)
         if res.get("n", 0) > 0:
             print(f"  {label:<22} n={res['n']:>5}  MAE_avg={res['average']['MAE']:.4f}")
             duration_results.append(res)
@@ -131,7 +146,7 @@ def main():
     holiday_results = []
     for h_val, name in [(0, "non_holiday"), (1, "holiday")]:
         mask = holidays == h_val
-        res = evaluate_subset(preds, labels, mask_value, mask, name)
+        res = evaluate_subset(preds, labels, y_mask, mask, name)
         if res.get("n", 0) > 0:
             print(f"  {name:<12} n={res['n']:>5}  MAE_avg={res['average']['MAE']:.4f}")
             holiday_results.append(res)
@@ -142,7 +157,7 @@ def main():
             "region": args.region,
             "seed": args.seed,
             "n_test": int(preds.shape[0]),
-            "mask_value": float(mask_value),
+            "mask_semantics": "explicit source flow observation mask",
             "overall": overall,
             "by_type": type_results,
             "by_duration": duration_results,

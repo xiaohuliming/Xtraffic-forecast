@@ -64,6 +64,16 @@ class BaseEngine():
         else:
             return inv(tensors)
 
+    def _unpack_masked_batch(self, batch):
+        if isinstance(batch, dict):
+            return batch["x_data"], batch["y_data"], batch["y_mask"]
+        if isinstance(batch, tuple) and len(batch) == 4:
+            X, label, _input_mask, target_mask = batch
+            return X, label, target_mask
+        raise RuntimeError(
+            "IGSTGNN training and evaluation requires an explicit y_mask"
+        )
+
 
     def save_model(self, save_path):
         if not os.path.exists(save_path):
@@ -85,24 +95,20 @@ class BaseEngine():
         train_mape = []
         train_rmse = []
         self._dataloader['train_loader'].shuffle()
-        for X, label in self._dataloader['train_loader'].get_iterator():
+        for batch in self._dataloader['train_loader'].get_iterator():
             self._optimizer.zero_grad()
 
             # X (b, t, n, f), label (b, t, n, 1)
-            X, label = self._to_device(self._to_tensor([X, label]))
+            X, label, target_mask = self._unpack_masked_batch(batch)
+            X, label, target_mask = self._to_device(
+                self._to_tensor([X, label, target_mask])
+            )
             pred = self.model(X, label)
             pred, label = self._inverse_transform([pred, label])
 
-            # handle the precision issue when performing inverse transform to label
-            mask_value = torch.tensor(0)
-            if label.min() < 1:
-                mask_value = label.min()
-            if self._iter_cnt == 0:
-                print('Check mask value', mask_value)
-
-            loss = self._loss_fn(pred, label, mask_value)
-            mape = masked_mape(pred, label, mask_value).item()
-            rmse = masked_rmse(pred, label, mask_value).item()
+            loss = self._loss_fn(pred, label, target_mask)
+            mape = masked_mape(pred, label, target_mask).item()
+            rmse = masked_rmse(pred, label, target_mask).item()
 
             loss.backward()
             if self._clip_grad_value != 0:
@@ -163,42 +169,50 @@ class BaseEngine():
 
         preds = []
         labels = []
+        target_masks = []
         with torch.no_grad():
-            for X, label in self._dataloader[mode + '_loader'].get_iterator():
+            for batch in self._dataloader[mode + '_loader'].get_iterator():
                 # X (b, t, n, f), label (b, t, n, 1)
-                X, label = self._to_device(self._to_tensor([X, label]))
+                X, label, target_mask = self._unpack_masked_batch(batch)
+                X, label, target_mask = self._to_device(
+                    self._to_tensor([X, label, target_mask])
+                )
                 pred = self.model(X, label)
                 pred, label = self._inverse_transform([pred, label])
 
                 preds.append(pred.squeeze(-1).cpu())
                 labels.append(label.squeeze(-1).cpu())
+                target_masks.append(target_mask.squeeze(-1).bool().cpu())
 
         preds = torch.cat(preds, dim=0)
         labels = torch.cat(labels, dim=0)
-
-        # handle the precision issue when performing inverse transform to label
-        mask_value = torch.tensor(0)
-        if labels.min() < 1:
-            mask_value = labels.min()
+        target_masks = torch.cat(target_masks, dim=0)
 
         if mode == 'val':
-            mae = self._loss_fn(preds, labels, mask_value).item()
-            mape = masked_mape(preds, labels, mask_value).item()
-            rmse = masked_rmse(preds, labels, mask_value).item()
+            mae = self._loss_fn(preds, labels, target_masks).item()
+            mape = masked_mape(preds, labels, target_masks).item()
+            rmse = masked_rmse(preds, labels, target_masks).item()
             return mae, mape, rmse
 
         elif mode == 'test':
-            test_mae = []
-            test_mape = []
-            test_rmse = []
-            print('Check mask value', mask_value)
             for i in range(self.model.horizon):
-                res = compute_all_metrics(preds[:,i,:], labels[:,i,:], mask_value)
+                res = compute_all_metrics(
+                    preds[:, i, :],
+                    labels[:, i, :],
+                    target_masks[:, i, :],
+                )
                 log = 'Horizon {:d}, Test MAE: {:.4f}, Test RMSE: {:.4f}, Test MAPE: {:.4f}'
                 self._logger.info(log.format(i + 1, res[0], res[2], res[1]))
-                test_mae.append(res[0])
-                test_mape.append(res[1])
-                test_rmse.append(res[2])
-
-            log = 'Average Test MAE: {:.4f}, Test RMSE: {:.4f}, Test MAPE: {:.4f}'
-            self._logger.info(log.format(np.mean(test_mae), np.mean(test_rmse), np.mean(test_mape)))
+            overall = compute_all_metrics(preds, labels, target_masks)
+            log = (
+                'Global Test MAE: {:.4f}, Test RMSE: {:.4f}, '
+                'Test MAPE: {:.4f}, Valid Count: {:d}'
+            )
+            self._logger.info(
+                log.format(
+                    overall[0],
+                    overall[2],
+                    overall[1],
+                    int(target_masks.sum().item()),
+                )
+            )

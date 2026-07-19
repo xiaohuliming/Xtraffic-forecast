@@ -76,8 +76,19 @@ def main() -> None:
         print(f"\n[{region_name}] ours: {n_ours} test samples")
 
         igs_npz = np.load(igs_pred_path)
+        if "y_mask" not in igs_npz.files:
+            raise RuntimeError(
+                f"{igs_pred_path} is missing required y_mask; rerun the "
+                "mask-aware IGSTGNN pipeline before fair comparison"
+            )
         igs_preds = igs_npz["preds"]                          # (N_igs, 12, N_county)
         igs_labels = igs_npz["labels"]
+        igs_y_mask = igs_npz["y_mask"].astype(bool)
+        if igs_preds.shape != igs_labels.shape or igs_y_mask.shape != igs_labels.shape:
+            raise RuntimeError(
+                f"IGSTGNN prediction shapes must match, got preds={igs_preds.shape}, "
+                f"labels={igs_labels.shape}, y_mask={igs_y_mask.shape}"
+            )
         igs_samples = np.load(igs_samples_path, allow_pickle=True)
         n_igs = min(len(igs_samples), igs_preds.shape[0])
         igs_t_idx = np.array([int(igs_samples[i].get("_t_idx", -1)) for i in range(n_igs)])
@@ -117,9 +128,7 @@ def main() -> None:
         # IGSTGNN at matched indices, only first N columns (defensive)
         igs_pred_m  = igs_preds[igs_idx][:, :, :N_ours]       # (m, 12, N)
         igs_label_m = igs_labels[igs_idx][:, :, :N_ours]
-
-        # IGSTGNN's own validity mask: label > 0
-        igs_label_valid = igs_label_m > 0
+        igs_label_valid = igs_y_mask[igs_idx][:, :, :N_ours]
 
         # Joint mask: both methods have valid targets
         joint_mask = ours_mask & igs_label_valid                              # (m, 12, N)

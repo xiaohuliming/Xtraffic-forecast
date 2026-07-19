@@ -26,6 +26,8 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from dist_net.data import MultiRegionDataset, FullWindowRegionData, RegionData, make_loader
+from dist_net.metrics import MaskedMAEAccumulator, masked_mae_loss
+from dist_net.training_runtime import TrainingRunContext
 from STAEformer import STAEformer
 
 
@@ -42,19 +44,18 @@ def build_x(batch, mu, sd, device):
 
 
 def masked_mae(pred, target, mask):
-    mask = mask.float()
-    return ((pred - target).abs() * mask).sum() / mask.sum().clamp(min=1.0)
+    return masked_mae_loss(pred, target, mask)
 
 
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--region", required=True, choices=["Alameda", "ContraCosta", "Orange"])
-    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v2_noleak")
+    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v3_noleak_dedup")
     p.add_argument("--graph_dir", default="outputs/region_graphs")
     p.add_argument(
         "--out_dir",
         type=Path,
-        default=Path("outputs/protocol_v2_noleak/baselines/staeformer"),
+        default=Path("outputs/protocol_v3_noleak_dedup/baselines/staeformer"),
     )
     p.add_argument("--epochs", type=int, default=30)
     p.add_argument("--batch_size", type=int, default=16)
@@ -83,7 +84,16 @@ def main():
     else:
         rd_cls, rd_kw, out_base = RegionData, {}, args.out_dir
     out_dir = out_base / args.region
-    out_dir.mkdir(parents=True, exist_ok=True)
+    run_context = TrainingRunContext.prepare(
+        out_dir,
+        data_dir=args.data_dir,
+        region=args.region,
+        model="staeformer",
+        variant="base",
+        seed=args.seed,
+        sampling_protocol=args.protocol,
+    )
+    out_dir = run_context.output_dir
     print(f"device: {device}  region: {args.region}  seed: {args.seed}  protocol: {args.protocol}",
           flush=True)
 
@@ -94,6 +104,7 @@ def main():
     val_ds = mk("val")
     test_ds = mk("test")
     rdata = train_ds.regions[args.region]
+    run_context.verify_region_cache(rdata)
     N, T_h, T_p = int(rdata.N), int(rdata.T_h), int(rdata.T_p)
 
     # flow z-score from train split (channel 0), masked by validity
@@ -118,17 +129,16 @@ def main():
 
     def ev(loader):
         model.eval()
-        tot, n = 0.0, 0
+        metric = MaskedMAEAccumulator()
         with torch.no_grad():
             for batch in loader:
                 x = build_x(batch, mu, sd, device)
                 pred = model(x).squeeze(-1).permute(0, 2, 1) * sd + mu   # (B,N,T_p)
                 y = batch["y_true"][..., 0].to(device)
                 m = batch["y_mask"][..., 0].to(device)
-                tot += float(masked_mae(pred, y, m).item()) * x.size(0)
-                n += x.size(0)
+                metric.update(pred, y, m)
         model.train()
-        return tot / max(n, 1)
+        return metric.compute()
 
     best = float("inf")
     no_improve = 0
@@ -196,14 +206,24 @@ def main():
                         y_mask_flow=y_mask_flow, affected_mask=affected)
     diff = np.abs(pred_flow - actual_flow)
     aff3 = np.broadcast_to(affected[:, None, :], (S, T_p, N))
+    valid_aff = y_mask_flow & aff3
+    valid_unaffected = y_mask_flow & ~aff3
     res = {"all": float(diff[y_mask_flow].mean()),
-           "affected": float(diff[y_mask_flow & aff3].mean()),
-           "unaffected": float(diff[y_mask_flow & ~aff3].mean()),
+           "affected": float(diff[valid_aff].mean()) if valid_aff.any() else None,
+           "unaffected": float(diff[valid_unaffected].mean())
+           if valid_unaffected.any() else None,
            "best_val": best, "seed": args.seed, "params": sum(q.numel() for q in model.parameters())}
     res.update(rdata.result_metadata())
-    print(f"\ntest MAE: all={res['all']:.3f}  affected={res['affected']:.3f}  "
-          f"unaffected={res['unaffected']:.3f}", flush=True)
-    (out_dir / "summary.json").write_text(json.dumps(res, indent=2))
+    print(
+        f"\ntest MAE: all={res['all']:.3f}  "
+        f"affected={res['affected']}  unaffected={res['unaffected']}",
+        flush=True,
+    )
+    run_context.write_summary(
+        res,
+        valid_count=int(y_mask_flow.sum()),
+        required_metrics=("all",),
+    )
 
 
 if __name__ == "__main__":
