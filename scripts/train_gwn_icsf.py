@@ -30,19 +30,15 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from dist_net.data import MultiRegionDataset, gather_primary_incident, make_loader
+from dist_net.graph import bidirectional_random_walk_supports
+from dist_net.metrics import MaskedMAEAccumulator, masked_mae_loss
 from model import gwnet
 
 SIGMA_EUC, SIGMA_ROAD, CUT_EUC, CUT_ROAD = 1.5, 1.5, 4.0, 5.0
 
 
 def build_adj_supports(edge_index, N, device):
-    A = np.zeros((N, N), dtype=np.float32)
-    A[edge_index[0], edge_index[1]] = 1.0
-    np.fill_diagonal(A, 1.0)
-    deg = A.sum(axis=1)
-    deg_inv = np.where(deg > 0, 1.0 / deg, 0.0)
-    return [torch.from_numpy(deg_inv[:, None] * A).to(device),
-            torch.from_numpy((deg_inv[:, None] * A.T)).to(device)]
+    return bidirectional_random_walk_supports(edge_index, N, device)
 
 
 def primary_incident(batch, device):
@@ -107,8 +103,7 @@ class ICSFLite(nn.Module):
 
 
 def masked_mae(pred, target, mask):
-    mask = mask.float()
-    return ((pred - target).abs() * mask).sum() / mask.sum().clamp(min=1.0)
+    return masked_mae_loss(pred, target, mask)
 
 
 class GWNICSF(nn.Module):
@@ -152,12 +147,12 @@ def run_batch(model, batch, device):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--region", required=True, choices=["Alameda", "ContraCosta", "Orange"])
-    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v2_noleak")
+    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v3_noleak_dedup")
     p.add_argument("--graph_dir", default="outputs/region_graphs")
     p.add_argument(
         "--out_dir",
         type=Path,
-        default=Path("outputs/protocol_v2_noleak/baselines/gwn_icsf"),
+        default=Path("outputs/protocol_v3_noleak_dedup/baselines/gwn_icsf"),
     )
     p.add_argument("--use_icsf", action="store_true")
     p.add_argument("--use_tiid", action="store_true")
@@ -179,13 +174,26 @@ def main():
     print(f"device: {device}  region: {args.region}  seed: {args.seed}  "
           f"icsf={args.use_icsf}  tiid={args.use_tiid}", flush=True)
 
-    train_ds = MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split="train")
-    val_ds = MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split="val")
-    test_ds = MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split="test")
+    rel_kwargs = {"require_rel_feat": True}
+    train_ds = MultiRegionDataset(
+        [args.region], args.data_dir, args.graph_dir, split="train",
+        region_data_kwargs=rel_kwargs,
+    )
+    val_ds = MultiRegionDataset(
+        [args.region], args.data_dir, args.graph_dir, split="val",
+        region_data_kwargs=rel_kwargs,
+    )
+    test_ds = MultiRegionDataset(
+        [args.region], args.data_dir, args.graph_dir, split="test",
+        region_data_kwargs={
+            "require_rel_feat": True,
+            "include_analysis_labels": True,
+        },
+    )
     rdata = train_ds.regions[args.region]
     if not rdata.has_rel_feat:
         raise RuntimeError(
-            "ICSF requires the v2 event relation cache; "
+            "ICSF requires the v3 event relation cache; "
             "run scripts/build_event_rel_feat.py first"
         )
     N, T_p = int(rdata.N), int(rdata.T_p)
@@ -221,14 +229,13 @@ def main():
             if bi % 300 == 0:
                 print(f"  ep{epoch:02d} batch {bi}/{n_batches} L={loss.item():.3f}", flush=True)
         model.eval()
-        tot, nv = 0.0, 0
+        val_metric = MaskedMAEAccumulator()
         with torch.no_grad():
             for batch in val_loader:
                 y = batch["y_true"][..., 0].to(device)
                 m = batch["y_mask"][..., 0].to(device)
-                tot += float(masked_mae(run_batch(model, batch, device), y, m).item()) * y.size(0)
-                nv += y.size(0)
-        val = tot / max(nv, 1)
+                val_metric.update(run_batch(model, batch, device), y, m)
+        val = val_metric.compute()
         print(f"==> ep{epoch:02d} train L={s/max(n,1):.4f}  val L={val:.4f}  ({time.time()-t0:.0f}s)", flush=True)
         if val < best_val:
             best_val = val

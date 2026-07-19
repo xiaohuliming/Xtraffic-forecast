@@ -99,8 +99,20 @@ def main():
     emit("2) Setting A (matched windows): FDN learnable vs IGSTGNN  [diff = FDN - IGS]")
     emit("=" * 78)
     for region in REGIONS:
-        igs = np.load(f"outputs/igstgnn_ours_pipeline_fixed/{IGS_DIR[region]}/test_predictions.npz")
+        igs_path = Path(
+            f"outputs/igstgnn_ours_pipeline_fixed/{IGS_DIR[region]}/"
+            "test_predictions.npz"
+        )
+        igs = np.load(igs_path)
+        if "y_mask" not in igs.files:
+            raise RuntimeError(
+                f"{igs_path} is missing required y_mask; rerun the mask-aware "
+                "IGSTGNN pipeline before fair comparison"
+            )
         igs_pred, igs_label = igs["preds"], igs["labels"]
+        igs_mask = igs["y_mask"].astype(bool)
+        if igs_pred.shape != igs_label.shape or igs_mask.shape != igs_label.shape:
+            raise RuntimeError(f"{igs_path} has misaligned prediction or mask shapes")
         s_igs = igs_pred.shape[0]
         adapter = np.load(f"outputs/igstgnn_data_from_ours/{region}/incident_data_test.npy",
                           allow_pickle=True)
@@ -114,7 +126,7 @@ def main():
         ok = matches >= 0
         rows = matches[ok]
 
-        mask = fdn["y_mask_flow"][rows]
+        mask = fdn["y_mask_flow"][rows] & igs_mask[ok]
         igs_w = per_window_mae(igs_pred[ok], igs_label[ok], mask)
         fdn_w = per_window_mae(fdn["pred_raw_flow"][rows], fdn["actual_future_flow"][rows], mask)
         emit(f"\n[{region}]  matched {ok.sum()}/{s_igs}")

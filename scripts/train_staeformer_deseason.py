@@ -42,6 +42,8 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from dist_net.data import MultiRegionDataset, make_loader
+from dist_net.metrics import MaskedMAEAccumulator, masked_mae_loss
+from dist_net.training_runtime import TrainingRunContext
 from fourier_dual_net.rgdn import AdaptiveAlpha
 from fourier_dual_net.deseason import train_residual_std
 from STAEformer import STAEformer
@@ -228,8 +230,7 @@ class STAEformerDeseason(nn.Module):
 
 
 def masked_mae(pred, target, mask):
-    mask = mask.float()
-    return ((pred - target).abs() * mask).sum() / mask.sum().clamp(min=1.0)
+    return masked_mae_loss(pred, target, mask)
 
 
 def flow_metrics(pred: np.ndarray, actual: np.ndarray, msk: np.ndarray,
@@ -322,13 +323,13 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--region", required=True, choices=["Alameda", "ContraCosta", "Orange"])
     p.add_argument("--variant", required=True, choices=list(VARIANTS))
-    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v2_noleak")
+    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v3_noleak_dedup")
     p.add_argument("--graph_dir", default="outputs/region_graphs")
     p.add_argument(
         "--out_dir",
         type=Path,
         default=Path(
-            "outputs/protocol_v2_noleak/baselines/staeformer_deseason"
+            "outputs/protocol_v3_noleak_dedup/baselines/staeformer_deseason"
         ),
     )
     p.add_argument("--epochs", type=int, default=30)
@@ -348,8 +349,21 @@ def main():
         torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"device {device} region {args.region} variant {args.variant} seed {args.seed}", flush=True)
 
+    out_dir = args.out_dir / args.region / f"{args.variant}_seed{args.seed}"
+    run_context = TrainingRunContext.prepare(
+        out_dir,
+        data_dir=args.data_dir,
+        region=args.region,
+        model="staeformer_deseason",
+        variant=args.variant,
+        seed=args.seed,
+        sampling_protocol="event",
+    )
+    out_dir = run_context.output_dir
+
     train_ds = MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split="train")
     rdata = train_ds.regions[args.region]
+    run_context.verify_region_cache(rdata)
     N, T_h, T_p = int(rdata.N), int(rdata.T_h), int(rdata.T_p)
 
     flows = rdata.flow_series[:, :, 0]
@@ -403,10 +417,13 @@ def main():
         return
 
     val_ds = MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split="val")
-    test_ds = MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split="test")
-    out_dir = args.out_dir / args.region / f"{args.variant}_seed{args.seed}"
-    out_dir.mkdir(parents=True, exist_ok=True)
-
+    test_ds = MultiRegionDataset(
+        [args.region],
+        args.data_dir,
+        args.graph_dir,
+        split="test",
+        region_data_kwargs={"include_analysis_labels": True},
+    )
     model = make_model(args.variant)
     nparam = sum(q.numel() for q in model.parameters() if q.requires_grad)
     print(f"variant {args.variant} params={nparam:,}", flush=True)
@@ -420,13 +437,15 @@ def main():
     sched = CosineAnnealingLR(opt, T_max=max(args.epochs, 1) * max(nb, 1), eta_min=args.lr * 1e-2)
 
     def ev(loader):
-        model.eval(); tot, n = 0.0, 0
+        model.eval()
+        metric = MaskedMAEAccumulator()
         with torch.no_grad():
             for batch in loader:
                 y = forward_batch(model, batch)
                 t = batch["y_true"][..., 0].to(device); msk = batch["y_mask"][..., 0].to(device)
-                tot += float(masked_mae(y, t, msk).item()) * y.size(0); n += y.size(0)
-        model.train(); return tot / max(n, 1)
+                metric.update(y, t, msk)
+        model.train()
+        return metric.compute()
 
     best = float("inf")
     for ep in range(1, args.epochs + 1):
@@ -454,6 +473,8 @@ def main():
     actual_flow = np.empty((S, T_p, N), dtype=np.float32)
     y_mask_flow = np.empty((S, T_p, N), dtype=bool)
     affected = np.empty((S, N), dtype=bool)
+    sample_start = np.empty((S,), dtype=np.int64)
+    region_code = np.empty((S,), dtype=np.int64)
     alpha_all = np.empty((S, N), dtype=np.float32) \
         if (model.adaptive or model.const_alpha or model.hgate or model.abank) else None
     d_all = np.empty((S, N), dtype=np.float32) if (model.hgate or model.abank) else None
@@ -467,6 +488,8 @@ def main():
             actual_flow[cursor:cursor + bs] = batch["y_true"][..., 0].permute(0, 2, 1).numpy()
             y_mask_flow[cursor:cursor + bs] = batch["y_mask"][..., 0].permute(0, 2, 1).numpy()
             affected[cursor:cursor + bs] = batch["affected_mask"].numpy()
+            sample_start[cursor:cursor + bs] = batch["sample_start"].numpy()
+            region_code[cursor:cursor + bs] = batch["region_code"].numpy()
             if alpha_all is not None:
                 alpha_all[cursor:cursor + bs] = model.last_alpha.cpu().numpy()
             if d_all is not None:
@@ -475,6 +498,16 @@ def main():
                 router_all[cursor:cursor + bs] = model.last_router.cpu().numpy()
             cursor += bs
 
+    np.savez_compressed(
+        out_dir / "test_predictions.npz",
+        region_code=region_code,
+        sample_start=sample_start,
+        region_node_idx=rdata.region_idx.astype(np.int64),
+        pred_raw_flow=pred_flow,
+        actual_future_flow=actual_flow,
+        y_mask_flow=y_mask_flow,
+        affected_mask=affected,
+    )
     diff = np.abs(pred_flow - actual_flow)
     aff3 = np.broadcast_to(affected[:, None, :], (S, T_p, N))
     res = {**flow_metrics(pred_flow, actual_flow, y_mask_flow, affected),
@@ -507,16 +540,24 @@ def main():
         bmae, lo = [], -np.inf
         for hi_edge in list(edges) + [np.inf]:
             sel = y_mask_flow & (d3 > lo) & (d3 <= hi_edge)
-            bmae.append(float(diff[sel].mean()) if sel.any() else float("nan"))
+            bmae.append(float(diff[sel].mean()) if sel.any() else None)
             lo = hi_edge
         res["bucket_edges"] = [float(x) for x in edges]
         res["bucket_mae"] = bmae
-        print(f"bucket MAE (low->high deviation): {[round(b,3) for b in bmae]}", flush=True)
+        print(
+            "bucket MAE (low->high deviation): "
+            f"{[round(b, 3) if b is not None else None for b in bmae]}",
+            flush=True,
+        )
         np.savez_compressed(out_dir / "gate_diag.npz", d_all=d_all, gate_mean=alpha_all,
                             affected_mask=affected)
     print(f"\ntest MAE all={res['all']:.3f} affected={res['affected']:.3f} "
           f"unaffected={res['unaffected']:.3f}", flush=True)
-    (out_dir / "summary.json").write_text(json.dumps(res, indent=2))
+    run_context.write_summary(
+        res,
+        valid_count=int(y_mask_flow.sum()),
+        required_metrics=("all", "affected", "unaffected"),
+    )
 
 
 if __name__ == "__main__":

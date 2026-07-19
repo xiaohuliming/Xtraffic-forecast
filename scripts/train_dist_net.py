@@ -6,9 +6,9 @@ Default behavior trains on all 3 regions joint, with region-bucketed batching
 verification, use --toy-n-per-region to limit training/val set sizes.
 
 Logs:
-  • per-batch losses + monitors → outputs/protocol_v2_noleak/dist_net/<name>/log.jsonl
-  • per-epoch summary → outputs/protocol_v2_noleak/dist_net/<name>/summary.json
-  • checkpoints → outputs/protocol_v2_noleak/dist_net/<name>/ckpt_*.pt
+  • per-batch losses + monitors → outputs/protocol_v3_noleak_dedup/dist_net/<name>/log.jsonl
+  • per-epoch summary → outputs/protocol_v3_noleak_dedup/dist_net/<name>/summary.json
+  • checkpoints → outputs/protocol_v3_noleak_dedup/dist_net/<name>/ckpt_*.pt
 """
 from __future__ import annotations
 
@@ -31,8 +31,10 @@ from dist_net.data import (
     make_loader,
 )
 from dist_net.losses import compute_losses
+from dist_net.metrics import MaskedMAEAccumulator
 from dist_net.model import DISTNet, DISTNetConfig, count_parameters
 from dist_net.monitors import collect_all
+from dist_net.protocol import DEFAULT_REGION_DATA_DIR, DEFAULT_RESULT_ROOT
 
 REGION_NAME_BY_CODE = {v: k for k, v in REGION_NAME_TO_CODE.items()}
 
@@ -41,12 +43,12 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     # paths
     p.add_argument("--data-dir", type=Path,
-                   default=Path("outputs/dist_net/region_data_v2_noleak"))
+                   default=DEFAULT_REGION_DATA_DIR)
     p.add_argument("--graph-dir", type=Path, default=Path("outputs/region_graphs"))
     p.add_argument(
         "--out-dir",
         type=Path,
-        default=Path("outputs/protocol_v2_noleak/dist_net"),
+        default=DEFAULT_RESULT_ROOT / "dist_net",
     )
     p.add_argument("--run-name", default=None,
                    help="Subdir under --out-dir; defaults to a timestamp")
@@ -84,7 +86,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--blind", action="store_true",
                    help="Zero incident_feat / incident_mask / rel_feat at both "
                         "training and inference. Tests label-free baseline. "
-                        "When set, gamma (L_incident weight) is forced to 0.")
+                        "When set, beta and gamma are forced to 0.")
+    p.add_argument(
+        "--affected-supervised",
+        action="store_true",
+        help="Explicitly opt into post-event affected labels for L_normal and "
+             "L_incident. This is not a deployable label-free protocol.",
+    )
     # strict single-branch (no IncidentBranch / cross-attn / gate)
     p.add_argument("--single-branch", action="store_true",
                    help="Disable IncidentBranch, BidirectionalCrossAttention, AffectedGate. "
@@ -146,7 +154,13 @@ def maybe_blind_batch(batch, blind: bool) -> None:
 def run_forward_loss(model, batch, edge_index, args):
     maybe_blind_batch(batch, args.blind or args.single_branch)
     gamma_eff = 0.0 if (args.blind or args.single_branch) else args.gamma
-    beta_eff = 0.0 if args.single_branch else args.beta
+    beta_eff = 0.0 if (args.blind or args.single_branch) else args.beta
+    if "affected_mask" not in batch:
+        batch["affected_mask"] = torch.zeros(
+            batch["y_true"].shape[:2],
+            dtype=torch.bool,
+            device=batch["y_true"].device,
+        )
     out = model(batch, edge_index=edge_index)
     losses = compute_losses(
         pred=out["pred"], pred_normal=out["pred_normal_final"],
@@ -162,28 +176,41 @@ def evaluate(model, val_ds, edge_index_lookup, args, device) -> dict[str, float]
     model.eval()
     loader = make_loader(val_ds, batch_size=args.batch_size, shuffle=False, seed=args.seed)
     totals = {"L_main": 0.0, "L_normal": 0.0, "L_incident": 0.0, "L_total": 0.0}
+    main_metric = MaskedMAEAccumulator()
     n = 0
     for batch in loader:
         batch = device_recursive(batch, device)
         rc = int(batch["region_code"][0].item())
         edge_index = edge_index_lookup[REGION_NAME_BY_CODE[rc]]
-        _out, losses = run_forward_loss(model, batch, edge_index, args)
+        out, losses = run_forward_loss(model, batch, edge_index, args)
+        main_metric.update(out["pred"], batch["y_true"], batch["y_mask"])
         bs = batch["x_hist"].shape[0]
         for k in totals:
             totals[k] += float(losses[k].item()) * bs
         n += bs
     model.train()
-    return {k: v / max(n, 1) for k, v in totals.items()}
+    result = {k: v / max(n, 1) for k, v in totals.items()}
+    result["L_main"] = main_metric.compute()
+    return result
 
 
 def main() -> None:
     args = parse_args()
+    if (
+        not (args.blind or args.single_branch)
+        and (args.beta != 0 or args.gamma != 0)
+        and not args.affected_supervised
+    ):
+        raise ValueError(
+            "nonzero beta/gamma use post-event affected labels; pass "
+            "--affected-supervised to declare that protocol explicitly"
+        )
     torch.manual_seed(args.seed)
     device = pick_device(args.device)
     print(f"device: {device}", flush=True)
     if args.blind:
         print("*** BLIND MODE: incident_feat / incident_mask / rel_feat zeroed "
-              "at every batch; gamma forced to 0 ***", flush=True)
+              "at every batch; beta and gamma forced to 0 ***", flush=True)
     if args.single_branch:
         print("*** SINGLE-BRANCH MODE: IncidentBranch / cross-attn / gate "
               "removed; incident inputs zeroed; beta and gamma forced to 0 ***", flush=True)
@@ -200,13 +227,20 @@ def main() -> None:
 
     # Datasets
     t0 = time.time()
+    incident_aware = not (args.blind or args.single_branch)
+    region_data_kwargs = {
+        "include_analysis_labels": bool(args.affected_supervised),
+        "require_rel_feat": incident_aware,
+    }
     train_ds = MultiRegionDataset(
         region_names=args.regions, data_dir=args.data_dir,
         graph_dir=args.graph_dir, split="train", lazy=False,
+        region_data_kwargs=region_data_kwargs,
     )
     val_ds = MultiRegionDataset(
         region_names=args.regions, data_dir=args.data_dir,
         graph_dir=args.graph_dir, split="val", lazy=False,
+        region_data_kwargs=region_data_kwargs,
     )
     print(f"dataset built in {time.time() - t0:.1f}s; "
           f"|train|={len(train_ds)}  |val|={len(val_ds)}", flush=True)
@@ -228,14 +262,14 @@ def main() -> None:
         name: region.result_metadata()
         for name, region in train_ds.regions.items()
     }
-    if not (args.blind or args.single_branch):
+    if incident_aware:
         missing_rel = [
             name for name, region in train_ds.regions.items()
             if not region.has_rel_feat
         ]
         if missing_rel:
             raise RuntimeError(
-                "incident-aware DIST-Net requires v2 event relation caches for: "
+                "incident-aware DIST-Net requires v3 event relation caches for: "
                 + ", ".join(missing_rel)
             )
 

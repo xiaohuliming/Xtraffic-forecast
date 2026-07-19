@@ -20,6 +20,7 @@ import sys
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from dist_net.data import MultiRegionDataset, make_loader  # noqa: E402
+from dist_net.metrics import MaskedMAEAccumulator  # noqa: E402
 
 
 class STID(nn.Module):
@@ -70,28 +71,27 @@ def time_indices(time_feat: torch.Tensor):
 @torch.no_grad()
 def evaluate(model, loader, device):
     model.eval()
-    total, n = 0.0, 0
+    metric = MaskedMAEAccumulator()
     for batch in loader:
         x = batch["x_hist"].to(device)
         y = batch["y_true"][..., 0].to(device)
         m = batch["y_mask"][..., 0].to(device)
         tod, dow = time_indices(batch["time_feat"].to(device))
         pred = model(x, tod, dow)
-        total += float(masked_mae(pred, y, m).item()) * x.size(0)
-        n += x.size(0)
+        metric.update(pred, y, m)
     model.train()
-    return total / max(n, 1)
+    return metric.compute()
 
 
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--region", required=True, choices=["Alameda", "ContraCosta", "Orange"])
-    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v2_noleak")
+    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v3_noleak_dedup")
     p.add_argument("--graph_dir", default="outputs/region_graphs")
     p.add_argument(
         "--out_dir",
         type=Path,
-        default=Path("outputs/protocol_v2_noleak/baselines/stid"),
+        default=Path("outputs/protocol_v3_noleak_dedup/baselines/stid"),
     )
     p.add_argument("--tag", default=None)
     p.add_argument("--d", type=int, default=32)
@@ -114,7 +114,13 @@ def main():
 
     train_ds = MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split="train")
     val_ds = MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split="val")
-    test_ds = MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split="test")
+    test_ds = MultiRegionDataset(
+        [args.region],
+        args.data_dir,
+        args.graph_dir,
+        split="test",
+        region_data_kwargs={"include_analysis_labels": True},
+    )
     rdata = train_ds.regions[args.region]
     N, T_h, T_p = int(rdata.N), int(rdata.T_h), int(rdata.T_p)
     print(f"N={N}  T_h={T_h}  T_p={T_p}  |train|={len(train_ds)}  |val|={len(val_ds)}  |test|={len(test_ds)}", flush=True)

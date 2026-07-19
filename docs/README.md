@@ -9,16 +9,19 @@
 | `../README.md` | 仓库总览与当前有效性状态 |
 | `../CLAUDE.md` | 新会话入口、工作顺序与协作约定 |
 | `../XTraffic项目完整汇报.md` | 完整研究历史与审计前落盘结果 |
-| `audits/data_leakage_2026-07-18.md` | 当前最高优先级的数据泄露审计 |
+| `audits/protocol_v3_review_2026-07-19.md` | v2 冻结原因、v3 修复范围与当前协议状态 |
+| `audits/data_leakage_2026-07-18.md` | 原始数据泄露问题与验收基础 |
 | `audits/result_validity.csv` | 各实验族的机器可读有效性状态 |
 
-`XTraffic项目完整汇报.md` 仍是研究历史和数字出处的权威文档，但其中的 XTraffic 数值在无泄露复跑前均属于历史结果。当前是否可用于论文，以审计文档和有效性清单为准。
+`XTraffic项目完整汇报.md` 仍是研究历史和数字出处的权威文档，但其中的 XTraffic 数值在 v3 复跑前均属于历史结果。当前是否可用于论文，以 v3 协议复审、数据泄露审计和有效性清单为准。
+
+当前协议为 `protocol_v3_noleak_dedup`，cache schema 为 3。正式缓存构建代码 SHA 为 clean commit `29159f626494de52c69b36fe5bba9854f13cb56c`。它不是最终训练代码 SHA。纳入 `origin/fu` 的合理修复后，完整测试为 143 项通过，1 个既有 warning。最终训练代码 SHA 等 main 合并后锁定。v3 正式缓存已在 `outputs/dist_net/region_data_v3_noleak_dedup` 落盘，并通过两次严格复验。bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。正式样本数与 train、val、test 切分为 Alameda 45760 和 32001/6954/6805，ContraCosta 23337 和 16414/3472/3451，Orange 60015 和 42372/9098/8545。缓存状态为 `verified`，训练尚未启动。下一步是传输、远端哈希复验和最终训练 SHA 的 clean clone 启动。v2 和最先完成的 4 个远程结果均已冻结为无效历史记录。
 
 ## 当前方法说明
 
 | 文件 | 用途 |
 |---|---|
-| `RADS_NDR_汇报讲稿.md` | RADS、RADS-O 与 NDR-Net 的层级、机制、数值例子和新颖性定位 |
+| `RADS_NDR_汇报讲稿.md` | RADS、RADS-O 与 NDR-Net 的层级、机制、无效历史数值和新颖性定位 |
 
 ## 历史设计文档
 
@@ -46,7 +49,7 @@
 
 ## 文档维护约定
 
-- 项目状态只在 README、CLAUDE、完整汇报和审计文件中维护。
+- 项目状态只在 README、CLAUDE、完整汇报和审计文件中维护。协议状态先看 `audits/protocol_v3_review_2026-07-19.md`。
 - 一个数字只认落盘来源，不用估算补齐。
 - 历史结果不静默删除。有效性变化通过审计和清单标记。
 - 实验室共享地址与密码只在 `config/lab_hosts.env` 维护一份。私钥、个人令牌和个人账号凭据不得写入文档。

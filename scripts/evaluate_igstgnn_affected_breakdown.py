@@ -50,8 +50,19 @@ def main():
 
     print(f"[1/5] Load test predictions: {save_dir / 'test_predictions.npz'}")
     npz = np.load(save_dir / "test_predictions.npz")
+    if "y_mask" not in npz.files:
+        raise RuntimeError(
+            "IGSTGNN predictions are missing required y_mask; rerun the "
+            "mask-aware training and evaluation pipeline"
+        )
     preds = npz["preds"]    # (N_test, 12, N_county)
     labels = npz["labels"]  # (N_test, 12, N_county)
+    y_mask = npz["y_mask"].astype(bool)
+    if preds.shape != labels.shape or y_mask.shape != labels.shape:
+        raise RuntimeError(
+            f"prediction bundle shapes must match, got preds={preds.shape}, "
+            f"labels={labels.shape}, y_mask={y_mask.shape}"
+        )
     print(f"  preds {preds.shape}  labels {labels.shape}")
 
     print(f"[2/5] Load test sample metadata: {region_data / 'incident_data_test.npy'}")
@@ -61,6 +72,7 @@ def main():
     samples = samples[:n_test]
     preds = preds[:n_test]
     labels = labels[:n_test]
+    y_mask = y_mask[:n_test]
 
     print("[3/5] Load impact labels (event + node)")
     event_df = pd.read_csv(label_dir / "event_labels.csv")
@@ -105,8 +117,8 @@ def main():
           f"zero-affected: {int((sample_n_affected[sample_has_label]==0).sum())}")
 
     print("[5/5] Compute per-horizon metrics")
-    # Build masks for valid label values (mask out missing/zero)
-    mask_valid = labels > 0  # IGSTGNN convention: label > 0 means valid
+    # Source observation mask exported by the H5 conversion pipeline.
+    mask_valid = y_mask
     # affected mask broadcast across horizon
     aff_mask = aff_mask_all[:, None, :] & mask_valid  # (N, 12, N_county)
     unaff_mask = (~aff_mask_all[:, None, :]) & mask_valid

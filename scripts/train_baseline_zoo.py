@@ -17,7 +17,7 @@ Deviations from LargeST engines (documented, uniform across models):
   - D2STGNN warm-up/curriculum disabled (full-horizon loss from epoch 1).
 
 Writes:
-  outputs/protocol_v2_noleak/baselines/zoo_<model>/<region>/
+  outputs/protocol_v3_noleak_dedup/baselines/zoo_<model>/<region>/
     ckpt_best.pt  test_predictions.npz  summary.json  train.log
 """
 from __future__ import annotations
@@ -38,6 +38,7 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import MultiStepLR, StepLR
 
 from dist_net.data import MultiRegionDataset, FullWindowRegionData, RegionData, make_loader
+from dist_net.metrics import MaskedMAEAccumulator
 from graph_algo import normalize_adj_mx, calculate_cheb_poly
 
 REGION_TO_GRAPH_KEY = {
@@ -60,11 +61,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--data-dir",
         type=Path,
-        default=Path("outputs/dist_net/region_data_v2_noleak"),
+        default=Path("outputs/dist_net/region_data_v3_noleak_dedup"),
     )
     p.add_argument("--graph-dir", type=Path, default=Path("outputs/region_graphs"))
     p.add_argument("--out-dir", type=Path, default=None,
-                   help="default outputs/protocol_v2_noleak/baselines/zoo_<model>")
+                   help="default outputs/protocol_v3_noleak_dedup/baselines/zoo_<model>")
     p.add_argument("--epochs", type=int, default=30)
     p.add_argument("--batch-size", type=int, default=32)
     p.add_argument("--seed", type=int, default=42)
@@ -243,7 +244,7 @@ def masked_mae(pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor) -> 
 @torch.no_grad()
 def evaluate(model, name, loader, device, mean, std, T_p, N, limit=0) -> float:
     model.eval()
-    total, n = 0.0, 0
+    metric = MaskedMAEAccumulator()
     for bi, batch in enumerate(loader):
         if limit and bi >= limit:
             break
@@ -252,10 +253,9 @@ def evaluate(model, name, loader, device, mean, std, T_p, N, limit=0) -> float:
         y_mask = batch["y_mask"][..., 0].to(device)
         pred_n = forward_model(model, name, x, None, 0, T_p, N, device)
         pred = pred_n * std + mean
-        total += float(masked_mae(pred, y_true, y_mask).item()) * x.size(0)
-        n += x.size(0)
+        metric.update(pred, y_true, y_mask)
     model.train()
-    return total / max(n, 1)
+    return metric.compute()
 
 
 def main() -> None:
@@ -272,7 +272,7 @@ def main() -> None:
     else:
         rd_cls, rd_kw, suffix = RegionData, {}, ""
     out_base = args.out_dir or Path(
-        f"outputs/protocol_v2_noleak/baselines/zoo_{args.model}{suffix}"
+        f"outputs/protocol_v3_noleak_dedup/baselines/zoo_{args.model}{suffix}"
     )
     out_dir = out_base / args.region
     out_dir.mkdir(parents=True, exist_ok=True)

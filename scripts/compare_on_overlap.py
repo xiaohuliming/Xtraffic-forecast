@@ -55,13 +55,20 @@ def load_our_predictions(region: str):
 
 
 def load_their_predictions(region_dir: str):
-    """Load IGSTGNN's predictions for a region. They store preds + labels only.
+    """Load IGSTGNN predictions, labels, and source observation masks.
 
     Need to also load their test samples to get _t_idx per prediction row.
     """
     pred_p = Path(f"baselines/IGSTGNN/experiments/IGSTGNN/{region_dir}/test_predictions.npz")
     sample_p = Path(f"baselines/IGSTGNN/data/xtraffic/{region_dir.replace('_23','')}/incident_data_test.npy")
     d = np.load(pred_p)
+    if "y_mask" not in d.files:
+        raise RuntimeError(
+            f"{pred_p} is missing required y_mask; rerun the mask-aware "
+            "IGSTGNN pipeline before fair comparison"
+        )
+    if d["preds"].shape != d["labels"].shape or d["y_mask"].shape != d["labels"].shape:
+        raise RuntimeError(f"{pred_p} has misaligned prediction or mask shapes")
     samples = np.load(sample_p, allow_pickle=True)
     t_idx_full = np.array([s["_t_idx"] for s in samples], dtype=np.int64)
     n_pred = d["preds"].shape[0]
@@ -69,6 +76,7 @@ def load_their_predictions(region_dir: str):
     return {
         "pred": d["preds"],
         "label": d["labels"],
+        "mask": d["y_mask"].astype(bool),
         "t_idx": t_idx_full[:n_pred],
         "n_full": len(t_idx_full),
         "n_pred": n_pred,
@@ -81,14 +89,17 @@ def aggregate_their_preds_by_tidx(their):
     unique_tidx = np.unique(t_idx)
     pred = their["pred"]
     label = their["label"]
+    mask = their["mask"]
 
     agg_pred = np.empty((len(unique_tidx), pred.shape[1], pred.shape[2]), dtype=pred.dtype)
     agg_label = np.empty((len(unique_tidx), label.shape[1], label.shape[2]), dtype=label.dtype)
+    agg_mask = np.empty((len(unique_tidx), mask.shape[1], mask.shape[2]), dtype=bool)
     for i, ti in enumerate(unique_tidx):
         idx = np.where(t_idx == ti)[0]
         agg_pred[i] = pred[idx].mean(axis=0)
         agg_label[i] = label[idx].mean(axis=0)
-    return unique_tidx, agg_pred, agg_label
+        agg_mask[i] = mask[idx].all(axis=0)
+    return unique_tidx, agg_pred, agg_label, agg_mask
 
 
 def aggregate_our(data):
@@ -141,7 +152,9 @@ def main():
             continue
 
         # Aggregate their preds by _t_idx
-        their_tidx, their_pred, their_label = aggregate_their_preds_by_tidx(their)
+        their_tidx, their_pred, their_label, their_mask = (
+            aggregate_their_preds_by_tidx(their)
+        )
         print(f"  IGSTGNN: {len(their['t_idx'])} raw samples → {len(their_tidx)} unique t_idx")
 
         # Aggregate ours per unique sample_start (predictions are same anyway)
@@ -158,8 +171,11 @@ def main():
         # For each overlap timestep, get IGSTGNN pred and our pred
         their_t_to_idx = {t: i for i, t in enumerate(their_tidx)}
         their_aligned = np.empty((len(overlap), their_pred.shape[1], their_pred.shape[2]), dtype=np.float32)
+        their_mask_aligned = np.empty(their_aligned.shape, dtype=bool)
         for i, t in enumerate(overlap):
-            their_aligned[i] = their_pred[their_t_to_idx[t]]
+            their_index = their_t_to_idx[t]
+            their_aligned[i] = their_pred[their_index]
+            their_mask_aligned[i] = their_mask[their_index]
 
         results = {}
         for model_name, data in ours_all.items():
@@ -175,11 +191,22 @@ def main():
                 our_act_aligned[i] = our_act_u[idx]
                 our_mask_aligned[i] = our_mask_u[idx]
                 our_aff_aligned[i] = our_aff_u[idx]
-            results[model_name] = mae_breakdown(our_pred_aligned, our_act_aligned, our_mask_aligned, our_aff_aligned)
+            joint_mask = our_mask_aligned & their_mask_aligned
+            results[model_name] = mae_breakdown(
+                our_pred_aligned,
+                our_act_aligned,
+                joint_mask,
+                our_aff_aligned,
+            )
 
             # IGSTGNN: use OUR y_true + OUR mask + OUR affected_mask for fair comparison
             if model_name == "GraphWaveNet":  # only compute once
-                igs_result = mae_breakdown(their_aligned, our_act_aligned, our_mask_aligned, our_aff_aligned)
+                igs_result = mae_breakdown(
+                    their_aligned,
+                    our_act_aligned,
+                    joint_mask,
+                    our_aff_aligned,
+                )
                 results["IGSTGNN"] = igs_result
 
         all_results[region_name] = {"overlap_n": int(len(overlap)), **results}

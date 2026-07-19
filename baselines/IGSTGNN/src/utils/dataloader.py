@@ -19,7 +19,9 @@ class DataLoader(object):
         self.idx = idx
         self.size = len(idx)
         self.bs = bs
-        self.num_batch = int(self.size // self.bs)
+        self.num_batch = (
+            (self.size + self.bs - 1) // self.bs if self.size > 0 else 0
+        )
         self.current_ind = 0
         logger.info(f'Samples: {self.size}, Batches: {self.num_batch}')
         
@@ -88,7 +90,9 @@ class IncidentDataLoader(object):
         self.samples = samples
         self.size = len(samples)
         self.bs = bs
-        self.num_batch = max(1, int(self.size // self.bs)) if self.size > 0 else 0
+        self.num_batch = (
+            (self.size + self.bs - 1) // self.bs if self.size > 0 else 0
+        )
         self.current_ind = 0
         self.input_dim = input_dim
         self.incidents_sensor = incidents_sensor
@@ -192,7 +196,13 @@ class IncidentDataLoader(object):
 
                     batch_event_data = {
                         'x_data': x,
+                        'x_mask': np.stack(
+                            [sample['x_mask'] for sample in batch_samples]
+                        ).astype(bool, copy=False),
                         'y_data': y,
+                        'y_mask': np.stack(
+                            [sample['y_mask'] for sample in batch_samples]
+                        ).astype(bool, copy=False),
                         'incident_features': np.array(event_features_list),
                         'incident_position': np.array([sample['event_position'] for sample in batch_samples]),
                         'incident_distances': np.array([sample['event_distances'] for sample in batch_samples]),
@@ -216,7 +226,16 @@ class IncidentDataLoader(object):
                     
                     yield batch_event_data
                 else:
-                    yield (x, y)
+                    yield (
+                        x,
+                        y,
+                        np.stack(
+                            [sample['x_mask'] for sample in batch_samples]
+                        ).astype(bool, copy=False),
+                        np.stack(
+                            [sample['y_mask'] for sample in batch_samples]
+                        ).astype(bool, copy=False),
+                    )
                 
                 self.current_ind += 1
                 
@@ -262,6 +281,26 @@ def load_dataset(data_path, args, logger):
         if len(samples) == 0:
             logger.error(f"No samples in {file_path}")
             continue
+        for sample_index, sample in enumerate(samples):
+            if "x_mask" not in sample or "y_mask" not in sample:
+                raise RuntimeError(
+                    "IGSTGNN fair-comparison data requires x_mask and y_mask; "
+                    f"{file_path} sample {sample_index} is missing them"
+                )
+            expected_x_mask_shape = sample["x_data"][..., 0:1].shape
+            if sample["x_mask"].shape != expected_x_mask_shape:
+                raise RuntimeError(
+                    f"{file_path} sample {sample_index} x_mask shape "
+                    f"{sample['x_mask'].shape} does not align with "
+                    f"x_data[..., 0:1] shape {expected_x_mask_shape}"
+                )
+            expected_y_mask_shape = sample["y_data"][..., 0:1].shape
+            if sample["y_mask"].shape != expected_y_mask_shape:
+                raise RuntimeError(
+                    f"{file_path} sample {sample_index} y_mask shape "
+                    f"{sample['y_mask'].shape} does not align with "
+                    f"y_data[..., 0:1] shape {expected_y_mask_shape}"
+                )
 
         first_sample = samples[0]
         x_shape = first_sample['x_data'].shape

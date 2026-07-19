@@ -2,7 +2,9 @@
 
 IGSTGNN's data format per sample (dict):
   x_data           (T_h, N, 3) float32  — z-normalized traffic [flow, occ, speed]
+  x_mask           (T_h, N, 1) bool     — raw flow observation mask
   y_data           (T_p, N, 1) float32  — z-normalized flow only
+  y_mask           (T_p, N, 1) bool     — raw flow observation mask
   event_features   dict {Event Time, Description, Type, Holiday}
   event_position   int   — sensor index nearest event
   event_distances  (N, 3) float32 in [0, 1] — [euclid_kernel, road_kernel, downstream]
@@ -38,7 +40,12 @@ import numpy as np
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from dist_net.protocol import PROTOCOL_VERSION, forecast_window_bounds
+from dist_net.data import RegionData
+from dist_net.protocol import (
+    DEFAULT_REGION_DATA_DIR,
+    PROTOCOL_VERSION,
+    forecast_window_bounds,
+)
 
 # Order in our incident_feat one-hot (dims 0..7)
 OUR_TYPES = ["1141", "Fire", "NoInj", "UnknInj", "Hazard", "AHazard", "CarFire", "Other"]
@@ -77,11 +84,29 @@ def build_split(region: str, data_dir: Path, out_dir: Path,
                 sigma_euc_log: float, sigma_road_log: float,
                 cutoff_euc_log: float, cutoff_road_log: float,
                 normalization: dict | None = None,
-                overwrite: bool = False) -> dict:
+                overwrite: bool = False,
+                *,
+                graph_dir: Path | None = None,
+                validate_source: bool = True) -> dict:
     """Convert one region's .h5 to IGSTGNN .npy. Returns stats for downstream use."""
     samples_path = data_dir / f"{region}_samples.h5"
     traffic_path = data_dir / f"{region}_traffic.h5"
     rel_path = data_dir / f"{region}_event_rel_feat.npz"
+    validated_cache = None
+    if validate_source:
+        if graph_dir is None:
+            raise ValueError(
+                "graph_dir is required for strict v3 source validation"
+            )
+        validated_cache = RegionData(
+            region,
+            data_dir,
+            graph_dir,
+            lazy=True,
+            require_rel_feat=True,
+            include_analysis_labels=False,
+            verify_artifact_hashes=True,
+        )
 
     with h5py.File(samples_path, "r") as f:
         protocol = str(f.attrs.get("protocol_version", "legacy"))
@@ -118,8 +143,8 @@ def build_split(region: str, data_dir: Path, out_dir: Path,
     # IGSTGNN expects x_data[..., 1] = tod / tpd  and  x_data[..., 2] = dow / 7
     tod_norm = tod_idx / 288.0      # (T,)
     dow_norm = dow_idx / 7.0        # (T,)
-    rel = np.load(rel_path)
-    event_rel_feat = rel["rel_feat"].astype(np.float32)        # (n_events, N, 4)
+    with np.load(rel_path, allow_pickle=False) as rel:
+        event_rel_feat = rel["rel_feat"].astype(np.float32)
 
     # Stats are computed from raw observed training timestamps only.
     if normalization is None:
@@ -185,6 +210,8 @@ def build_split(region: str, data_dir: Path, out_dir: Path,
             )
             x_raw = flow[hist_start:hist_stop, :, 0:1]      # (T_h, N, 1)
             y = flow[target_start:target_stop, :, 0:1]      # (T_p, N, 1)
+            x_mask = flow_mask[hist_start:hist_stop, :, 0:1]
+            y_mask = flow_mask[target_start:target_stop, :, 0:1]
 
             # z-normalize flow
             x_flow_norm = (x_raw - mean_per_ch[None, None, 0:1]) / std_per_ch[None, None, 0:1]
@@ -212,6 +239,7 @@ def build_split(region: str, data_dir: Path, out_dir: Path,
             igs_type_code = IGS_TYPE_CODE[our_type_name]
             desc_code = DESC_CODE_BY_OUR_TYPE[our_type_name]
             elapsed = float(incident_feat[i, primary_slot, 8])  # hours
+            elapsed_steps = float(elapsed * 12.0)
 
             # event_position: IGSTGNN treats this as a 0..11 categorical code (not a sensor index!)
             # Their position_embedding = nn.Embedding(12, 8). We don't have this categorical info,
@@ -220,8 +248,9 @@ def build_split(region: str, data_dir: Path, out_dir: Path,
             log_euc = ev_rel[:, 0]
             log_road = ev_rel[:, 1]
             up_down = ev_rel[:, 2]
-            # Find the actual closest sensor (for zeroing in event_distances below)
-            closest_sensor = int(np.argmin(log_euc + (log_euc <= 1e-6) * 1e9))
+            # Keep an exact zero-distance hit as the closest sensor.  Excluding
+            # it would incorrectly zero the second-nearest sensor as well.
+            closest_sensor = int(np.argmin(log_euc))
             event_position = 0  # default categorical position code
 
             # event_distances: gaussian kernel of log distances, 3 dims [euc_kernel, road_kernel, downstream]
@@ -234,16 +263,18 @@ def build_split(region: str, data_dir: Path, out_dir: Path,
 
             samples_out.append({
                 "x_data": x_norm.astype(np.float32),
+                "x_mask": x_mask.astype(np.bool_),
                 "y_data": y_norm.astype(np.float32),
+                "y_mask": y_mask.astype(np.bool_),
                 "event_features": {
-                    "Event Time": 0.0,
+                    "Event Time": elapsed_steps,
                     "Description": int(desc_code),
                     "Type": int(igs_type_code),
                     "Holiday": int(time_enc[anchor, 4] > 0.5),
                 },
                 "event_position": event_position,
                 "event_distances": event_distances,
-                "durations": float(elapsed * 12.0),
+                "durations": elapsed_steps,
                 "_t_idx": anchor,
                 "_history_start": hist_start,
                 "_forecast_origin": anchor,
@@ -272,7 +303,19 @@ def build_split(region: str, data_dir: Path, out_dir: Path,
                     "mean_per_ch": mean_per_ch.tolist(),
                     "std_per_ch": std_per_ch.tolist(),
                 },
+                "observation_mask_semantics": {
+                    "required": True,
+                    "source": "flow_mask",
+                    "x_mask": "x_data[..., 0:1]",
+                    "y_mask": "y_data",
+                    "meaning": "True iff the raw source flow value was observed",
+                },
                 "samples": per_split_n,
+                "source_cache_provenance": (
+                    validated_cache.result_metadata()["cache_provenance"]
+                    if validated_cache is not None
+                    else {"validation": "disabled_for_synthetic_fixture"}
+                ),
             },
             indent=2,
         ),
@@ -319,13 +362,13 @@ def main():
     p.add_argument(
         "--data_dir",
         type=Path,
-        default=Path("outputs/dist_net/region_data_v2_noleak"),
+        default=DEFAULT_REGION_DATA_DIR,
     )
     p.add_argument("--graph_dir", type=Path, default=Path("outputs/region_graphs"))
     p.add_argument(
         "--out_dir",
         type=Path,
-        default=Path("outputs/igstgnn_data_from_ours_v2_noleak"),
+        default=Path("outputs/igstgnn_data_from_ours_v3_noleak_dedup"),
     )
     p.add_argument("--sigma_euc_log", type=float, default=1.5,
                    help="sigma for gaussian kernel on log-euclidean km")
@@ -345,7 +388,8 @@ def main():
         build_split(region, args.data_dir, args.out_dir,
                     args.sigma_euc_log, args.sigma_road_log,
                     args.cutoff_euc_log, args.cutoff_road_log,
-                    overwrite=args.overwrite)
+                    overwrite=args.overwrite,
+                    graph_dir=args.graph_dir)
         build_sensor_info(region, args.data_dir, args.out_dir)
         build_adj_matrix(region, args.graph_dir, args.out_dir)
 

@@ -7,9 +7,9 @@
 
 ## 当前状态
 
-> **无泄露 v2 三地区正式缓存已经完成构建与验收，45 项最小判别矩阵已于 2026-07-19 在 5080 上开始串行重跑，论文写作继续暂停。**
+> **v2 已冻结。v3 正式缓存已从 cache-build clean commit `29159f626494de52c69b36fe5bba9854f13cb56c` 构建并通过两次严格复验。该 SHA 不是最终训练代码 SHA。训练尚未启动，论文写作继续暂停。**
 >
-> 2026-07-18 的代码与落盘数据审计确认，旧版 XTraffic 数据管线存在未来信息泄露和切分边界污染。此前报告的所有 XTraffic 数值均保留为历史实验记录，但在无泄露管线复跑前，不应作为论文结论或最终基准引用。完整证据见 [数据泄露审计](docs/audits/data_leakage_2026-07-18.md)。
+> 2026-07-18 的审计确认旧版 XTraffic 数据管线存在未来信息泄露和切分边界污染。2026-07-19 的全面复审进一步确认 v2 存在重复 forecast origin、active event 跨 split、验证累计和训练契约问题。此前报告的所有 XTraffic 数值与最先完成的 4 个 v2 远程结果均保留为历史记录，不应作为论文结论或最终基准引用。完整证据见 [v3 协议复审](docs/audits/protocol_v3_review_2026-07-19.md) 和 [数据泄露审计](docs/audits/data_leakage_2026-07-18.md)。
 
 审计前，项目已经完成以下研究路线：
 
@@ -19,7 +19,17 @@
 - 完成三地区、多种子、等参数消融和一批标准基准实验。
 - 启动统一管线下的 baseline zoo，但结果尚未完成权威汇总。
 
-这些工作仍有方法设计和工程价值，但 XTraffic 上的数值证据需要按新协议重建。当前代码已经实现因果填充、label-free train-only 气候态、完整目标窗切分、event group 隔离、可部署事故特征、显式训练边界、IGSTGNN 对齐、cache schema 与 provenance。正式 v2 缓存已生成并通过远端验收，当前任务是在独立结果目录中完成最小判别矩阵。队列刚启动，尚无新的实验数字可用于论文。
+这些工作仍有方法设计和工程价值，但 XTraffic 上的数值证据需要按新协议重建。当前 v3 代码实现了因果填充、label-free train-only 气候态、完整目标窗切分、forecast origin 去重、active event split 隔离、可部署事故特征、显式 mask、全局有效观测点指标累计、缓存身份校验、输出隔离和 IGSTGNN 对齐。协议为 `protocol_v3_noleak_dedup`，cache schema 为 3。纳入 `origin/fu` 的合理修复后，完整测试为 143 项通过，1 个既有 warning。最终训练代码 SHA 等 main 合并后锁定。
+
+正式缓存位于 `outputs/dist_net/region_data_v3_noleak_dedup`。它已通过两次严格复验，状态为 `verified`。bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。
+
+| 区域 | 正式样本数 | train | val | test |
+|---|---:|---:|---:|---:|
+| Alameda | 45760 | 32001 | 6954 | 6805 |
+| ContraCosta | 23337 | 16414 | 3472 | 3451 |
+| Orange | 60015 | 42372 | 9098 | 8545 |
+
+训练仍未启动。下一步是把 bundle 传到 5080，执行远端哈希复验，然后从 main 合并后锁定的最终训练 SHA 创建 clean clone，启动 45 项队列。
 
 ## 已确认的数据问题
 
@@ -30,8 +40,12 @@
 | P0 | `severity` 和最终事故持续时间由事故后的真实流量或完整事件生成 | DIST-Net、ICSF 与事故特征模型不满足因果部署 |
 | P1 | 事件样本与全滑窗样本在相邻切分间共享目标时刻 | 验证集和测试集不完全独立 |
 | P1 | 一个 IGSTGNN 转换入口右移 11 步，并将 79.01% 到 97.08% 的样本错绑到其他活跃事件 | 对应的 Setting A 与事故分组结论需要重建 |
+| P0 | v2 同一 forecast origin 可因多个事故重复出现 | 训练与测试指标按重复次数加权 |
+| P0 | v2 active event identity 可跨 split | 训练、验证和测试之间仍有事件关联 |
+| P0 | 部分验证 MAE 按 batch 或样本均值累计 | 最佳 checkpoint 可能选择错误 |
+| P1 | 多个训练入口的 mask、图支持和结果恢复契约不一致 | 对比结果不能可靠配对 |
 
-旧缓存和旧结果没有被覆盖。修复后的协议使用 `outputs/dist_net/region_data_v2_noleak`，新训练默认写入 `outputs/protocol_v2_noleak`。本地数据回归测试位于 `tests/data/`。
+旧缓存、v2 缓存和旧结果没有被覆盖。v3 默认缓存目录为 `outputs/dist_net/region_data_v3_noleak_dedup`，新训练默认写入 `outputs/protocol_v3_noleak_dedup`。三地区正式缓存已经通过最终 cache audit 与独立严格复验，5080 上的 v3 训练尚未开始。本地回归测试位于 `tests/data/`、`tests/training/` 和 `tests/remote/`。
 
 ## 方法关系
 
@@ -47,7 +61,7 @@ RADS
 - **RADS-O**：增加逐预测步门控，并在训练期用未来真值构造 oracle 软目标。
 - **NDR-Net**：在 RADS-O 上增加正常态与扰动态双残差头。
 
-审计前的完整方法演进、负结果和数值记录仍保留在 [XTraffic 项目完整汇报](XTraffic项目完整汇报.md) 中。阅读时以文首的 2026-07-18 有效性说明为准。
+审计前的完整方法演进、负结果和数值记录仍保留在 [XTraffic 项目完整汇报](XTraffic项目完整汇报.md) 中。阅读时同时以 [v3 协议复审](docs/audits/protocol_v3_review_2026-07-19.md) 和文首有效性说明为准。
 
 ## 仓库导航
 
@@ -66,16 +80,21 @@ RADS
 ## 建议阅读顺序
 
 1. [CLAUDE.md](CLAUDE.md)：会话入口、当前阻塞与协作约定。
-2. [数据泄露审计](docs/audits/data_leakage_2026-07-18.md)：已确认问题、影响范围与修复验收条件。
-3. [结果有效性清单](docs/audits/result_validity.csv)：实验族当前是否可用于论文。
-4. [XTraffic 项目完整汇报](XTraffic项目完整汇报.md)：审计前的完整研究史与全部落盘数字。
-5. [RADS 与 NDR 汇报讲稿](docs/RADS_NDR_汇报讲稿.md)：方法结构和诚实的新颖性定位。
+2. [v3 协议复审](docs/audits/protocol_v3_review_2026-07-19.md)：v2 冻结原因、v3 修复范围与正式缓存验收状态。
+3. [数据泄露审计](docs/audits/data_leakage_2026-07-18.md)：原始泄露问题、影响范围与验收基础。
+4. [结果有效性清单](docs/audits/result_validity.csv)：实验族当前是否可用于论文。
+5. [XTraffic 项目完整汇报](XTraffic项目完整汇报.md)：审计前的完整研究史与全部落盘数字。
+6. [RADS 与 NDR 汇报讲稿](docs/RADS_NDR_汇报讲稿.md)：方法结构和诚实的新颖性定位。
 
 ## 关键入口
 
-- `scripts/build_full_county_cache.py`：v2 区域缓存构建入口，默认拒绝覆盖既有文件。
+- `scripts/build_full_county_cache.py`：v3 区域缓存构建入口，按 forecast origin 去重并默认拒绝脏工作区和覆盖既有文件。
+- `scripts/build_event_rel_feat.py`：生成与 v3 样本身份绑定的事故与节点关系特征。
+- `scripts/audit_protocol_v3_cache.py`：v3 正式缓存最终审计与 bundle manifest 入口。
 - `dist_net/protocol.py`：因果填充、切分、窗口和事故特征的共享协议实现。
-- `dist_net/data.py`：事件锚定和全滑窗数据集定义，默认拒绝旧协议缓存。
+- `dist_net/data.py`：事件锚定和全滑窗数据集定义，严格校验 schema、协议、身份、mask 与 split。
+- `dist_net/training_runtime.py`：正式训练输出、缓存身份与 summary 契约。
+- `scripts/remote/windows/protocol_v3_runner.py`：5080 的 45 项 v3 串行队列，任务表见同目录 manifest。
 - `scripts/train_graphwavenet.py`：GWN 训练。
 - `scripts/train_fourier_dual_net.py`：FDN 训练。
 - `scripts/train_staeformer_xtraffic.py`：STAEformer 的 XTraffic 训练。
@@ -87,7 +106,7 @@ RADS
 
 - 原始数据、H5 缓存、模型权重和大体积预测数组默认不提交。
 - Git 中的 `outputs/` 只保存选定的文本、表格和论文产物。本地目录可能包含大量被忽略的预测文件。
-- 当前没有冻结的根级环境锁文件。v2 缓存会记录 schema、协议、切分边界、拟合范围、源文件 SHA-256、Git SHA、分支与 dirty 状态。
+- 当前没有冻结的根级环境锁文件。v3 缓存记录 schema、协议、切分边界、拟合范围、源文件 SHA-256、Git SHA、分支、dirty 状态和 bundle identity。
 - GraphWaveNet 与 STAEformer 的来源版本和许可仍需补充到基线目录。
 - 仓库根目录目前没有统一 LICENSE，因此不对本仓库新增代码做超出上游许可的声明。
 - 实验室共享远程连接和密码集中明文维护在 `config/lab_hosts.env`，使用方式见 `config/README.md`。
@@ -95,6 +114,6 @@ RADS
 ## 结果管理原则
 
 - 旧结果只读保留，并在有效性清单中标记，不原地覆盖。
-- 新协议使用独立缓存版本和独立输出标签，例如 `protocol_v2_noleak`。
+- 新协议使用独立缓存版本和独立输出标签。当前版本为 `protocol_v3_noleak_dedup`。
 - 每个新结果必须记录协议版本、切分边界、预处理拟合范围、缓存哈希、Git SHA 和 dirty 状态。
 - 所有论文数字必须来自已落盘文件，不用估算值补表。

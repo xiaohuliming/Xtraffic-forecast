@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+import os
 import subprocess
 from collections.abc import Mapping
 from pathlib import Path
@@ -9,12 +12,63 @@ from pathlib import Path
 import numpy as np
 
 
-CACHE_SCHEMA_VERSION = 2
-PROTOCOL_VERSION = "protocol_v2_noleak"
+CACHE_SCHEMA_VERSION = 3
+PROTOCOL_VERSION = "protocol_v3_noleak_dedup"
+DEFAULT_REGION_DATA_DIR = Path(
+    "outputs/dist_net/region_data_v3_noleak_dedup"
+)
+DEFAULT_RESULT_ROOT = Path("outputs/protocol_v3_noleak_dedup")
+
+
+def _identity_text(value: object) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (float, np.floating)) and not np.isfinite(value):
+        return ""
+    return str(value).strip()
+
+
+def canonical_event_id(event: Mapping[str, object]) -> str:
+    """Return a stable event identity without using post-event labels."""
+    aggregate_id = _identity_text(event.get("agg_id"))
+    if aggregate_id:
+        return f"agg:{aggregate_id}"
+
+    incident_ids = _identity_text(event.get("incident_ids"))
+    normalized_ids = sorted(
+        token.strip()
+        for token in incident_ids.replace(";", ",").split(",")
+        if token.strip()
+    )
+    if normalized_ids:
+        return "inc:" + ",".join(normalized_ids)
+
+    identity_fields = {
+        key: _identity_text(event.get(key))
+        for key in (
+            "start_idx",
+            "anchor_region_idx",
+            "primary_type",
+            "latitude",
+            "longitude",
+            "incident_abs_pm",
+        )
+    }
+    payload = json.dumps(
+        identity_fields, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return "sha256:" + hashlib.sha256(payload).hexdigest()
 
 
 def git_worktree_provenance(repo_root: str | Path) -> dict[str, object]:
     """Return the current Git revision and dirty state for result metadata."""
+    deployed_sha = os.environ.get("XTRAFFIC_CODE_SHA", "").strip().lower()
+    if deployed_sha:
+        return {
+            "git_sha": deployed_sha,
+            "git_branch": "verified-deployment",
+            "git_dirty": False,
+        }
     root = Path(repo_root)
 
     def run(*args: str) -> str:
@@ -94,18 +148,34 @@ def select_active_events(
     active_indices: np.ndarray,
     primary_index: int,
     max_events: int,
+    required_indices: np.ndarray | None = None,
 ) -> tuple[np.ndarray, int]:
-    """Keep recent active events while guaranteeing the primary event a slot."""
-    active = np.asarray(active_indices, dtype=np.int64)
+    """Keep recent active events while retaining every required anchor event."""
+    active = np.unique(np.asarray(active_indices, dtype=np.int64))
     if max_events < 1:
         raise ValueError("max_events must be positive")
     if primary_index not in active:
         raise ValueError(f"primary event {primary_index} is not active")
 
-    chosen = active[-max_events:].copy()
-    if primary_index not in chosen:
-        chosen[0] = primary_index
-        chosen.sort()
+    if required_indices is None:
+        required = np.asarray([primary_index], dtype=np.int64)
+    else:
+        required = np.unique(np.asarray(required_indices, dtype=np.int64))
+        if primary_index not in required:
+            required = np.append(required, primary_index)
+            required.sort()
+    if not np.isin(required, active).all():
+        raise ValueError("every required event must be active")
+    if required.size > max_events:
+        raise ValueError(
+            f"{required.size} required events exceed max_events={max_events}"
+        )
+
+    remaining = max_events - required.size
+    optional = active[~np.isin(active, required)]
+    chosen = np.sort(
+        np.concatenate([required, optional[-remaining:] if remaining else []])
+    )
     primary_slot = int(np.flatnonzero(chosen == primary_index)[0])
     return chosen, primary_slot
 

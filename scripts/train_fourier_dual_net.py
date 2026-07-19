@@ -9,7 +9,7 @@ Two decomposition modes are supported:
   --decomp_mode learnable   : per-bin sigmoid mask (initialised at step K)
 
 Writes:
-  outputs/protocol_v2_noleak/fourier_dual_net/<tag>/<region>/
+  outputs/protocol_v3_noleak_dedup/fourier_dual_net/<tag>/<region>/
     ckpt_best.pt
     test_predictions.npz   (same schema as GraphWaveNet baseline)
     summary.json
@@ -32,18 +32,21 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from dist_net.data import MultiRegionDataset, FullWindowRegionData, RegionData, make_loader
+from dist_net.graph import bidirectional_random_walk_supports
+from dist_net.metrics import MaskedMAEAccumulator, masked_mae_loss
+from dist_net.training_runtime import TrainingRunContext
 from fourier_dual_net.model import FourierDualNet
 
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("--region", required=True, choices=["Alameda", "ContraCosta", "Orange"])
-    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v2_noleak")
+    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v3_noleak_dedup")
     p.add_argument("--graph_dir", default="outputs/region_graphs")
     p.add_argument(
         "--out_dir",
         type=Path,
-        default=Path("outputs/protocol_v2_noleak/fourier_dual_net"),
+        default=Path("outputs/protocol_v3_noleak_dedup/fourier_dual_net"),
     )
     p.add_argument("--tag", default=None, help="run tag; default=<decomp_mode>_K<K>")
     p.add_argument("--decomp_mode", choices=["fixed_k", "learnable", "conditioned"], default="fixed_k")
@@ -91,31 +94,27 @@ def pick_device(name: str | None) -> torch.device:
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
+def format_decomp_mask(mask: str | list[float]) -> str:
+    """Format either a numeric snapshot or the conditioned-mask descriptor."""
+    if isinstance(mask, str):
+        return mask
+    return str([round(value, 3) for value in mask])
+
+
 def build_adj_supports(edge_index: np.ndarray, N: int, device: torch.device
                        ) -> list[torch.Tensor]:
-    A = np.zeros((N, N), dtype=np.float32)
-    A[edge_index[0], edge_index[1]] = 1.0
-    np.fill_diagonal(A, 1.0)
-    deg = A.sum(axis=1)
-    deg_inv = np.where(deg > 0, 1.0 / deg, 0.0)
-    A_fwd = deg_inv[:, None] * A
-    A_bwd = (deg_inv[:, None] * A.T)
-    return [torch.from_numpy(A_fwd).to(device),
-            torch.from_numpy(A_bwd).to(device)]
+    return bidirectional_random_walk_supports(edge_index, N, device)
 
 
 def masked_mae(pred: torch.Tensor, target: torch.Tensor,
                mask: torch.Tensor) -> torch.Tensor:
-    mask = mask.float()
-    num = (pred - target).abs() * mask
-    denom = mask.sum().clamp(min=1.0)
-    return num.sum() / denom
+    return masked_mae_loss(pred, target, mask)
 
 
 @torch.no_grad()
 def evaluate(model, loader, device, sensor_meta_tensor=None) -> dict[str, float]:
     model.eval()
-    total, n = 0.0, 0
+    metric = MaskedMAEAccumulator()
     need_time = (model.use_time_emb or model.requires_sensor_meta
                  or getattr(model, "use_gated_fusion", False))
     for batch in loader:
@@ -125,11 +124,9 @@ def evaluate(model, loader, device, sensor_meta_tensor=None) -> dict[str, float]
         time_feat = batch["time_feat"].to(device) if need_time else None
         sm = sensor_meta_tensor if model.requires_sensor_meta else None
         pred = model(x_hist, time_feat=time_feat, sensor_meta=sm)
-        l = masked_mae(pred, y_true, y_mask)
-        total += float(l.item()) * x_hist.size(0)
-        n += x_hist.size(0)
+        metric.update(pred, y_true, y_mask)
     model.train()
-    return {"L_main": total / max(n, 1)}
+    return {"L_main": metric.compute()}
 
 
 def main() -> None:
@@ -149,7 +146,16 @@ def main() -> None:
     if args.protocol == "full_window":
         tag = tag + "_fullwindow"
     out_dir = args.out_dir / tag / args.region
-    out_dir.mkdir(parents=True, exist_ok=True)
+    run_context = TrainingRunContext.prepare(
+        out_dir,
+        data_dir=args.data_dir,
+        region=args.region,
+        model="fourier_dual_net",
+        variant=f"{args.decomp_mode}_k{args.K}",
+        seed=args.seed,
+        sampling_protocol=args.protocol,
+    )
+    out_dir = run_context.output_dir
 
     def mk(split):
         return MultiRegionDataset(
@@ -161,6 +167,7 @@ def main() -> None:
     val_ds = mk("val")
     test_ds = mk("test")
     rdata = train_ds.regions[args.region]
+    run_context.verify_region_cache(rdata)
     N = int(rdata.N)
     C_x = 3
     T_h = int(rdata.T_h)
@@ -327,9 +334,9 @@ def main() -> None:
     aff_TpN = np.broadcast_to(affected[:, None, :], (S, T_p, N))
     mae_all = float(diff[valid].mean()) if valid.any() else float("nan")
     valid_aff = valid & aff_TpN
-    mae_aff = float(diff[valid_aff].mean()) if valid_aff.any() else float("nan")
+    mae_aff = float(diff[valid_aff].mean()) if valid_aff.any() else None
     valid_un = valid & (~aff_TpN)
-    mae_un = float(diff[valid_un].mean()) if valid_un.any() else float("nan")
+    mae_un = float(diff[valid_un].mean()) if valid_un.any() else None
     if args.decomp_mode == "conditioned":
         final_mask = "conditioned (per-sample)"
     else:
@@ -338,11 +345,17 @@ def main() -> None:
                "best_val_L_main": best_val,
                "decomp_mode": args.decomp_mode, "K": args.K,
                "final_decomp_mask": final_mask, **rdata.result_metadata()}
-    print(f"\ntest MAE: all={mae_all:.3f}  affected={mae_aff:.3f}  unaffected={mae_un:.3f}",
-          flush=True)
-    print(f"final decomp mask: {[round(v, 3) for v in final_mask]}", flush=True)
-    (out_dir / "summary.json").write_text(json.dumps(summary, indent=2),
-                                           encoding="utf-8")
+    print(
+        f"\ntest MAE: all={mae_all:.3f}  affected={mae_aff}  "
+        f"unaffected={mae_un}",
+        flush=True,
+    )
+    print(f"final decomp mask: {format_decomp_mask(final_mask)}", flush=True)
+    run_context.write_summary(
+        summary,
+        valid_count=int(valid.sum()),
+        required_metrics=("all",),
+    )
     (out_dir / "decomp_mask.json").write_text(
         json.dumps({"mode": args.decomp_mode, "K": args.K, "mask": final_mask}, indent=2),
         encoding="utf-8",

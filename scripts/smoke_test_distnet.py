@@ -29,7 +29,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--data-dir",
         type=Path,
-        default=Path("outputs/dist_net/region_data_v2_noleak"),
+        default=Path("outputs/dist_net/region_data_v3_noleak_dedup"),
     )
     p.add_argument("--graph-dir", type=Path, default=Path("outputs/region_graphs"))
     p.add_argument("--batch-size", type=int, default=8)

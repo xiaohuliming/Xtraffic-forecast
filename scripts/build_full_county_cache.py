@@ -2,7 +2,7 @@
 """Build the versioned no-leakage XTraffic cache.
 
 For each region produces 2 HDF5 files under
-outputs/dist_net/region_data_v2_noleak/:
+outputs/dist_net/region_data_v3_noleak_dedup/:
   {region}_traffic.h5  - continuous regional time series + statistics
   {region}_samples.h5  - per-sample metadata (event-anchored)
 
@@ -24,7 +24,8 @@ Sample metadata file (one entry per (event, offset)):
   /sample_offset       (S,)       int8     which offset (0/6/12) within the event
   /incident_feat       (S, M_max, C_e) float32  active incidents in [t-24, t]
   /incident_mask       (S, M_max) bool
-  /n_active_incidents  (S,)       int32
+  /n_active_incidents  (S,)       int32    all active incidents before packing
+  /n_packed_incidents  (S,)       int32    incidents retained in fixed-size tensors
   /primary_incident_slot (S,)     int16    anchor event's slot in incident_feat
   /analysis_labels/affected_mask  (S, N) bool post-event evaluation label
 """
@@ -34,8 +35,11 @@ import argparse
 import bisect
 import hashlib
 import json
+import os
 import sys
 import time
+import uuid
+from contextlib import contextmanager
 from pathlib import Path
 
 import h5py
@@ -53,12 +57,14 @@ from scripts.build_impact_labels import (
 )
 from dist_net.protocol import (
     CACHE_SCHEMA_VERSION,
+    DEFAULT_REGION_DATA_DIR,
     PROTOCOL_VERSION,
     build_deployable_incident_feature,
     build_training_fit_mask,
     causal_forward_fill,
     classify_event_group,
     classify_forecast_window,
+    canonical_event_id,
     git_worktree_provenance,
     select_active_events,
 )
@@ -104,7 +110,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--out-dir",
         type=Path,
-        default=Path("outputs/dist_net/region_data_v2_noleak"),
+        default=DEFAULT_REGION_DATA_DIR,
     )
     p.add_argument("--regions", nargs="+", default=REGIONS_DEFAULT)
     p.add_argument("--t-h", type=int, default=DEFAULT_T_H)
@@ -128,7 +134,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--overwrite",
         action="store_true",
-        help="Replace files in the v2 output directory if they already exist.",
+        help="Replace files in the v3 output directory if they already exist.",
+    )
+    p.add_argument(
+        "--allow-dirty",
+        action="store_true",
+        help="Allow a dirty Git worktree for local smoke/debug builds only.",
     )
     return p.parse_args()
 
@@ -216,6 +227,26 @@ def parse_incident_ids_field(s: object) -> list[str]:
     return [tok.strip() for tok in normalized.split(",") if tok.strip()]
 
 
+def canonicalize_events(events: pd.DataFrame) -> pd.DataFrame:
+    """Return events in stable identity order and reject ambiguous identities."""
+    canonical = events.copy()
+    canonical["_event_id"] = [
+        canonical_event_id(row) for _, row in canonical.iterrows()
+    ]
+    duplicate_ids = canonical["_event_id"].duplicated(keep=False)
+    if duplicate_ids.any():
+        duplicates = sorted(
+            canonical.loc[duplicate_ids, "_event_id"].unique()
+        )
+        raise ValueError(
+            "event identity must be unique within a region: "
+            + ", ".join(duplicates[:5])
+        )
+    return canonical.sort_values(
+        ["start_idx", "_event_id"], kind="mergesort"
+    ).reset_index(drop=True)
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as source:
@@ -242,6 +273,43 @@ def source_manifest(paths: list[Path]) -> list[dict[str, object]]:
     return manifest
 
 
+@contextmanager
+def atomic_h5_writer(out_path: Path):
+    """Write one HDF5 artifact atomically within its destination directory."""
+    tmp_path = out_path.with_name(
+        f".{out_path.name}.{uuid.uuid4().hex}.tmp"
+    )
+    try:
+        with h5py.File(tmp_path, "w") as h5:
+            yield h5
+        os.replace(tmp_path, out_path)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
+def atomic_json_writer(out_path: Path, payload: dict[str, object]) -> None:
+    tmp_path = out_path.with_name(
+        f".{out_path.name}.{uuid.uuid4().hex}.tmp"
+    )
+    try:
+        tmp_path.write_text(
+            json.dumps(payload, indent=2, allow_nan=False),
+            encoding="utf-8",
+        )
+        os.replace(tmp_path, out_path)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
+def resolve_cache_mode(smoke_events: int, git_dirty: bool) -> str:
+    """Keep dirty or reduced builds outside the formal release contract."""
+    if smoke_events > 0:
+        return "smoke"
+    if git_dirty:
+        return "debug"
+    return "formal"
+
+
 def write_protocol_attrs(
     h5: h5py.File,
     train_end: int,
@@ -249,7 +317,16 @@ def write_protocol_attrs(
     baseline_fit_end: int,
     manifest: list[dict[str, object]],
     git_info: dict[str, object],
+    *,
+    bundle_id: str,
+    artifact_id: str,
+    cache_role: str,
+    traffic_cache_id: str,
+    samples_cache_id: str = "",
+    cache_mode: str = "formal",
 ) -> None:
+    if cache_mode == "formal" and bool(git_info.get("git_dirty", True)):
+        raise ValueError("dirty builders cannot write formal cache artifacts")
     h5.attrs["cache_schema_version"] = CACHE_SCHEMA_VERSION
     h5.attrs["protocol_version"] = PROTOCOL_VERSION
     h5.attrs["train_end"] = int(train_end)
@@ -259,6 +336,13 @@ def write_protocol_attrs(
     h5.attrs["imputation_method"] = "causal_forward_fill_zero_prefix"
     h5.attrs["baseline_method"] = "label_free_train_only_robust_median"
     h5.attrs["source_manifest_json"] = json.dumps(manifest, sort_keys=True)
+    h5.attrs["bundle_id"] = bundle_id
+    h5.attrs["artifact_id"] = artifact_id
+    h5.attrs["cache_role"] = cache_role
+    h5.attrs["traffic_cache_id"] = traffic_cache_id
+    if samples_cache_id:
+        h5.attrs["samples_cache_id"] = samples_cache_id
+    h5.attrs["cache_mode"] = cache_mode
     for key, value in git_info.items():
         h5.attrs[key] = value
 
@@ -271,7 +355,15 @@ def build_traffic_h5(region_name: str, region_meta: pd.DataFrame,
                      region_node_idx: np.ndarray, out_path: Path,
                      train_end: int, val_end: int, baseline_fit_end: int,
                      manifest: list[dict[str, object]],
-                     git_info: dict[str, object]) -> None:
+                     git_info: dict[str, object],
+                     bundle_id: str | None = None,
+                     traffic_cache_id: str | None = None,
+                     cache_mode: str | None = None) -> None:
+    bundle_id = bundle_id or f"standalone-{uuid.uuid4().hex}"
+    traffic_cache_id = traffic_cache_id or f"traffic-{uuid.uuid4().hex}"
+    cache_mode = cache_mode or resolve_cache_mode(
+        smoke_events=0, git_dirty=bool(git_info.get("git_dirty", True))
+    )
     print(f"  [{region_name}] imputing flow (causal forward fill) ...", flush=True)
     t0 = time.time()
     imputed, mask = impute_flow(traffic)
@@ -286,7 +378,7 @@ def build_traffic_h5(region_name: str, region_meta: pd.DataFrame,
     print(f"    C_meta = {static_meta.shape[1]} ({feat_names})")
 
     print(f"  [{region_name}] writing {out_path} ...", flush=True)
-    with h5py.File(out_path, "w") as f:
+    with atomic_h5_writer(out_path) as f:
         f.create_dataset("flow_series_imputed", data=imputed,
                          compression="lzf", chunks=(min(288, imputed.shape[0]), imputed.shape[1], 3))
         f.create_dataset("flow_mask", data=mask,
@@ -309,6 +401,11 @@ def build_traffic_h5(region_name: str, region_meta: pd.DataFrame,
             baseline_fit_end=baseline_fit_end,
             manifest=manifest,
             git_info=git_info,
+            bundle_id=bundle_id,
+            artifact_id=traffic_cache_id,
+            cache_role="traffic",
+            traffic_cache_id=traffic_cache_id,
+            cache_mode=cache_mode,
         )
     sz = out_path.stat().st_size / (1024 ** 3)
     print(f"    saved {sz:.2f} GB")
@@ -320,7 +417,17 @@ def build_samples_h5(region_name: str, region_node_idx: np.ndarray,
                      out_path: Path, train_end: int, val_end: int,
                      baseline_fit_end: int,
                      manifest: list[dict[str, object]],
-                     git_info: dict[str, object]) -> None:
+                     git_info: dict[str, object],
+                     bundle_id: str | None = None,
+                     traffic_cache_id: str | None = None,
+                     samples_cache_id: str | None = None,
+                     cache_mode: str | None = None) -> None:
+    bundle_id = bundle_id or f"standalone-{uuid.uuid4().hex}"
+    traffic_cache_id = traffic_cache_id or f"traffic-{uuid.uuid4().hex}"
+    samples_cache_id = samples_cache_id or f"samples-{uuid.uuid4().hex}"
+    cache_mode = cache_mode or resolve_cache_mode(
+        args.smoke_events, bool(git_info.get("git_dirty", True))
+    )
     N = region_node_idx.size
     n_events = len(events)
     if args.smoke_events > 0:
@@ -328,9 +435,11 @@ def build_samples_h5(region_name: str, region_node_idx: np.ndarray,
         n_events = len(events)
         print(f"  [{region_name}] SMOKE: limited to first {n_events} events")
 
-    # Sort events by start_idx for efficient active-event lookup
-    events = events.sort_values("start_idx").reset_index(drop=True)
+    # Use a canonical event identity and order so cache indices do not depend
+    # on CSV row order, including when multiple events share a start time.
+    events = canonicalize_events(events)
     starts_sorted = events["start_idx"].to_numpy(dtype=np.int64)
+    event_ids_sorted = events["_event_id"].astype(str).to_numpy()
 
     # Pre-build analysis-only affected masks. Deployable incident features are
     # built per sample because elapsed time changes with the forecast origin.
@@ -354,10 +463,13 @@ def build_samples_h5(region_name: str, region_node_idx: np.ndarray,
     inc_feat_list: list[np.ndarray] = []
     inc_mask_list: list[np.ndarray] = []
     n_active_list: list[int] = []
+    n_packed_list: list[int] = []
     affected_list: list[np.ndarray] = []
     active_event_idx_list: list[np.ndarray] = []   # (M_max,) int32 per sample,
                                                     # -1 marks padding
     primary_slot_list: list[int] = []
+    anchor_event_mask_list: list[np.ndarray] = []
+    n_origin_events_list: list[int] = []
 
     # Bounds: need T_h history and T_p future
     min_start = args.t_h - 1        # sample_start at t means hist is [t-T_h+1..t]
@@ -366,10 +478,12 @@ def build_samples_h5(region_name: str, region_node_idx: np.ndarray,
     max_active_seen = 0
     n_truncated = 0
     n_mixed_events_dropped = 0
+    n_mixed_active_event_samples_dropped = 0
+    event_group_split = np.full(n_events, -1, dtype=np.int8)
+    origin_candidates: dict[int, list[tuple[int, int]]] = {}
 
     for ev_idx in range(n_events):
         ev_start = int(starts_sorted[ev_idx])
-        anchor_idx = int(events.iloc[ev_idx]["anchor_region_idx"])
         group_split = classify_event_group(
             event_start=ev_start,
             offsets=args.sample_offsets,
@@ -382,6 +496,7 @@ def build_samples_h5(region_name: str, region_node_idx: np.ndarray,
         if group_split is None:
             n_mixed_events_dropped += 1
             continue
+        event_group_split[ev_idx] = group_split
 
         for offset in args.sample_offsets:
             sample_start = ev_start + int(offset)
@@ -396,63 +511,102 @@ def build_samples_h5(region_name: str, region_node_idx: np.ndarray,
             )
             if sample_split != group_split:
                 continue
-
-            # Find all events with start_idx in [sample_start - active_window + 1, sample_start]
-            lo = bisect.bisect_left(starts_sorted, sample_start - args.active_window + 1)
-            hi = bisect.bisect_right(starts_sorted, sample_start)
-            active = np.arange(lo, hi, dtype=np.int64)
-            if ev_idx not in active:
-                active = np.sort(np.append(active, ev_idx))
-            n_active = active.size
-            max_active_seen = max(max_active_seen, n_active)
-
-            # Pack into (M_max, C_e), retaining the sample's primary event even
-            # when a dense incident window must be truncated.
-            inc_feat = np.zeros((args.m_max, C_E), dtype=np.float32)
-            inc_mask = np.zeros(args.m_max, dtype=bool)
-            chosen, primary_slot = select_active_events(
-                active, primary_index=ev_idx, max_events=args.m_max
+            origin_candidates.setdefault(sample_start, []).append(
+                (int(offset), ev_idx)
             )
-            if n_active > args.m_max:
-                n_truncated += 1
-            for slot, chosen_idx in enumerate(chosen):
-                inc_feat[slot] = event_incident_feature(
-                    events.iloc[int(chosen_idx)], sample_start
-                )
-            inc_mask[:chosen.size] = True
 
-            # Affected mask: union across all active events
-            if chosen.size:
-                aff = np.any(event_affected[chosen], axis=0)
-            else:
-                aff = np.zeros(N, dtype=bool)
+    n_candidate_rows = sum(len(candidates) for candidates in origin_candidates.values())
+    n_duplicate_origins_dropped = n_candidate_rows - len(origin_candidates)
+    for sample_start in sorted(origin_candidates):
+        candidates = origin_candidates[sample_start]
+        offset, ev_idx = min(
+            candidates,
+            key=lambda item: (item[0], event_ids_sorted[item[1]]),
+        )
+        origin_event_indices = np.unique(
+            np.asarray([candidate[1] for candidate in candidates], dtype=np.int64)
+        )
+        group_split = int(event_group_split[ev_idx])
+        anchor_idx = int(events.iloc[ev_idx]["anchor_region_idx"])
 
-            sample_start_list.append(sample_start)
-            split_list.append(group_split)
-            event_idx_list.append(ev_idx)
-            anchor_idx_list.append(anchor_idx)
-            offset_list.append(int(offset))
-            inc_feat_list.append(inc_feat)
-            inc_mask_list.append(inc_mask)
-            n_active_list.append(int(chosen.size))
-            affected_list.append(aff)
-            primary_slot_list.append(primary_slot)
+        # Find all events with start_idx in [sample_start - active_window + 1, sample_start]
+        lo = bisect.bisect_left(starts_sorted, sample_start - args.active_window + 1)
+        hi = bisect.bisect_right(starts_sorted, sample_start)
+        active = np.arange(lo, hi, dtype=np.int64)
+        active = np.unique(np.concatenate([active, origin_event_indices]))
+        n_active = active.size
+        max_active_seen = max(max_active_seen, n_active)
 
-            active_idx = np.full(args.m_max, -1, dtype=np.int32)
-            active_idx[:chosen.size] = chosen.astype(np.int32)
-            active_event_idx_list.append(active_idx)
+        # Every event exposed to a sample must belong to the same purged
+        # event group.  Checking only the canonical anchor is insufficient:
+        # an older active incident can otherwise appear in both train and
+        # validation or validation and test context.
+        if np.any(event_group_split[active] != group_split):
+            n_mixed_active_event_samples_dropped += 1
+            continue
+
+        # Pack into (M_max, C_e), retaining the sample's primary event even
+        # when a dense incident window must be truncated.
+        inc_feat = np.zeros((args.m_max, C_E), dtype=np.float32)
+        inc_mask = np.zeros(args.m_max, dtype=bool)
+        chosen, primary_slot = select_active_events(
+            active,
+            primary_index=ev_idx,
+            max_events=args.m_max,
+            required_indices=origin_event_indices,
+        )
+        if n_active > args.m_max:
+            n_truncated += 1
+        for slot, chosen_idx in enumerate(chosen):
+            inc_feat[slot] = event_incident_feature(
+                events.iloc[int(chosen_idx)], sample_start
+            )
+        inc_mask[:chosen.size] = True
+
+        # Affected mask: union across all active events
+        if active.size:
+            aff = np.any(event_affected[active], axis=0)
+        else:
+            aff = np.zeros(N, dtype=bool)
+
+        sample_start_list.append(sample_start)
+        split_list.append(group_split)
+        event_idx_list.append(ev_idx)
+        anchor_idx_list.append(anchor_idx)
+        offset_list.append(int(offset))
+        inc_feat_list.append(inc_feat)
+        inc_mask_list.append(inc_mask)
+        n_active_list.append(int(n_active))
+        n_packed_list.append(int(chosen.size))
+        affected_list.append(aff)
+        primary_slot_list.append(primary_slot)
+        anchor_mask = np.zeros(args.m_max, dtype=bool)
+        anchor_mask[:chosen.size] = np.isin(chosen, origin_event_indices)
+        anchor_event_mask_list.append(anchor_mask)
+        n_origin_events_list.append(int(origin_event_indices.size))
+
+        active_idx = np.full(args.m_max, -1, dtype=np.int32)
+        active_idx[:chosen.size] = chosen.astype(np.int32)
+        active_event_idx_list.append(active_idx)
 
     n_samples = len(sample_start_list)
     print(f"    generated {n_samples} samples in {time.time() - t0:.1f}s")
     print(f"    max active events in any window: {max_active_seen}, "
           f"truncated samples (>M_max={args.m_max}): {n_truncated}")
     print(f"    events dropped to keep event groups disjoint: {n_mixed_events_dropped}")
+    print(
+        "    samples dropped for mixed active-event groups: "
+        f"{n_mixed_active_event_samples_dropped}"
+    )
+    print(f"    duplicate forecast origins removed: {n_duplicate_origins_dropped}")
 
     if n_samples == 0:
         print(f"    WARNING: no samples generated for {region_name}")
         return
 
     sample_start_arr = np.array(sample_start_list, dtype=np.int64)
+    if np.unique(sample_start_arr).size != sample_start_arr.size:
+        raise AssertionError("sample_start must be unique within a region cache")
     split_arr = np.array(split_list, dtype=np.int8)
     event_idx_arr = np.array(event_idx_list, dtype=np.int32)
     anchor_idx_arr = np.array(anchor_idx_list, dtype=np.int32)
@@ -460,9 +614,12 @@ def build_samples_h5(region_name: str, region_node_idx: np.ndarray,
     inc_feat_arr = np.stack(inc_feat_list, axis=0)             # (S, M_max, C_e)
     inc_mask_arr = np.stack(inc_mask_list, axis=0)             # (S, M_max)
     n_active_arr = np.array(n_active_list, dtype=np.int32)
+    n_packed_arr = np.array(n_packed_list, dtype=np.int32)
     affected_arr = np.stack(affected_list, axis=0)             # (S, N)
     active_event_idx_arr = np.stack(active_event_idx_list, axis=0)  # (S, M_max) int32
     primary_slot_arr = np.asarray(primary_slot_list, dtype=np.int16)
+    anchor_event_mask_arr = np.stack(anchor_event_mask_list, axis=0)
+    n_origin_events_arr = np.asarray(n_origin_events_list, dtype=np.int16)
 
     split_counts = {0: int((split_arr == 0).sum()),
                     1: int((split_arr == 1).sum()),
@@ -470,23 +627,34 @@ def build_samples_h5(region_name: str, region_node_idx: np.ndarray,
     print(f"    split counts: train={split_counts[0]} val={split_counts[1]} test={split_counts[2]}")
 
     print(f"  [{region_name}] writing {out_path} ...", flush=True)
-    with h5py.File(out_path, "w") as f:
+    with atomic_h5_writer(out_path) as f:
         f.create_dataset("sample_start", data=sample_start_arr)
         f.create_dataset("split", data=split_arr)
         f.create_dataset("event_idx", data=event_idx_arr)
         f.create_dataset("event_start_idx", data=starts_sorted)
+        f.create_dataset(
+            "event_id",
+            data=event_ids_sorted,
+            dtype=h5py.string_dtype(encoding="utf-8"),
+        )
         f.create_dataset("anchor_region_idx", data=anchor_idx_arr)
         f.create_dataset("sample_offset", data=offset_arr)
         f.create_dataset("incident_feat", data=inc_feat_arr, compression="lzf")
         f.create_dataset("incident_mask", data=inc_mask_arr, compression="lzf")
         f.create_dataset("n_active_incidents", data=n_active_arr)
+        f.create_dataset("n_packed_incidents", data=n_packed_arr)
         f.create_dataset("active_event_idx", data=active_event_idx_arr,
                          compression="lzf")
         f.create_dataset("primary_incident_slot", data=primary_slot_arr)
+        f.create_dataset(
+            "anchor_event_mask", data=anchor_event_mask_arr, compression="lzf"
+        )
+        f.create_dataset("n_origin_events", data=n_origin_events_arr)
         analysis = f.create_group("analysis_labels")
         analysis.create_dataset("affected_mask", data=affected_arr, compression="lzf")
         f.attrs["region_name"] = region_name
         f.attrs["N"] = int(N)
+        f.attrs["T"] = int(total_steps)
         f.attrs["M_max"] = int(args.m_max)
         f.attrs["C_e"] = int(C_E)
         f.attrs["T_h"] = int(args.t_h)
@@ -498,6 +666,12 @@ def build_samples_h5(region_name: str, region_node_idx: np.ndarray,
         f.attrs["n_truncated_active"] = int(n_truncated)
         f.attrs["max_active_seen"] = int(max_active_seen)
         f.attrs["n_mixed_events_dropped"] = int(n_mixed_events_dropped)
+        f.attrs["n_mixed_active_event_samples_dropped"] = int(
+            n_mixed_active_event_samples_dropped
+        )
+        f.attrs["n_duplicate_sample_start_dropped"] = int(
+            n_duplicate_origins_dropped
+        )
         f.attrs["split_train_end"] = float(args.split_train_end)
         f.attrs["split_val_end"] = float(args.split_val_end)
         f.attrs["incident_feature_names"] = np.array(
@@ -513,6 +687,12 @@ def build_samples_h5(region_name: str, region_node_idx: np.ndarray,
             baseline_fit_end=baseline_fit_end,
             manifest=manifest,
             git_info=git_info,
+            bundle_id=bundle_id,
+            artifact_id=samples_cache_id,
+            cache_role="samples",
+            traffic_cache_id=traffic_cache_id,
+            samples_cache_id=samples_cache_id,
+            cache_mode=cache_mode,
         )
     sz = out_path.stat().st_size / (1024 ** 2)
     print(f"    saved {sz:.1f} MB")
@@ -525,6 +705,10 @@ def main() -> None:
     if not 0 < args.baseline_train_frac <= args.split_train_end:
         raise ValueError(
             "baseline_train_frac must be positive and cannot exceed split_train_end"
+        )
+    if args.smoke_events > 0 and args.out_dir == DEFAULT_REGION_DATA_DIR:
+        raise ValueError(
+            "smoke caches must use an explicit non-formal output directory"
         )
     args.out_dir.mkdir(parents=True, exist_ok=True)
     if not args.overwrite:
@@ -550,6 +734,19 @@ def main() -> None:
     meta = load_sensor_meta(args.archive)
     print(f"  global: {len(meta)} sensors")
     git_info = git_worktree_provenance(ROOT)
+    if git_info["git_dirty"] and not args.allow_dirty:
+        raise RuntimeError(
+            "formal cache builds require a clean Git worktree; use "
+            "--allow-dirty only for local smoke/debug builds"
+        )
+    cache_mode = resolve_cache_mode(
+        args.smoke_events, bool(git_info["git_dirty"])
+    )
+    if cache_mode != "formal" and args.out_dir == DEFAULT_REGION_DATA_DIR:
+        raise ValueError(
+            "smoke/debug caches must use an explicit non-formal output "
+            "directory"
+        )
     common_sources = [
         args.archive / "sensor_meta_feature.csv",
         args.archive / "node_order.npy",
@@ -559,6 +756,11 @@ def main() -> None:
     common_manifest = source_manifest(common_sources)
 
     specs = region_specs()
+    build_bundle_id = (
+        None
+        if args.samples_only
+        else f"bundle-{uuid.uuid4().hex}"
+    )
 
     for region_name in args.regions:
         if region_name not in specs:
@@ -602,10 +804,20 @@ def main() -> None:
                         "traffic cache; rebuild both files"
                     )
                 T = int(_f.attrs["T"])
+                bundle_id = str(_f.attrs.get("bundle_id", ""))
+                traffic_cache_id = str(
+                    _f.attrs.get("traffic_cache_id", "")
+                )
+                if not bundle_id or not traffic_cache_id:
+                    raise RuntimeError(
+                        "--samples-only requires v3 cache identity attributes"
+                    )
             print(f"  [samples-only] T={T} from existing traffic.h5")
             traffic = None
             baseline = scale = counts = train_valid = None
         else:
+            bundle_id = str(build_bundle_id)
+            traffic_cache_id = f"traffic-{uuid.uuid4().hex}"
             print(f"  loading traffic time series...", flush=True)
             t0 = time.time()
             traffic, times = load_region_traffic(args.archive, region_node_idx)
@@ -651,6 +863,9 @@ def main() -> None:
                 train_end=train_end, val_end=val_end,
                 baseline_fit_end=baseline_fit_end,
                 manifest=common_manifest, git_info=git_info,
+                bundle_id=bundle_id,
+                traffic_cache_id=traffic_cache_id,
+                cache_mode=cache_mode,
             )
 
         train_end = int(T * args.split_train_end)
@@ -664,6 +879,7 @@ def main() -> None:
         affected_lookup = build_affected_lookup(node_labels)
         print(f"    affected_lookup: {len(affected_lookup)} unique incident_ids")
 
+        samples_cache_id = f"samples-{uuid.uuid4().hex}"
         build_samples_h5(
             region_name=region_name, region_node_idx=region_node_idx,
             events=events, affected_lookup=affected_lookup,
@@ -671,6 +887,10 @@ def main() -> None:
             train_end=train_end, val_end=val_end,
             baseline_fit_end=baseline_fit_end,
             manifest=sample_manifest, git_info=git_info,
+            bundle_id=bundle_id,
+            traffic_cache_id=traffic_cache_id,
+            samples_cache_id=samples_cache_id,
+            cache_mode=cache_mode,
         )
 
         # Write a brief config note for this region
@@ -679,6 +899,10 @@ def main() -> None:
             "county": region.county,
             "cache_schema_version": CACHE_SCHEMA_VERSION,
             "protocol_version": PROTOCOL_VERSION,
+            "bundle_id": bundle_id,
+            "traffic_cache_id": traffic_cache_id,
+            "samples_cache_id": samples_cache_id,
+            "cache_mode": cache_mode,
             "N": int(N),
             "T": int(T),
             "C_e": int(C_E),
@@ -704,15 +928,13 @@ def main() -> None:
                 "longitude",
                 "incident_abs_pm",
             ],
-            "traffic_file": str(out_traffic),
-            "samples_file": str(out_samples),
+            "traffic_file": out_traffic.name,
+            "samples_file": out_samples.name,
             "traffic_source_manifest": common_manifest,
             "sample_source_manifest": sample_manifest,
             **git_info,
         }
-        out_config.write_text(
-            json.dumps(meta_json, indent=2), encoding="utf-8"
-        )
+        atomic_json_writer(out_config, meta_json)
         if not args.samples_only:
             del traffic, baseline, scale, train_valid
 

@@ -22,11 +22,18 @@ import numpy as np
 def load_igstgnn(region_dir: str):
     pred_p = Path(f"outputs/igstgnn_ours_pipeline_fixed/{region_dir}/test_predictions.npz")
     d = np.load(pred_p)
-    return d["preds"], d["labels"]
+    if "y_mask" not in d.files:
+        raise RuntimeError(
+            f"{pred_p} is missing required y_mask; rerun the mask-aware "
+            "IGSTGNN pipeline before fair comparison"
+        )
+    if d["preds"].shape != d["labels"].shape or d["y_mask"].shape != d["labels"].shape:
+        raise RuntimeError(f"{pred_p} has misaligned prediction or mask shapes")
+    return d["preds"], d["labels"], d["y_mask"].astype(bool)
 
 
 def match_and_breakdown(region: str, region_dir: str):
-    igs_pred, igs_label = load_igstgnn(region_dir)
+    igs_pred, igs_label, igs_mask = load_igstgnn(region_dir)
     S_igs, T_p, N_igs = igs_pred.shape
     print(f"\n=== {region} ===")
     print(f"IGSTGNN preds: {igs_pred.shape}, labels: {igs_label.shape}")
@@ -101,7 +108,7 @@ def match_and_breakdown(region: str, region_dir: str):
     igs_p = igs_pred[matched_idx]
     igs_l = igs_label[matched_idx]
     our_aff_match = our_aff[our_rows]
-    our_mask_match = our_mask[our_rows]
+    our_mask_match = our_mask[our_rows] & igs_mask[matched_idx]
 
     # Also compute FourierDualNet MAE on the SAME windows for direct comparison
     fdn_pred_match = fdn["pred_raw_flow"][our_rows]

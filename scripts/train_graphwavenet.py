@@ -6,12 +6,12 @@ model per region and write per-region checkpoint + per-region test predictions
 in the same .npz schema as scripts/run_distnet_test_inference.py.
 
 Reads:
-  outputs/dist_net/region_data_v2_noleak/<region>_traffic.h5
-  outputs/dist_net/region_data_v2_noleak/<region>_samples.h5
+  outputs/dist_net/region_data_v3_noleak_dedup/<region>_traffic.h5
+  outputs/dist_net/region_data_v3_noleak_dedup/<region>_samples.h5
   outputs/region_graphs/<region_key>_sparse_adj.npz     edge_index → adj matrix
 
 Writes:
-  outputs/protocol_v2_noleak/baselines/graphwavenet/<region>/
+  outputs/protocol_v3_noleak_dedup/baselines/graphwavenet/<region>/
     ckpt_best.pt
     test_predictions.npz   (same schema as DIST-Net)
     summary.json
@@ -34,6 +34,9 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from dist_net.data import MultiRegionDataset, FullWindowRegionData, RegionData, make_loader
+from dist_net.graph import bidirectional_random_walk_supports
+from dist_net.metrics import MaskedMAEAccumulator, masked_mae_loss
+from dist_net.training_runtime import TrainingRunContext
 from model import gwnet
 
 REGION_TO_GRAPH_KEY = {
@@ -47,10 +50,10 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("--region", required=True, choices=list(REGION_TO_GRAPH_KEY.keys()))
     p.add_argument("--data-dir", type=Path,
-                   default=Path("outputs/dist_net/region_data_v2_noleak"))
+                   default=Path("outputs/dist_net/region_data_v3_noleak_dedup"))
     p.add_argument("--graph-dir", type=Path, default=Path("outputs/region_graphs"))
     p.add_argument("--out-dir", type=Path,
-                   default=Path("outputs/protocol_v2_noleak/baselines/graphwavenet"))
+                   default=Path("outputs/protocol_v3_noleak_dedup/baselines/graphwavenet"))
     p.add_argument("--epochs", type=int, default=30)
     p.add_argument("--batch-size", type=int, default=32)
     p.add_argument("--lr", type=float, default=1e-3)
@@ -79,17 +82,7 @@ def build_adj_supports(edge_index: np.ndarray, N: int, device: torch.device
                        ) -> list[torch.Tensor]:
     """Build (forward, backward) random-walk normalized adjacency from edge_index.
     GraphWaveNet's 'doubletransition' adjacency."""
-    A = np.zeros((N, N), dtype=np.float32)
-    A[edge_index[0], edge_index[1]] = 1.0
-    np.fill_diagonal(A, 1.0)
-    deg = A.sum(axis=1)
-    deg_inv = np.where(deg > 0, 1.0 / deg, 0.0)
-    A_fwd = deg_inv[:, None] * A
-    A_bwd = (deg_inv[:, None] * A.T)
-    return [
-        torch.from_numpy(A_fwd).to(device),
-        torch.from_numpy(A_bwd).to(device),
-    ]
+    return bidirectional_random_walk_supports(edge_index, N, device)
 
 
 def to_gwnet_input(x_hist: torch.Tensor) -> torch.Tensor:
@@ -106,16 +99,13 @@ def masked_mae(pred: torch.Tensor, target: torch.Tensor,
                mask: torch.Tensor) -> torch.Tensor:
     """Mean absolute error over valid positions only.
     pred/target/mask all (B, N, T_p)."""
-    mask = mask.float()
-    num = (pred - target).abs() * mask
-    denom = mask.sum().clamp(min=1.0)
-    return num.sum() / denom
+    return masked_mae_loss(pred, target, mask)
 
 
 @torch.no_grad()
 def evaluate(model, loader, device, supports) -> dict[str, float]:
     model.eval()
-    total, n = 0.0, 0
+    metric = MaskedMAEAccumulator()
     for batch in loader:
         x_hist = batch["x_hist"].to(device)
         y_true = batch["y_true"][..., 0].to(device)
@@ -123,11 +113,9 @@ def evaluate(model, loader, device, supports) -> dict[str, float]:
         x_in = to_gwnet_input(x_hist)
         out = model(x_in)
         pred = from_gwnet_output(out)
-        l = masked_mae(pred, y_true, y_mask)
-        total += float(l.item()) * x_hist.size(0)
-        n += x_hist.size(0)
+        metric.update(pred, y_true, y_mask)
     model.train()
-    return {"L_main": total / max(n, 1)}
+    return {"L_main": metric.compute()}
 
 
 def main() -> None:
@@ -144,7 +132,16 @@ def main() -> None:
     else:
         rd_cls, rd_kw, out_base = RegionData, {}, args.out_dir
     out_dir = out_base / args.region
-    out_dir.mkdir(parents=True, exist_ok=True)
+    run_context = TrainingRunContext.prepare(
+        out_dir,
+        data_dir=args.data_dir,
+        region=args.region,
+        model="graphwavenet",
+        variant="base",
+        seed=args.seed,
+        sampling_protocol=args.protocol,
+    )
+    out_dir = run_context.output_dir
 
     def mk(split):
         return MultiRegionDataset(
@@ -156,6 +153,7 @@ def main() -> None:
     val_ds = mk("val")
     test_ds = mk("test")
     rdata = train_ds.regions[args.region]
+    run_context.verify_region_cache(rdata)
     N = int(rdata.N)
     C_x = 3
     T_h = int(rdata.T_h)
@@ -280,15 +278,21 @@ def main() -> None:
     aff_TpN = np.broadcast_to(affected[:, None, :], (S, T_p, N))
     mae_all = float(diff[valid].mean()) if valid.any() else float("nan")
     valid_aff = valid & aff_TpN
-    mae_aff = float(diff[valid_aff].mean()) if valid_aff.any() else float("nan")
+    mae_aff = float(diff[valid_aff].mean()) if valid_aff.any() else None
     valid_un = valid & (~aff_TpN)
-    mae_un = float(diff[valid_un].mean()) if valid_un.any() else float("nan")
+    mae_un = float(diff[valid_un].mean()) if valid_un.any() else None
     summary = {"all": mae_all, "affected": mae_aff, "unaffected": mae_un,
                "best_val_L_main": best_val, **rdata.result_metadata()}
-    print(f"\ntest MAE: all={mae_all:.3f}  affected={mae_aff:.3f}  unaffected={mae_un:.3f}",
-          flush=True)
-    (out_dir / "summary.json").write_text(json.dumps(summary, indent=2),
-                                           encoding="utf-8")
+    print(
+        f"\ntest MAE: all={mae_all:.3f}  affected={mae_aff}  "
+        f"unaffected={mae_un}",
+        flush=True,
+    )
+    run_context.write_summary(
+        summary,
+        valid_count=int(valid.sum()),
+        required_metrics=("all",),
+    )
 
 
 if __name__ == "__main__":

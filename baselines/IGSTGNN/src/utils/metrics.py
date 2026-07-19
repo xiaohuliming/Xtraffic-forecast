@@ -1,53 +1,54 @@
 import torch
 
-def masked_mse(preds, labels, null_val):
-    if torch.isnan(null_val):
-        mask = ~torch.isnan(labels)
-    else:
-        mask = (labels != null_val)
-    mask = mask.float()
-    mask /= torch.mean((mask))
-    mask = torch.where(torch.isnan(mask), torch.zeros_like(mask), mask)
-    loss = (preds - labels)**2
-    loss = loss * mask
-    loss = torch.where(torch.isnan(loss), torch.zeros_like(loss), loss)
-    return torch.mean(loss)
+
+def _observation_mask(preds, labels, observed_mask):
+    if preds.shape != labels.shape:
+        raise ValueError(
+            f"prediction shape {preds.shape} does not match label shape {labels.shape}"
+        )
+    if observed_mask.shape != labels.shape:
+        raise ValueError(
+            f"observation mask shape {observed_mask.shape} does not match "
+            f"label shape {labels.shape}"
+        )
+    mask = observed_mask.to(device=labels.device, dtype=torch.bool)
+    if not torch.any(mask):
+        raise RuntimeError("metric has no observed target values")
+    if not torch.isfinite(labels[mask]).all():
+        raise RuntimeError("observed labels contain non-finite values")
+    if not torch.isfinite(preds[mask]).all():
+        raise RuntimeError("predictions contain non-finite values at observed targets")
+    return mask
 
 
-def masked_rmse(preds, labels, null_val):
-    return torch.sqrt(masked_mse(preds=preds, labels=labels, null_val=null_val))
+def masked_mse(preds, labels, observed_mask):
+    mask = _observation_mask(preds, labels, observed_mask)
+    return ((preds - labels) ** 2)[mask].mean()
 
 
-def masked_mae(preds, labels, null_val):
-    if torch.isnan(null_val):
-        mask = ~torch.isnan(labels)
-    else:
-        mask = (labels != null_val)
-    mask = mask.float()
-    mask /= torch.mean((mask))
-    mask = torch.where(torch.isnan(mask), torch.zeros_like(mask), mask)
-    loss = torch.abs(preds - labels)
-    loss = loss * mask
-    loss = torch.where(torch.isnan(loss), torch.zeros_like(loss), loss)
-    return torch.mean(loss)
+def masked_rmse(preds, labels, observed_mask):
+    return torch.sqrt(
+        masked_mse(
+            preds=preds,
+            labels=labels,
+            observed_mask=observed_mask,
+        )
+    )
 
 
-def masked_mape(preds, labels, null_val):
-    if torch.isnan(null_val):
-        mask = ~torch.isnan(labels)
-    else:
-        mask = (labels != null_val)
-    mask = mask.float()
-    mask /= torch.mean((mask))
-    mask = torch.where(torch.isnan(mask), torch.zeros_like(mask), mask)
-    loss = torch.abs(preds - labels) / labels
-    loss = loss * mask
-    loss = torch.where(torch.isnan(loss), torch.zeros_like(loss), loss)
-    return torch.mean(loss)
+def masked_mae(preds, labels, observed_mask):
+    mask = _observation_mask(preds, labels, observed_mask)
+    return torch.abs(preds - labels)[mask].mean()
 
 
-def compute_all_metrics(preds, labels, null_val):
-    mae = masked_mae(preds, labels, null_val).item()
-    mape = masked_mape(preds, labels, null_val).item()
-    rmse = masked_rmse(preds, labels, null_val).item()
+def masked_mape(preds, labels, observed_mask):
+    mask = _observation_mask(preds, labels, observed_mask)
+    percentage_error = torch.abs(preds - labels) / labels.abs().clamp_min(1e-6)
+    return percentage_error[mask].mean()
+
+
+def compute_all_metrics(preds, labels, observed_mask):
+    mae = masked_mae(preds, labels, observed_mask).item()
+    mape = masked_mape(preds, labels, observed_mask).item()
+    rmse = masked_rmse(preds, labels, observed_mask).item()
     return mae, mape, rmse

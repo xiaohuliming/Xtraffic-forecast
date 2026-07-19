@@ -23,6 +23,7 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from dist_net.data import MultiRegionDataset, make_loader
+from dist_net.metrics import MaskedMAEAccumulator
 from fourier_dual_net.regimeflow import RFNv0
 from fourier_dual_net.deseason import train_residual_std
 
@@ -37,16 +38,29 @@ def masked_mae(pred, target, mask):
     return ((pred - target).abs() * mask).sum() / mask.sum().clamp(min=1.0)
 
 
+@torch.no_grad()
+def evaluate(model, loader, device, predict_batch):
+    model.eval()
+    metric = MaskedMAEAccumulator()
+    for batch in loader:
+        prediction = predict_batch(model, batch)
+        target = batch["y_true"][..., 0].to(device)
+        mask = batch["y_mask"][..., 0].to(device)
+        metric.update(prediction, target, mask)
+    model.train()
+    return metric.compute()
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--region", default="Alameda", choices=["Alameda", "ContraCosta", "Orange"])
     p.add_argument("--variant", required=True, choices=list(VARIANTS))
-    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v2_noleak")
+    p.add_argument("--data_dir", default="outputs/dist_net/region_data_v3_noleak_dedup")
     p.add_argument("--graph_dir", default="outputs/region_graphs")
     p.add_argument(
         "--out_dir",
         type=Path,
-        default=Path("outputs/protocol_v2_noleak/rfn"),
+        default=Path("outputs/protocol_v3_noleak_dedup/rfn"),
     )
     p.add_argument("--epochs", type=int, default=30)
     p.add_argument("--batch_size", type=int, default=16)
@@ -101,7 +115,13 @@ def main():
         return
 
     val_ds = MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split="val")
-    test_ds = MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split="test")
+    test_ds = MultiRegionDataset(
+        [args.region],
+        args.data_dir,
+        args.graph_dir,
+        split="test",
+        region_data_kwargs={"include_analysis_labels": True},
+    )
     out_dir = args.out_dir / args.region / f"{args.variant}_seed{args.seed}"
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -117,15 +137,6 @@ def main():
     nb = (len(train_ds) + args.batch_size - 1) // args.batch_size
     sched = CosineAnnealingLR(opt, T_max=max(args.epochs, 1) * max(nb, 1), eta_min=args.lr * 1e-2)
 
-    def ev(loader):
-        model.eval(); tot, n = 0.0, 0
-        with torch.no_grad():
-            for batch in loader:
-                y = forward_batch(model, batch)
-                t = batch["y_true"][..., 0].to(device); msk = batch["y_mask"][..., 0].to(device)
-                tot += float(masked_mae(y, t, msk).item()) * y.size(0); n += y.size(0)
-        model.train(); return tot / max(n, 1)
-
     best = float("inf")
     for ep in range(1, args.epochs + 1):
         t0 = time.time(); s, n = 0.0, 0
@@ -137,7 +148,7 @@ def main():
             torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0)
             opt.step(); sched.step()
             s += float(loss.item()) * y.size(0); n += y.size(0)
-        v = ev(val_loader)
+        v = evaluate(model, val_loader, device, forward_batch)
         print(f"==> ep{ep:02d} train L={s/max(n,1):.4f} val L={v:.4f} ({time.time()-t0:.0f}s)", flush=True)
         if v < best:
             best = v

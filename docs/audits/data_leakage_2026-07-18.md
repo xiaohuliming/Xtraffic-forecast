@@ -1,31 +1,115 @@
 # XTraffic 数据泄露审计
 
 审计日期：2026-07-18
-审计状态：问题已确认，v2 代码修复与正式缓存验收完成，最小判别矩阵正在重跑
+复核日期：2026-07-19
+审计状态：旧问题已确认，v2 复核又发现重复预测时刻、事件跨切分与训练评估实现问题。v3 代码已修复，正式缓存已通过两次严格审计，训练尚未启动
 审计对象：仓库代码与 `outputs/dist_net/region_data/` 中的三个区域缓存
 
 ## 当前修复状态
 
-旧缓存和旧输出保持只读。正式 v2 构建器默认写入 `outputs/dist_net/region_data_v2_noleak`，训练入口默认写入 `outputs/protocol_v2_noleak`。
+旧缓存、v2 缓存和旧输出保持只读。v2 最小判别矩阵已经停止。其最先完成的四项只能作为 `contaminated preliminary` 保留，不能恢复论文结论。
+
+v3 代码使用 `protocol_v3_noleak_dedup`，默认缓存目录为 `outputs/dist_net/region_data_v3_noleak_dedup`，默认结果目录为 `outputs/protocol_v3_noleak_dedup`。正式缓存构建代码 SHA 为 `29159f626494de52c69b36fe5bba9854f13cb56c`。当前代码已纳入 `origin/fu` 提交 `625aacf` 中经复核合理的部分，全套测试结果为 143 passed、1 warning。最终训练代码 SHA 待 main 合并后锁定。正式缓存已在 staging 路径和正式路径各通过一次严格审计，状态为 `verified`。正式 bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，总 digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。训练尚未启动。
+
+完整 v3 复核记录见 [protocol_v3_review_2026-07-19.md](protocol_v3_review_2026-07-19.md)。
 
 已实现：
 
 - `dist_net/protocol.py` 统一定义因果前向填充、完整目标窗切分、event group 隔离、full-window 索引、forecast window 边界、训练拟合掩码和可部署事故特征。
-- `scripts/build_full_county_cache.py` 不再调用事故匹配生成气候态，不再把最终 duration 和 severity 写入可部署输入，并将 affected 移到 `analysis_labels`。
-- v2 H5 记录 schema、协议、精确切分边界、拟合范围、源文件 SHA-256、Git SHA、分支和 dirty 状态。
-- `dist_net/data.py` 默认拒绝旧协议缓存，full-window 三个 split 的目标时间集合两两互斥。
+- `scripts/build_full_county_cache.py` 对同一预测时刻只保留一个样本，以最近 anchor 为主事故，并将完整 active event 集合用于切分隔离与 affected 分析标签生成。
+- `scripts/build_full_county_cache.py` 不再调用事故匹配生成气候态，不再把最终 duration 和 severity 写入可部署输入，并将 affected 移到显式分析接口。
+- v3 H5 记录 schema、协议、精确切分边界、拟合范围、源文件 SHA-256、Git SHA、分支和 dirty 状态。
+- `dist_net/data.py` 默认拒绝旧协议缓存，检查唯一 forecast origin、active event 跨 split 隔离、目标时间互斥、缓存配对身份与内容哈希。
 - ICSF 使用存储的 `primary_incident_slot` 和预测时刻已知的 elapsed time。
-- `scripts/build_igstgnn_data_from_h5.py` 与 RegionData 使用同一 forecast origin，并校验 anchor event。
-- `tests/data/` 覆盖 prefix invariance、完整目标窗、event group、full-window 目标互斥、label-free 拟合范围、事后字段不变性、主事故保留、窗口对齐、v2 加载和 cache 元数据。
+- `scripts/build_igstgnn_data_from_h5.py` 与 RegionData 使用同一 forecast origin，保留 `x_mask` 与 `y_mask`，并校验 anchor event。
+- 训练入口按全部有效观测点累计验证集 masked MAE，修正反向图归一化，按 epoch 更新区域采样顺序，并在 blind 模式隔离 affected 标签。
+- masked metric 允许跳过有效点数为零的单个 batch，但整个 split 的有效点总数为零时必须失败。预测张量任意位置出现非有限值时也必须失败。
+- IGSTGNN 训练与评估显式使用 `y_mask`，覆盖尾批，统一累计全局指标与 elapsed time。
+- 缓存和远程 runner 使用协议版本、cache bundle、内容摘要与 Git SHA 的严格身份契约，正式运行拒绝 dirty worktree、身份不匹配和旧检查点复用。
+- 回归测试覆盖 prefix invariance、完整目标窗、active event split 隔离、full-window 目标互斥、label-free 拟合范围、事后字段不变性、最近主事故选择、IGSTGNN 窗口与掩码对齐、全局 masked MAE、图归一化、epoch sampler、blind 标签隔离、cache 身份和 runner 身份。
 
 执行进展：
 
-- 2026-07-19 已用完整原始数据生成三个区域的 v2 H5 与事故关系缓存。
-- 事件协议、full-window 协议、schema、provenance 与远端 28 项测试均已通过验收。
-- 45 项最小判别矩阵已经在 5080 上串行启动，尚未产生完整的新结果。
-- 因此下文旧结果的 `contaminated` 状态不变。
+- 2026-07-19 完成 v2 缓存复核，确认三个区域均存在同一 forecast origin 的重复样本。
+- 2026-07-19 停止 v2 的 5080 串行队列。最先完成的四项保留原文件，但状态均为 `contaminated preliminary`。
+- 2026-07-19 完成 v3 代码复核，全套测试结果为 143 passed、1 warning。
+- 正式 v3 缓存已完成构建，并在 staging 路径与正式路径各通过一次严格审计。
+- v3 最小判别矩阵训练尚未启动。
+- 因此下文旧结果和 v2 初步结果的 `contaminated` 状态不变。
 
 下文“代码证据”描述审计时的旧实现，可在 Git 历史提交 `c89bcfb` 中复核，不代表当前 v2 文件仍含同一代码。
+
+## v3 正式缓存验收
+
+正式审计清单为 `outputs/dist_net/region_data_v3_noleak_dedup/cache_bundle_manifest.json`。清单状态为 `verified`，缓存 schema 为 3，协议为 `protocol_v3_noleak_dedup`。
+
+| 区域 | 正式样本数 | train | val | test | 去除重复行 | mixed active 清理 |
+|---|---:|---:|---:|---:|---:|---:|
+| Alameda | 45760 | 32001 | 6954 | 6805 | 17021 | 8 |
+| ContraCosta | 23337 | 16414 | 3472 | 3451 | 3884 | 4 |
+| Orange | 60015 | 42372 | 9098 | 8545 | 45464 | 11 |
+
+| 区域 | 区域 cache bundle digest |
+|---|---|
+| Alameda | `736bc6e8db2b93dded9e8c72aca00acfeb28dbb2bbaa3053c3f7d5ca2e83c682` |
+| ContraCosta | `0eaaaa34100ef6cf4bea50b514156fd913b58db2197696b2ea21f0cb01ee8d45` |
+| Orange | `06ea38c6d0d31890bc9a238a7d4d890f2ec20a5ba17a527b291526e6806deb95` |
+
+这些数量和摘要均来自正式落盘 manifest。缓存验收只确认数据协议和 artifact 身份通过审计，不产生模型性能结论。
+
+## v2 后续复核发现
+
+v2 已修复最初审计中的未来插值、标签气候态、事后事故输入、目标窗口跨边界和 IGSTGNN 预测时刻错位，但仍存在会影响实验有效性的独立问题。
+
+### 重复 forecast origin
+
+同一预测时刻可能由多个事故各生成一行，导致完全相同的交通输入与目标被重复用于训练和评估。重复行会按事故密度改变样本权重，使指标不再代表唯一预测时刻的平均误差。
+
+| 区域 | v2 样本行 | 唯一 forecast origin | 重复行 |
+|---|---:|---:|---:|
+| Alameda | 62789 | 45768 | 17021 |
+| ContraCosta | 27225 | 23341 | 3884 |
+| Orange | 105490 | 60026 | 45464 |
+
+v2 的同一 forecast origin 采用首行并不能稳定代表最近 anchor。v3 改为每个 forecast origin 只保留一行，主事故按距离预测时刻最近的 anchor 选择，稳定 event ID 用于打破并列。
+
+### active event 跨 split
+
+只隔离主事故不足以防止同一个活跃事故通过另一个样本进入相邻 split。v2 的 active event 身份交集如下。
+
+| 区域 | train 与 val 共享 active event | val 与 test 共享 active event |
+|---|---:|---:|
+| Alameda | 2 | 1 |
+| ContraCosta | 3 | 0 |
+| Orange | 6 | 0 |
+
+v3 使用每个样本的完整 active event 集合执行切分隔离。跨 split 的 event group 必须从相邻 split 中清除，加载时再次校验集合两两不相交。
+
+### 训练与评估实现
+
+v2 复核还确认以下问题：
+
+- 验证 MAE 曾先按 batch 或样本求均值，再对均值平均。缺失掩码不同或尾批较小时会改变最佳检查点选择。
+- 部分 Graph WaveNet 与 Fourier Dual Net 入口的反向邻接归一化方向错误。
+- 区域分桶采样器每个 epoch 重复相同顺序。
+- DIST-Net 的 blind 配置仍可能通过损失权重读取 affected 标签。
+- IGSTGNN 转换未完整保留目标缺失掩码，训练和评估未统一处理尾批、elapsed time 与全局 masked metric。
+- v2 runner 缺少严格的代码、缓存和结果身份绑定，存在旧检查点或错配缓存被误用的风险。
+
+这些问题均纳入 v3 代码修复。正式缓存已经通过审计，模型结论的有效性仍取决于新训练落盘结果。
+
+### 已停止的 v2 初步远程结果
+
+以下四项已经完成，但来自重复计权的 v2 样本，只能保留为 `contaminated preliminary`：
+
+| 区域 | 配置 | 种子 | 状态 |
+|---|---|---:|---|
+| Alameda | s0a | 42 | contaminated preliminary |
+| Alameda | s0c | 42 | contaminated preliminary |
+| ContraCosta | s0a | 42 | contaminated preliminary |
+| ContraCosta | s0c | 42 | contaminated preliminary |
+
+其余 v2 队列已停止。任何 v2 初步数值都不能与后续 v3 结果合并统计，也不能用于论文主表。
 
 ## 结论
 
@@ -240,10 +324,14 @@ NDR-Net 在训练期使用真实 y 构造 oracle 门控蒸馏目标，本身属�
 | RADS、RADS-O 与 NDR-Net | contaminated | 双向插值、标签清洗气候态与统计边界 |
 | DIST-Net 与 ICSF | contaminated | 双向插值、事后事故输入与边界问题 |
 | H5 转 IGSTGNN | contaminated | 双向插值、事后 duration 与时间语义错位 |
-| XTraffic baseline zoo | pending | 旧缓存受污染，运行结果尚未权威汇总 |
+| v2 最先完成的四项远程结果 | contaminated preliminary | forecast origin 重复计权，active event 跨 split，验证指标与训练实现仍有问题 |
+| v2 其余最小判别矩阵 | stopped | v3 全面复核开始后停止 |
+| v3 正式缓存 | verified | staging 与正式路径各通过一次严格审计 |
+| v3 最小判别矩阵 | pending | 正式缓存已验收，训练尚未启动 |
+| XTraffic baseline zoo | pending | 等待 v3 最小判别矩阵 |
 | METR-LA、PEMS04 与 PEMS08 | not affected by this audit | 不经过 XTraffic H5 缓存 |
 
-## 修复顺序
+## 2026-07-18 原始修复顺序
 
 1. 冻结旧缓存与旧输出，不再用于论文结论。
 2. 建立带 schema version 的 v2 缓存。
@@ -273,4 +361,4 @@ NDR-Net 在训练期使用真实 y 构造 oracle 门控蒸馏目标，本身属�
 
 ## 输出保留策略
 
-旧结果不删除、不覆盖。修复后的实验使用新的缓存名和输出目录，例如 `protocol_v2_noleak`。summary 必须补齐协议版本、切分边界、normalizer 与 climatology 的拟合范围、缓存哈希、Git SHA、dirty 状态和 schema version。
+旧结果和 v2 初步结果不删除、不覆盖。v3 实验使用新缓存目录 `outputs/dist_net/region_data_v3_noleak_dedup` 与新输出根目录 `outputs/protocol_v3_noleak_dedup`。summary 必须补齐协议版本、切分边界、normalizer 与 climatology 的拟合范围、cache bundle ID、内容摘要、Git SHA、dirty 状态和 schema version。正式 runner 必须拒绝缓存身份不匹配、代码身份不匹配、dirty worktree 和已存在的旧检查点。
