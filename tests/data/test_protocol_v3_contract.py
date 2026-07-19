@@ -15,14 +15,14 @@ from dist_net.protocol import (
 def test_v3_protocol_has_new_schema_and_output_roots():
     assert CACHE_SCHEMA_VERSION == 3
     assert PROTOCOL_VERSION == "protocol_v3_noleak_dedup"
-    assert str(DEFAULT_REGION_DATA_DIR).endswith(
+    assert DEFAULT_REGION_DATA_DIR.as_posix().endswith(
         "outputs/dist_net/region_data_v3_noleak_dedup"
     )
-    assert str(DEFAULT_RESULT_ROOT).endswith(
+    assert DEFAULT_RESULT_ROOT.as_posix().endswith(
         "outputs/protocol_v3_noleak_dedup"
     )
-    assert "v2" not in str(DEFAULT_REGION_DATA_DIR)
-    assert "v2" not in str(DEFAULT_RESULT_ROOT)
+    assert "v2" not in DEFAULT_REGION_DATA_DIR.as_posix()
+    assert "v2" not in DEFAULT_RESULT_ROOT.as_posix()
 
 
 def test_event_identity_is_stable_and_prefers_aggregate_id():
