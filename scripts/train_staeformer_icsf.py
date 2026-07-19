@@ -167,7 +167,7 @@ def main():
     flows = rdata.flow_series[:, :, 0]
     fmask = rdata.flow_mask[:, :, 0].astype(bool)
     tr_ss = rdata.sample_start[rdata.split == 0]
-    hi = int(tr_ss.max()) + T_h + T_p
+    hi = int(tr_ss.max()) + T_p + 1
     seg = flows[:hi]; segm = fmask[:hi]
     mu, sd = float(seg[segm].mean()), float(seg[segm].std() + 1e-6)
     print(f"N={N} T_h={T_h} T_p={T_p} flow mu={mu:.2f} sd={sd:.2f}", flush=True)

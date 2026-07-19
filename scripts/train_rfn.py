@@ -67,7 +67,7 @@ def main():
     N, T_h, T_p = int(rdata.N), int(rdata.T_h), int(rdata.T_p)
 
     tr_ss = rdata.sample_start[rdata.split == 0]
-    hi = int(tr_ss.max()) + T_h + T_p
+    hi = int(tr_ss.max()) + T_p + 1
     sd = np.array([train_residual_std(rdata.flow_series, rdata.flow_mask, rdata.baseline_median,
                                       rdata.day_kind, rdata.tod, hi, ch=c) for c in range(3)],
                   dtype=np.float32)

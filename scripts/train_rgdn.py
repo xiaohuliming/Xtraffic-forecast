@@ -67,7 +67,7 @@ def train_stats(rdata, T_h, T_p):
     flows = rdata.flow_series[:, :, 0]
     fmask = rdata.flow_mask[:, :, 0].astype(bool)
     tr_ss = rdata.sample_start[rdata.split == 0]
-    hi = int(tr_ss.max()) + T_h + T_p
+    hi = int(tr_ss.max()) + T_p + 1
     seg, segm = flows[:hi], fmask[:hi]
     mu, sd = float(seg[segm].mean()), float(seg[segm].std() + 1e-6)
     sd_qov = np.array([train_residual_std(rdata.flow_series, rdata.flow_mask,

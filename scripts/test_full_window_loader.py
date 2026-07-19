@@ -55,9 +55,8 @@ def main():
     assert np.allclose(s["x_hist"], np.transpose(raw_hist, (1, 0, 2))), "x_hist mismatch"
     assert np.allclose(s["y_true"], np.transpose(raw_fut, (1, 0, 2))), "y_true mismatch"
 
-    # 5. train z-score window (flows[:tr.max()+T_h+T_p]) sits at the train/val
-    #    boundary; report the ~T_h+T_p step adjacency (inherent to contiguous splits).
-    train_stat_hi = int(tr.max()) + T_h + T_p
+    # 5. Exclusive upper bound through the final target of the last train sample.
+    train_stat_hi = int(tr.max()) + T_p + 1
 
     print(f"[OK] {REGION} stride={STRIDE}: T={T} N={N} windows={n} "
           f"train/val/test={len(tr)}/{len(va)}/{len(te)} "

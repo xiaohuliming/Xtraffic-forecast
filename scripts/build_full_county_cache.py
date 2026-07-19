@@ -6,7 +6,7 @@ For each region produces 2 HDF5 files under outputs/dist_net/region_data/:
   {region}_samples.h5  - per-sample metadata (event-anchored)
 
 Continuous traffic file (loaded once per region at training time):
-  /flow_series_imputed (T, N, 3)  float32  linear-interpolated raw flow
+  /flow_series_imputed (T, N, 3)  float32  causally forward-filled raw traffic
   /flow_mask           (T, N, 3)  bool     1=originally observed
   /time_enc            (T, 5)     float32  sin/cos(tod)+sin/cos(dow)+holiday
   /static_meta         (N, C_meta) float32 sensor static features (z-normalized)
@@ -30,9 +30,11 @@ from __future__ import annotations
 
 import argparse
 import bisect
+import hashlib
 import json
 import math
 import time
+import uuid
 from pathlib import Path
 
 import h5py
@@ -72,6 +74,8 @@ DEFAULT_T_H = 12
 DEFAULT_T_P = 12
 DEFAULT_SAMPLE_OFFSETS = (0, 6, 12)
 DEFAULT_ACTIVE_WINDOW = 24  # 2 hours = 24 5-min steps
+CAUSAL_IMPUTATION_METHOD = "causal_forward_fill"
+CACHE_SCHEMA_VERSION = 2
 DEFAULT_META_COLUMNS = [
     "Lat", "Lng", "Abs PM", "Fwy",
     # numerics from sensor_meta_feature
@@ -117,13 +121,223 @@ def parse_args() -> argparse.Namespace:
 
 
 def split_code(sample_start: int, total_steps: int,
-               train_end: float, val_end: float) -> int:
-    frac = sample_start / total_steps
-    if frac < train_end:
+               train_end: float, val_end: float,
+               t_p: int) -> int | None:
+    """Assign a split only when the complete prediction window stays inside it."""
+    train_cutoff = int(total_steps * train_end)
+    val_cutoff = int(total_steps * val_end)
+    target_lo = sample_start + 1
+    target_hi = sample_start + t_p  # inclusive
+
+    if target_hi < train_cutoff:
         return 0  # train
-    if frac < val_end:
+    if target_lo >= train_cutoff and target_hi < val_cutoff:
         return 1  # val
-    return 2      # test
+    if target_lo >= val_cutoff and target_hi < total_steps:
+        return 2  # test
+    return None  # target window crosses a split boundary
+
+
+def validate_preprocessing_args(args: argparse.Namespace) -> None:
+    """Reject configurations that let baseline fitting enter validation time."""
+    if not 0.0 < args.baseline_train_frac <= 1.0:
+        raise ValueError("--baseline-train-frac must be in (0, 1]")
+    if not 0.0 < args.split_train_end < args.split_val_end < 1.0:
+        raise ValueError(
+            "split fractions must satisfy 0 < --split-train-end "
+            "< --split-val-end < 1"
+        )
+    if args.baseline_train_frac > args.split_train_end:
+        raise ValueError(
+            "--baseline-train-frac must be <= --split-train-end; otherwise "
+            "baseline statistics would use validation-period traffic"
+        )
+
+
+def _attr_text(value: object) -> str:
+    if isinstance(value, (bytes, np.bytes_)):
+        return value.decode()
+    return str(value)
+
+
+def _file_sha256(path: Path, chunk_size: int = 1024 * 1024) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while chunk := handle.read(chunk_size):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def require_causal_traffic_cache(
+    path: Path,
+    *,
+    expected_region: str | None = None,
+    expected_n: int | None = None,
+    expected_baseline_train_frac: float | None = None,
+    expected_split_train_end: float | None = None,
+    expected_candidate_pm_radius: float | None = None,
+    expected_anchor_pm_radius: float | None = None,
+    expected_baseline_mask_extra_steps: int | None = None,
+    expected_min_baseline_count: int | None = None,
+) -> dict[str, object]:
+    """Load and strictly validate metadata needed to reuse a traffic cache.
+
+    This deliberately fails closed for legacy files.  In particular,
+    ``--samples-only`` must not combine newly generated samples with baseline
+    statistics whose fitting cutoff cannot be verified.
+    """
+    required = {
+        "cache_schema_version", "cache_id", "build_id", "traffic_cache_id",
+        "imputation_method", "baseline_train_frac", "baseline_train_cutoff",
+        "candidate_pm_radius", "anchor_pm_radius",
+        "baseline_mask_extra_steps", "min_baseline_count",
+        "builder_source_sha256", "region_name", "N", "T",
+    }
+    with h5py.File(path, "r") as f:
+        missing = sorted(required.difference(f.attrs.keys()))
+        if missing:
+            raise RuntimeError(
+                f"--samples-only refuses unverifiable traffic cache {path}: "
+                f"missing metadata {missing}; rebuild traffic and samples together"
+            )
+        schema_version = int(f.attrs["cache_schema_version"])
+        cache_id = _attr_text(f.attrs["cache_id"])
+        build_id = _attr_text(f.attrs["build_id"])
+        traffic_cache_id = _attr_text(f.attrs["traffic_cache_id"])
+        method = _attr_text(f.attrs["imputation_method"])
+        baseline_train_frac = float(f.attrs["baseline_train_frac"])
+        baseline_train_cutoff = int(f.attrs["baseline_train_cutoff"])
+        candidate_pm_radius = float(f.attrs["candidate_pm_radius"])
+        anchor_pm_radius = float(f.attrs["anchor_pm_radius"])
+        baseline_mask_extra_steps = int(f.attrs["baseline_mask_extra_steps"])
+        min_baseline_count = int(f.attrs["min_baseline_count"])
+        builder_source_sha256 = _attr_text(f.attrs["builder_source_sha256"])
+        region_name = _attr_text(f.attrs["region_name"])
+        n_nodes = int(f.attrs["N"])
+        total_steps = int(f.attrs["T"])
+        dataset_shapes = {name: tuple(dataset.shape) for name, dataset in f.items()}
+
+    if schema_version != CACHE_SCHEMA_VERSION:
+        raise RuntimeError(
+            f"--samples-only refuses traffic cache {path}: "
+            f"cache_schema_version={schema_version}, expected {CACHE_SCHEMA_VERSION}"
+        )
+    if not cache_id or not build_id or not traffic_cache_id:
+        raise RuntimeError(f"traffic cache {path} has an empty cache/build id")
+    if len(builder_source_sha256) != 64:
+        raise RuntimeError(f"traffic cache {path} has an invalid builder source hash")
+    if cache_id != traffic_cache_id:
+        raise RuntimeError(
+            f"traffic cache {path} has inconsistent cache_id and traffic_cache_id"
+        )
+    if method != CAUSAL_IMPUTATION_METHOD:
+        raise RuntimeError(
+            f"--samples-only refuses non-causal traffic cache {path}: "
+            f"imputation_method={method!r}; rebuild traffic and samples together"
+        )
+    if not 0.0 < baseline_train_frac <= 1.0:
+        raise RuntimeError(
+            f"traffic cache {path} has invalid baseline_train_frac="
+            f"{baseline_train_frac}"
+        )
+    expected_stored_cutoff = int(total_steps * baseline_train_frac)
+    if baseline_train_cutoff != expected_stored_cutoff:
+        raise RuntimeError(
+            f"traffic cache {path} has inconsistent baseline cutoff: "
+            f"stored={baseline_train_cutoff}, expected={expected_stored_cutoff}"
+        )
+    if expected_region is not None and region_name != expected_region:
+        raise RuntimeError(
+            f"traffic cache region mismatch: stored={region_name!r}, "
+            f"expected={expected_region!r}"
+        )
+    if expected_n is not None and n_nodes != int(expected_n):
+        raise RuntimeError(
+            f"traffic cache node-count mismatch: stored={n_nodes}, expected={expected_n}"
+        )
+    if expected_baseline_train_frac is not None:
+        if not np.isclose(
+            baseline_train_frac, expected_baseline_train_frac, rtol=0.0, atol=1e-12
+        ):
+            raise RuntimeError(
+                f"traffic cache baseline fraction mismatch: "
+                f"stored={baseline_train_frac}, "
+                f"requested={expected_baseline_train_frac}"
+            )
+        requested_cutoff = int(total_steps * expected_baseline_train_frac)
+        if baseline_train_cutoff != requested_cutoff:
+            raise RuntimeError(
+                f"traffic cache baseline cutoff mismatch: "
+                f"stored={baseline_train_cutoff}, requested={requested_cutoff}"
+            )
+    if (expected_split_train_end is not None
+            and baseline_train_frac > expected_split_train_end):
+        raise RuntimeError(
+            f"traffic cache baseline fraction {baseline_train_frac} exceeds "
+            f"requested train boundary {expected_split_train_end}"
+        )
+    protocol_checks = (
+        ("candidate_pm_radius", candidate_pm_radius,
+         expected_candidate_pm_radius, float),
+        ("anchor_pm_radius", anchor_pm_radius,
+         expected_anchor_pm_radius, float),
+        ("baseline_mask_extra_steps", baseline_mask_extra_steps,
+         expected_baseline_mask_extra_steps, int),
+        ("min_baseline_count", min_baseline_count,
+         expected_min_baseline_count, int),
+    )
+    for name, stored, expected, cast in protocol_checks:
+        if expected is None:
+            continue
+        if cast is float:
+            matches = np.isclose(stored, float(expected), rtol=0.0, atol=1e-12)
+        else:
+            matches = stored == int(expected)
+        if not matches:
+            raise RuntimeError(
+                f"traffic cache {name} mismatch: stored={stored}, requested={expected}"
+            )
+
+    expected_shapes = {
+        "flow_series_imputed": (total_steps, n_nodes, 3),
+        "flow_mask": (total_steps, n_nodes, 3),
+        "time_enc": (total_steps, 5),
+        "baseline_median": (2, 288, n_nodes, 3),
+        "baseline_scale": (2, 288, n_nodes, 3),
+        "region_idx": (n_nodes,),
+        "times_ns": (total_steps,),
+    }
+    bad_shapes = {
+        name: (dataset_shapes.get(name), expected)
+        for name, expected in expected_shapes.items()
+        if dataset_shapes.get(name) != expected
+    }
+    static_shape = dataset_shapes.get("static_meta")
+    if static_shape is None or len(static_shape) != 2 or static_shape[0] != n_nodes:
+        bad_shapes["static_meta"] = (static_shape, (n_nodes, "C_meta"))
+    if bad_shapes:
+        raise RuntimeError(
+            f"--samples-only refuses malformed traffic cache {path}: "
+            f"dataset shape mismatches {bad_shapes}"
+        )
+
+    return {
+        "cache_schema_version": schema_version,
+        "cache_id": cache_id,
+        "build_id": build_id,
+        "traffic_cache_id": traffic_cache_id,
+        "imputation_method": method,
+        "baseline_train_frac": baseline_train_frac,
+        "baseline_train_cutoff": baseline_train_cutoff,
+        "candidate_pm_radius": candidate_pm_radius,
+        "anchor_pm_radius": anchor_pm_radius,
+        "baseline_mask_extra_steps": baseline_mask_extra_steps,
+        "min_baseline_count": min_baseline_count,
+        "builder_source_sha256": builder_source_sha256,
+        "region_name": region_name,
+        "N": n_nodes,
+        "T": total_steps,
+    }
 
 
 def compute_time_enc(times: pd.DatetimeIndex) -> np.ndarray:
@@ -143,25 +357,47 @@ def compute_time_enc(times: pd.DatetimeIndex) -> np.ndarray:
 
 
 def impute_flow(traffic: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Linear interpolation along time axis per (node, channel).
-    Returns (imputed, mask) where mask is True for originally-observed values."""
+    """Causally forward-fill each node/channel along the time axis.
+
+    Missing values after the first observation reuse only the latest past
+    observation. Leading gaps and entirely-missing series stay at zero. The
+    returned mask is True only where the original input was finite and
+    non-negative. Traffic flow, occupancy, and speed are non-negative physical
+    quantities, so legacy negative missing-value sentinels are treated as
+    missing without changing valid data in the current archive.
+    """
     T, N, C = traffic.shape
-    mask = np.isfinite(traffic)
-    imputed = traffic.copy()
-    t_arange = np.arange(T)
-    for n in range(N):
-        for c in range(C):
-            col = imputed[:, n, c]
-            m = mask[:, n, c]
-            if m.all():
-                continue
-            if not m.any():
-                # node-channel entirely missing; fill 0 (caller relies on mask=0)
-                imputed[:, n, c] = 0.0
-                continue
-            # linear interpolation over time
-            imputed[:, n, c] = np.interp(t_arange, t_arange[m], col[m])
-    return imputed.astype(np.float32), mask
+    mask = np.isfinite(traffic) & (traffic >= 0.0)
+    imputed = np.zeros((T, N, C), dtype=np.float32)
+    last_observed = np.zeros((N, C), dtype=np.float32)
+
+    for t in range(T):
+        observed = mask[t]
+        last_observed[observed] = traffic[t][observed]
+        imputed[t] = last_observed
+
+    return imputed, mask
+
+
+def replace_negative_missing_inplace(traffic: np.ndarray,
+                                     chunk_steps: int = 288) -> int:
+    """Normalize invalid traffic to NaN using bounded memory.
+
+    The return value remains the number of finite negative sentinels for the
+    audit attribute; positive/negative infinity is also converted to NaN so it
+    cannot enter baseline statistics.
+    """
+    n_replaced = 0
+    for lo in range(0, traffic.shape[0], chunk_steps):
+        slab = traffic[lo:lo + chunk_steps]
+        finite = np.isfinite(slab)
+        negative = finite & (slab < 0.0)
+        count = int(negative.sum())
+        invalid = negative | np.isinf(slab)
+        if np.any(invalid):
+            slab[invalid] = np.nan
+            n_replaced += count
+    return n_replaced
 
 
 def build_static_meta(region_meta: pd.DataFrame) -> tuple[np.ndarray, list[str]]:
@@ -237,13 +473,14 @@ def event_affected_mask(N: int, incident_ids: list[str],
 
 
 def parse_incident_ids_field(s: object) -> list[str]:
-    """event_labels.csv stores incident_ids as a comma-separated string."""
+    """event_labels.csv stores one or more incident ids in a delimited string."""
     if pd.isna(s) or s is None:
         return []
     text = str(s).strip()
     if not text:
         return []
-    return [tok.strip() for tok in text.split(",") if tok.strip()]
+    # Aggregated labels use semicolons; older caches used commas.
+    return [tok.strip() for tok in text.replace(";", ",").split(",") if tok.strip()]
 
 
 # ---------- main per-region build ----------
@@ -251,8 +488,18 @@ def parse_incident_ids_field(s: object) -> list[str]:
 def build_traffic_h5(region_name: str, region_meta: pd.DataFrame,
                      traffic: np.ndarray, times: pd.DatetimeIndex,
                      baseline: np.ndarray, scale: np.ndarray,
-                     region_node_idx: np.ndarray, out_path: Path) -> None:
-    print(f"  [{region_name}] imputing flow (linear interp) ...", flush=True)
+                     region_node_idx: np.ndarray, out_path: Path, *,
+                     baseline_train_frac: float,
+                     baseline_train_cutoff: int,
+                     traffic_cache_id: str,
+                     build_id: str,
+                     n_negative_values_as_missing: int,
+                     candidate_pm_radius: float,
+                     anchor_pm_radius: float,
+                     baseline_mask_extra_steps: int,
+                     min_baseline_count: int,
+                     builder_source_sha256: str) -> None:
+    print(f"  [{region_name}] imputing traffic (causal forward fill) ...", flush=True)
     t0 = time.time()
     imputed, mask = impute_flow(traffic)
     print(f"    imputed in {time.time() - t0:.1f}s; "
@@ -282,6 +529,20 @@ def build_traffic_h5(region_name: str, region_meta: pd.DataFrame,
         f.attrs["N"] = int(static_meta.shape[0])
         f.attrs["T"] = int(traffic.shape[0])
         f.attrs["channels"] = np.array(["flow", "occupancy", "speed"], dtype="S16")
+        f.attrs["imputation_method"] = CAUSAL_IMPUTATION_METHOD
+        f.attrs["cache_schema_version"] = int(CACHE_SCHEMA_VERSION)
+        f.attrs["cache_id"] = traffic_cache_id
+        f.attrs["traffic_cache_id"] = traffic_cache_id
+        f.attrs["build_id"] = build_id
+        f.attrs["baseline_train_frac"] = float(baseline_train_frac)
+        # Exclusive upper bound of the traffic used to fit the baseline.
+        f.attrs["baseline_train_cutoff"] = int(baseline_train_cutoff)
+        f.attrs["n_negative_values_as_missing"] = int(n_negative_values_as_missing)
+        f.attrs["candidate_pm_radius"] = float(candidate_pm_radius)
+        f.attrs["anchor_pm_radius"] = float(anchor_pm_radius)
+        f.attrs["baseline_mask_extra_steps"] = int(baseline_mask_extra_steps)
+        f.attrs["min_baseline_count"] = int(min_baseline_count)
+        f.attrs["builder_source_sha256"] = builder_source_sha256
     sz = out_path.stat().st_size / (1024 ** 3)
     print(f"    saved {sz:.2f} GB")
 
@@ -289,7 +550,10 @@ def build_traffic_h5(region_name: str, region_meta: pd.DataFrame,
 def build_samples_h5(region_name: str, region_node_idx: np.ndarray,
                      events: pd.DataFrame, affected_lookup: dict[str, np.ndarray],
                      total_steps: int, args: argparse.Namespace,
-                     out_path: Path) -> None:
+                     out_path: Path, *,
+                     traffic_cache_meta: dict[str, object],
+                     samples_cache_id: str,
+                     build_id: str) -> None:
     N = region_node_idx.size
     n_events = len(events)
     if args.smoke_events > 0:
@@ -297,8 +561,14 @@ def build_samples_h5(region_name: str, region_node_idx: np.ndarray,
         n_events = len(events)
         print(f"  [{region_name}] SMOKE: limited to first {n_events} events")
 
-    # Sort events by start_idx for efficient active-event lookup
-    events = events.sort_values("start_idx").reset_index(drop=True)
+    if _attr_text(traffic_cache_meta["region_name"]) != region_name:
+        raise ValueError("traffic metadata region does not match samples region")
+    if int(traffic_cache_meta["N"]) != N or int(traffic_cache_meta["T"]) != total_steps:
+        raise ValueError("traffic metadata dimensions do not match samples")
+
+    # Stable sorting makes the retained representative deterministic when
+    # several events generate the same sample_start.
+    events = events.sort_values("start_idx", kind="mergesort").reset_index(drop=True)
     starts_sorted = events["start_idx"].to_numpy(dtype=np.int64)
 
     # Pre-build per-event feature vec + affected mask
@@ -329,11 +599,14 @@ def build_samples_h5(region_name: str, region_node_idx: np.ndarray,
                                                     # -1 marks padding
 
     # Bounds: need T_h history and T_p future
-    min_start = args.t_h            # sample_start at t means hist is [t-T_h+1..t]
+    min_start = args.t_h - 1        # sample_start at t means hist is [t-T_h+1..t]
     max_start = total_steps - args.t_p - 1  # need [t+1..t+T_p] all in-range
 
     max_active_seen = 0
     n_truncated = 0
+    n_split_boundary_dropped = 0
+    n_duplicate_sample_start_dropped = 0
+    seen_sample_starts: set[int] = set()
 
     for ev_idx in range(n_events):
         ev_start = int(starts_sorted[ev_idx])
@@ -342,6 +615,23 @@ def build_samples_h5(region_name: str, region_node_idx: np.ndarray,
             sample_start = ev_start + int(offset)
             if sample_start < min_start or sample_start > max_start:
                 continue
+
+            sample_split = split_code(
+                sample_start, total_steps,
+                args.split_train_end, args.split_val_end,
+                args.t_p,
+            )
+            if sample_split is None:
+                n_split_boundary_dropped += 1
+                continue
+
+            # A DIST/NDR sample is identified by (region, sample_start). Several
+            # simultaneous incidents or overlapping offsets can otherwise add
+            # the exact same traffic history/target more than once.
+            if sample_start in seen_sample_starts:
+                n_duplicate_sample_start_dropped += 1
+                continue
+            seen_sample_starts.add(sample_start)
 
             # Find all events with start_idx in [sample_start - active_window + 1, sample_start]
             lo = bisect.bisect_left(starts_sorted, sample_start - args.active_window + 1)
@@ -362,21 +652,21 @@ def build_samples_h5(region_name: str, region_node_idx: np.ndarray,
             inc_feat[:chosen.size] = event_feats[chosen]
             inc_mask[:chosen.size] = True
 
-            # Affected mask: union across all active events
-            if chosen.size:
-                aff = np.any(event_affected[chosen], axis=0)
+            # The fixed-size incident tensors keep only M_max events, but the
+            # evaluation label must remain the union of *all* active events.
+            if active.size:
+                aff = np.any(event_affected[active], axis=0)
             else:
                 aff = np.zeros(N, dtype=bool)
 
             sample_start_list.append(sample_start)
-            split_list.append(split_code(sample_start, total_steps,
-                                          args.split_train_end, args.split_val_end))
+            split_list.append(sample_split)
             event_idx_list.append(ev_idx)
             anchor_idx_list.append(anchor_idx)
             offset_list.append(int(offset))
             inc_feat_list.append(inc_feat)
             inc_mask_list.append(inc_mask)
-            n_active_list.append(int(chosen.size))
+            n_active_list.append(int(n_active))
             affected_list.append(aff)
 
             active_idx = np.full(args.m_max, -1, dtype=np.int32)
@@ -387,12 +677,18 @@ def build_samples_h5(region_name: str, region_node_idx: np.ndarray,
     print(f"    generated {n_samples} samples in {time.time() - t0:.1f}s")
     print(f"    max active events in any window: {max_active_seen}, "
           f"truncated samples (>M_max={args.m_max}): {n_truncated}")
+    print(f"    dropped target windows crossing split boundaries: "
+          f"{n_split_boundary_dropped}")
+    print(f"    dropped duplicate sample_start values: "
+          f"{n_duplicate_sample_start_dropped}")
 
     if n_samples == 0:
         print(f"    WARNING: no samples generated for {region_name}")
         return
 
     sample_start_arr = np.array(sample_start_list, dtype=np.int64)
+    if np.unique(sample_start_arr).size != sample_start_arr.size:
+        raise AssertionError("sample_start must be unique within a region cache")
     split_arr = np.array(split_list, dtype=np.int8)
     event_idx_arr = np.array(event_idx_list, dtype=np.int32)
     anchor_idx_arr = np.array(anchor_idx_list, dtype=np.int32)
@@ -423,6 +719,7 @@ def build_samples_h5(region_name: str, region_node_idx: np.ndarray,
                          compression="lzf")
         f.attrs["region_name"] = region_name
         f.attrs["N"] = int(N)
+        f.attrs["T"] = int(total_steps)
         f.attrs["M_max"] = int(args.m_max)
         f.attrs["C_e"] = int(C_E)
         f.attrs["T_h"] = int(args.t_h)
@@ -432,16 +729,44 @@ def build_samples_h5(region_name: str, region_node_idx: np.ndarray,
         f.attrs["n_events"] = int(n_events)
         f.attrs["n_samples"] = int(n_samples)
         f.attrs["n_truncated_active"] = int(n_truncated)
+        f.attrs["n_split_boundary_dropped"] = int(n_split_boundary_dropped)
+        f.attrs["n_duplicate_sample_start_dropped"] = int(
+            n_duplicate_sample_start_dropped
+        )
         f.attrs["max_active_seen"] = int(max_active_seen)
         f.attrs["split_train_end"] = float(args.split_train_end)
         f.attrs["split_val_end"] = float(args.split_val_end)
+        f.attrs["cache_schema_version"] = int(CACHE_SCHEMA_VERSION)
+        f.attrs["cache_id"] = samples_cache_id
+        f.attrs["build_id"] = build_id
+        f.attrs["traffic_cache_id"] = _attr_text(
+            traffic_cache_meta["traffic_cache_id"]
+        )
+        f.attrs["imputation_method"] = _attr_text(
+            traffic_cache_meta["imputation_method"]
+        )
+        f.attrs["baseline_train_frac"] = float(
+            traffic_cache_meta["baseline_train_frac"]
+        )
+        f.attrs["baseline_train_cutoff"] = int(
+            traffic_cache_meta["baseline_train_cutoff"]
+        )
+        f.attrs["sample_offsets"] = np.asarray(args.sample_offsets, dtype=np.int32)
+        f.attrs["smoke_events"] = int(args.smoke_events)
+        f.attrs["traffic_builder_source_sha256"] = _attr_text(
+            traffic_cache_meta["builder_source_sha256"]
+        )
+        f.attrs["samples_builder_source_sha256"] = _file_sha256(Path(__file__))
     sz = out_path.stat().st_size / (1024 ** 2)
     print(f"    saved {sz:.1f} MB")
 
 
 def main() -> None:
     args = parse_args()
+    validate_preprocessing_args(args)
     args.out_dir.mkdir(parents=True, exist_ok=True)
+    build_id = uuid.uuid4().hex
+    builder_source_sha256 = _file_sha256(Path(__file__))
 
     print(f"loading global sensor metadata + incidents...")
     meta = load_sensor_meta(args.archive)
@@ -469,8 +794,18 @@ def main() -> None:
                 raise FileNotFoundError(
                     f"--samples-only requires {out_traffic_pre} to exist already"
                 )
-            with h5py.File(out_traffic_pre, "r") as _f:
-                T = int(_f.attrs["T"])
+            traffic_cache_meta = require_causal_traffic_cache(
+                out_traffic_pre,
+                expected_region=region_name,
+                expected_n=N,
+                expected_baseline_train_frac=args.baseline_train_frac,
+                expected_split_train_end=args.split_train_end,
+                expected_candidate_pm_radius=args.candidate_pm_radius,
+                expected_anchor_pm_radius=args.anchor_pm_radius,
+                expected_baseline_mask_extra_steps=args.baseline_mask_extra_steps,
+                expected_min_baseline_count=args.min_baseline_count,
+            )
+            T = int(traffic_cache_meta["T"])
             print(f"  [samples-only] T={T} from existing traffic.h5")
             traffic = None
             times = pd.date_range("2023-01-01", "2024-01-01", freq="5min", inclusive="left")
@@ -482,6 +817,13 @@ def main() -> None:
             T = traffic.shape[0]
             print(f"    traffic shape {traffic.shape} loaded in {time.time() - t0:.1f}s")
             print(f"    traffic NaN fraction (raw): {np.isnan(traffic).mean():.3%}")
+            n_negative_values_as_missing = replace_negative_missing_inplace(traffic)
+            if n_negative_values_as_missing:
+                print(
+                    f"    treated {n_negative_values_as_missing} finite negative "
+                    "traffic values as missing",
+                    flush=True,
+                )
 
             # Build baseline statistics (fitting on first split_train_end of year, with incident-window masking)
             print(f"  building baseline statistics (training portion only) ...", flush=True)
@@ -520,10 +862,32 @@ def main() -> None:
                     sslab[~np.isfinite(sslab)] = sfill
 
             out_traffic = args.out_dir / f"{region_name}_traffic.h5"
+            traffic_cache_id = uuid.uuid4().hex
             build_traffic_h5(
                 region_name=region_name, region_meta=region_meta_full,
                 traffic=traffic, times=times, baseline=baseline, scale=scale,
                 region_node_idx=region_node_idx, out_path=out_traffic,
+                baseline_train_frac=args.baseline_train_frac,
+                baseline_train_cutoff=train_cutoff,
+                traffic_cache_id=traffic_cache_id,
+                build_id=build_id,
+                n_negative_values_as_missing=n_negative_values_as_missing,
+                candidate_pm_radius=args.candidate_pm_radius,
+                anchor_pm_radius=args.anchor_pm_radius,
+                baseline_mask_extra_steps=args.baseline_mask_extra_steps,
+                min_baseline_count=args.min_baseline_count,
+                builder_source_sha256=builder_source_sha256,
+            )
+            traffic_cache_meta = require_causal_traffic_cache(
+                out_traffic,
+                expected_region=region_name,
+                expected_n=N,
+                expected_baseline_train_frac=args.baseline_train_frac,
+                expected_split_train_end=args.split_train_end,
+                expected_candidate_pm_radius=args.candidate_pm_radius,
+                expected_anchor_pm_radius=args.anchor_pm_radius,
+                expected_baseline_mask_extra_steps=args.baseline_mask_extra_steps,
+                expected_min_baseline_count=args.min_baseline_count,
             )
 
         # set path for meta_json regardless of branch
@@ -541,7 +905,14 @@ def main() -> None:
             region_name=region_name, region_node_idx=region_node_idx,
             events=events, affected_lookup=affected_lookup,
             total_steps=T, args=args, out_path=out_samples,
+            traffic_cache_meta=traffic_cache_meta,
+            samples_cache_id=uuid.uuid4().hex,
+            build_id=build_id,
         )
+
+        # Report the method recorded by the actual traffic cache. This keeps
+        # --samples-only honest when it reuses a legacy cache without metadata.
+        imputation_method = _attr_text(traffic_cache_meta["imputation_method"])
 
         # Write a brief config note for this region
         meta_json = {
@@ -557,7 +928,26 @@ def main() -> None:
             "sample_offsets": list(args.sample_offsets),
             "split_train_end": float(args.split_train_end),
             "split_val_end": float(args.split_val_end),
-            "baseline_train_frac": float(args.baseline_train_frac),
+            "baseline_train_frac": float(traffic_cache_meta["baseline_train_frac"]),
+            "baseline_train_cutoff": int(traffic_cache_meta["baseline_train_cutoff"]),
+            "candidate_pm_radius": float(traffic_cache_meta["candidate_pm_radius"]),
+            "anchor_pm_radius": float(traffic_cache_meta["anchor_pm_radius"]),
+            "baseline_mask_extra_steps": int(
+                traffic_cache_meta["baseline_mask_extra_steps"]
+            ),
+            "min_baseline_count": int(traffic_cache_meta["min_baseline_count"]),
+            "imputation_method": str(imputation_method),
+            "cache_schema_version": int(traffic_cache_meta["cache_schema_version"]),
+            "traffic_cache_id": _attr_text(traffic_cache_meta["traffic_cache_id"]),
+            # A samples-only invocation legitimately has a different build id
+            # from the traffic cache it reuses, so record both explicitly.
+            "traffic_build_id": _attr_text(traffic_cache_meta["build_id"]),
+            "samples_build_id": build_id,
+            "build_id": build_id,
+            "traffic_builder_source_sha256": _attr_text(
+                traffic_cache_meta["builder_source_sha256"]
+            ),
+            "samples_builder_source_sha256": builder_source_sha256,
             "incident_types": INCIDENT_TYPES,
             "traffic_file": str(out_traffic),
             "samples_file": str(out_samples),

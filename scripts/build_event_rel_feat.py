@@ -173,7 +173,10 @@ def main() -> None:
 
         events_path = args.event_root / region_name / "event_labels.csv"
         events = pd.read_csv(events_path)
-        events = events.sort_values("start_idx").reset_index(drop=True)
+        # Keep the same deterministic ordering used by
+        # build_full_county_cache.py.  This matters when several incidents have
+        # the same start_idx because active_event_idx indexes this exact table.
+        events = events.sort_values("start_idx", kind="mergesort").reset_index(drop=True)
         n_events = len(events)
         print(f"  events (sorted by start_idx): {n_events}")
 

@@ -109,7 +109,7 @@ def main():
     rdata = train_ds.regions[args.region]
     N, T_h, T_p = int(rdata.N), int(rdata.T_h), int(rdata.T_p)
     tr_ss = rdata.sample_start[rdata.split == 0]
-    hi = int(tr_ss.max()) + T_h + T_p
+    hi = int(tr_ss.max()) + T_p + 1
     sd_node = torch.from_numpy(per_node_residual_std(rdata, hi))
     feat_names = [s.decode() if isinstance(s, bytes) else s
                   for s in np.array(rdata.__dict__.get("meta_feature_names",
