@@ -10,6 +10,7 @@ from scripts.build_full_county_cache import (
     resolve_cache_mode,
     write_protocol_attrs,
 )
+from scripts.build_event_rel_feat import event_id_array
 
 
 def _builder_args() -> SimpleNamespace:
@@ -23,6 +24,17 @@ def _builder_args() -> SimpleNamespace:
         split_train_end=0.70,
         split_val_end=0.85,
     )
+
+
+def test_relation_event_ids_load_without_pickle(tmp_path):
+    events = pd.DataFrame({"_event_id": ["agg:a", "agg:b"]})
+    event_ids = event_id_array(events)
+    assert event_ids.dtype.kind in {"U", "S"}
+
+    path = tmp_path / "event_ids.npz"
+    np.savez(path, event_id=event_ids)
+    with np.load(path, allow_pickle=False) as bundle:
+        assert bundle["event_id"].astype(str).tolist() == ["agg:a", "agg:b"]
 
 
 def test_dirty_builds_cannot_be_marked_formal(tmp_path):

@@ -60,6 +60,11 @@ REGIONS_DEFAULT = ["Alameda", "ContraCosta", "Orange"]
 MAX_ROAD_KM = 200.0
 
 
+def event_id_array(events: pd.DataFrame) -> np.ndarray:
+    """Encode stable event IDs as pickle-free NumPy Unicode."""
+    return np.asarray(events["_event_id"].astype(str).tolist(), dtype=np.str_)
+
+
 def haversine_km(lat1: np.ndarray, lon1: np.ndarray,
                  lat2: np.ndarray, lon2: np.ndarray) -> np.ndarray:
     """Vectorized haversine distance in km. Inputs in degrees, broadcastable."""
@@ -209,7 +214,7 @@ def main() -> None:
         n_events = len(events)
         print(f"  events (canonical identity order): {n_events}")
         event_start_idx = events["start_idx"].to_numpy(dtype=np.int64)
-        event_id = events["_event_id"].astype(str).to_numpy()
+        event_id = event_id_array(events)
 
         samples_path = args.out_dir / f"{region_name}_samples.h5"
         with h5py.File(samples_path, "r") as samples:
