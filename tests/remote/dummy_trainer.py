@@ -25,6 +25,7 @@ def main() -> int:
             "wrong_valid_count",
             "wrong_prediction_metric",
             "bad_prediction_schema",
+            "nonfinite_masked_prediction",
             "missing_artifact",
             "fail",
         ],
@@ -111,6 +112,22 @@ def main() -> int:
             }
             if args.mode == "bad_prediction_schema":
                 payload.pop("y_mask_flow")
+            elif args.mode == "nonfinite_masked_prediction":
+                payload["pred_raw_flow"][0, 0, -1] = np.nan
+                payload["actual_future_flow"][0, 0, -1] = np.nan
+                payload["y_mask_flow"][0, 0, -1] = False
+                summary["valid_count"] = 119
+                summary["all"] = float(
+                    np.abs(
+                        payload["pred_raw_flow"][payload["y_mask_flow"]]
+                        - payload["actual_future_flow"][payload["y_mask_flow"]]
+                    ).mean()
+                )
+                summary["unaffected"] = summary["all"]
+                (args.out / "summary.json").write_text(
+                    json.dumps(summary, indent=2),
+                    encoding="utf-8",
+                )
             np.savez_compressed(path, **payload)
         else:
             path.write_bytes(f"artifact:{name}\n".encode())

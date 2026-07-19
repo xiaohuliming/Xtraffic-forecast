@@ -6,15 +6,16 @@
 
 | 入口 | 状态 | 用途 |
 |---|---|---|
-| `build_full_county_cache.py` | v2 已生成并验收 | 因果填充、label-free train-only baseline、目标窗与 event group 隔离、版本和 provenance |
+| `build_full_county_cache.py` | v3 正式缓存已验证 | 因果填充、forecast origin 去重、label-free train-only baseline、目标窗与 active event 隔离、版本和 provenance |
 | `build_impact_labels.py` | 分析专用 | 生成事后 severity 与 affected，不得作为可部署特征 |
-| `build_event_rel_feat.py` | v2 已接通 | 校验缓存协议和事件排序后生成事故与节点关系特征 |
+| `build_event_rel_feat.py` | v3 正式缓存已验证 | 校验缓存协议、样本身份和事件排序后生成事故与节点关系特征 |
+| `audit_protocol_v3_cache.py` | v3 最终验收入口 | 校验三地区正式缓存、关系特征、split、哈希和 bundle identity |
 | `build_region_sampling_graph.py` | 可复用 | 区域采样图 |
-| `build_igstgnn_data_from_h5.py` | v2 已修复 | 与 RegionData 使用同一 forecast origin，并绑定存储的 anchor event |
+| `build_igstgnn_data_from_h5.py` | v3 已修复，待正式缓存 | 与 RegionData 使用同一 forecast origin、anchor event 和显式 x/y mask |
 | `export_to_igstgnn.py` | 历史入口 | 独立的旧 IGSTGNN 导出管线 |
-| `test_full_window_loader.py` | v2 检查 | 直接断言三个 split 的目标时间集合两两互斥 |
+| `test_full_window_loader.py` | 辅助检查 | 直接断言三个 split 的目标时间集合两两互斥 |
 
-数据问题与验收条件见 `docs/audits/data_leakage_2026-07-18.md`。
+v2 已因重复 forecast origin、active event 跨 split、验证累计和训练契约问题冻结。当前协议状态与 v3 验收条件见 [v3 协议复审](../docs/audits/protocol_v3_review_2026-07-19.md)，原始泄露问题见 [数据泄露审计](../docs/audits/data_leakage_2026-07-18.md)。
 
 ## 当前主训练入口
 
@@ -29,7 +30,7 @@
 | `train_benchmark.py` | METR-LA、PEMS04 与 PEMS08 标准基准 |
 | `train_baseline_zoo.py` | 统一 baseline zoo，旧 XTraffic 缓存结果暂不汇总为正式结论 |
 
-以上 XTraffic 训练入口默认读取 `outputs/dist_net/region_data_v2_noleak`，并将新结果写入 `outputs/protocol_v2_noleak`。v2 缓存已经正式生成并验收，最小判别矩阵正在重跑。旧结果和尚未完成的新结果均不可用于恢复论文结论。
+以上 XTraffic 训练入口默认读取 `outputs/dist_net/region_data_v3_noleak_dedup`，并将新结果写入 `outputs/protocol_v3_noleak_dedup`。正式入口通过 `dist_net/training_runtime.py` 校验 cache bundle、Git SHA、输出隔离和 summary 契约。v3 正式缓存已经两次严格复验，状态为 `verified`。bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。正式样本数与 train、val、test 切分为 Alameda 45760 和 32001/6954/6805，ContraCosta 23337 和 16414/3472/3451，Orange 60015 和 42372/9098/8545。训练尚未启动。旧结果和最先完成的 4 个 v2 远程结果均不可用于恢复论文结论。
 
 ## 事故标签对撞
 
@@ -40,7 +41,7 @@
 - `evaluate_igstgnn_affected_breakdown.py`
 - `compute_setting_a_breakdown.py`
 
-v2 缓存已将可部署事故输入限制为类型、位置、起报时间导出的当前已持续时长，并把 affected 放入 `analysis_labels`。ICSF 两个入口按 `primary_incident_slot` 读取锚定事故。旧 DIST-Net 的监督逻辑仍需单独审查。
+v3 缓存把可部署事故输入限制为类型、位置、起报时间导出的当前已持续时长，并把 affected 放入显式 opt-in 的 `analysis_labels`。ICSF 两个入口按 `primary_incident_slot` 读取锚定事故。DIST-Net 的 blind 模式不再隐式使用 affected，标签监督必须显式声明。
 
 ## 诊断与统计
 
@@ -74,7 +75,7 @@ posthoc
 
 ## 队列与远程运行
 
-`run_*.sh`、`watch_*.sh`、`shutdown_*.sh` 与 `run_zoo_queue_win.py` 是机器相关入口。实验室共享连接参数集中在 `config/lab_hosts.env`。Windows 启动文件位于 `scripts/remote/windows/`。运行完成后，队列日志放到被忽略的 `outputs/remote_runs/`，不要散落在仓库根目录。
+`run_*.sh`、`watch_*.sh`、`shutdown_*.sh` 与 `run_zoo_queue_win.py` 是历史机器相关入口。实验室共享连接参数集中在 `config/lab_hosts.env`。v3 的 Windows 正式入口为 `scripts/remote/windows/protocol_v3_launch.bat`，队列实现为 `protocol_v3_runner.py`，固定 45 项任务表为 `protocol_v3_manifest.json`。runner 要求 clean Git、精确代码 SHA、cache bundle identity 和全新结果目录。`29159f626494de52c69b36fe5bba9854f13cb56c` 是正式缓存构建代码 SHA，不是最终训练代码 SHA。缓存已通过本地审计。下一步先传输到远端并复验哈希，再等待 main 合并锁定最终训练 SHA，从该 SHA 的 clean clone 启动队列。
 
 `cleanup_dead_outputs.sh` 是历史输出清理辅助脚本。执行前必须先使用其 dry-run 模式核对候选，不能把它当成仓库整理的默认步骤。
 

@@ -16,11 +16,11 @@ def masked_mae_loss(
         raise ValueError(
             f"prediction and target shapes differ: {prediction.shape} != {target.shape}"
         )
+    if not torch.isfinite(prediction).all():
+        raise FloatingPointError("prediction contains non-finite observations")
     valid = _validated_mask(mask, prediction.shape).to(prediction.device)
     if int(valid.sum().item()) == 0:
         raise ValueError("masked MAE batch has zero valid observations")
-    if not torch.isfinite(prediction[valid]).all():
-        raise FloatingPointError("prediction contains non-finite valid observations")
     target = target.to(prediction.device)
     if not torch.isfinite(target[valid]).all():
         raise FloatingPointError("target contains non-finite valid observations")
@@ -42,12 +42,14 @@ class MaskedMAEAccumulator:
             raise ValueError(
                 f"prediction and target shapes differ: {prediction.shape} != {target.shape}"
             )
+        if not torch.isfinite(prediction).all():
+            raise FloatingPointError(
+                "prediction contains non-finite observations"
+            )
 
         valid_count = int(mask.sum().item())
         if valid_count == 0:
-            raise ValueError("masked MAE batch has zero valid observations")
-        if not torch.isfinite(prediction[mask]).all():
-            raise FloatingPointError("prediction contains non-finite valid observations")
+            return
         if not torch.isfinite(target[mask]).all():
             raise FloatingPointError("target contains non-finite valid observations")
 

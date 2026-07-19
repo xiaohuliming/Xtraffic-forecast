@@ -18,15 +18,40 @@
 
 v2 缓存会记录 schema version、协议版本、精确切分边界、预处理拟合范围、原始文件 SHA-256、构建代码 Git SHA、分支与 dirty 状态。数据回归测试覆盖未来数据不改变历史输入、split 目标集合互斥、同一事件不跨 split、事后事故字段不改变可部署输入、主事故在截断后仍可定位、窗口语义对齐和旧缓存拒绝。当前完整测试结果为 28 项通过，Python 编译、Shell 语法和补丁格式检查均通过。
 
-## 2026-07-19 无泄露 v2 正式缓存验收完成，最小判别矩阵启动
+## 2026-07-19 无泄露 v2 正式缓存验收与后续复核
 
 已在 Mac 上用完整原始数据生成三个区域的正式 v2 H5 与事故关系缓存，并传到 5080。缓存 provenance 指向 main 的 `bf3045ac`，构建工作区为 clean。Alameda 的事件样本 train、val、test 数为 43973、9450、9366。ContraCosta 为 19159、4026、4040。Orange 为 75395、15727、14368。三个区域的 event group 与目标时刻集合均两两无交集，主事故槽位逐样本精确对应。full-window 三个区域均为 73561、10501、21013，三个 split 的目标时刻集合两两无交集。
 
 远端复核包括传输包与缓存逐级 SHA-256、三地区 full-window loader、缓存 schema 与 provenance、可部署事故字段，以及完整 28 项测试。全部通过。旧缓存和旧结果未覆盖。
 
-5080 的 Tailscale 地址在线。旧 contaminated baseline zoo 队列已经停止并保留日志。45 项 v2 最小判别队列于 2026-07-19 00:39 启动，严格串行。队列覆盖三地区 STAEformer s0a 与 s0c，Alameda 与 ContraCosta 的 s0f 与 s0g，三地区 STAEformer ICSF 对照，full-window 三模型九宫格，以及核心方法的 seeds 42、1、2。首项为 Alameda s0a seed 42。启动判活时 GPU 利用率为 91%，显存使用约 6.0 GiB。
+5080 的 Tailscale 地址在线。旧 contaminated baseline zoo 队列已经停止并保留日志。45 项 v2 最小判别队列于 2026-07-19 00:39 启动，严格串行。队列覆盖三地区 STAEformer s0a 与 s0c，Alameda 与 ContraCosta 的 s0f 与 s0g，三地区 STAEformer ICSF 对照，full-window 三模型九宫格，以及核心方法的 seeds 42、1、2。
 
-当前尚无新的 summary，不能报告新 MAE，也不能恢复任何论文结论。旧结果的 contaminated 状态保持不变，论文写作继续暂停。
+后续全面复核发现，v2 仍会让同一预测时间因多个事故重复进入样本集，且简单保留首个来源并不等价于选择最近锚点。验证 MAE 还存在按 batch 或样本均值再次平均的问题。进一步检查又发现活跃事故身份可能跨 split、截断后的事故槽位没有覆盖完整 affected 并集、IGSTGNN 转换会丢失目标缺失掩码，以及部分图模型反向邻接归一化、blind 模式和远程结果完整性仍需收紧。因此 v2 不能作为最终无泄露协议。
+
+停止队列时已有四个远程 summary 落盘。它们只作为 v2 调试痕迹保留，统一降级为 `preliminary contaminated`，不得进入论文或用于恢复主张。
+
+| 任务 | v2 masked MAE | 当前状态 |
+|---|---:|---|
+| Alameda s0a seed 42 | 11.431783 | preliminary contaminated |
+| Alameda s0c seed 42 | 11.193208 | preliminary contaminated |
+| ContraCosta s0a seed 42 | 12.036264 | preliminary contaminated |
+| ContraCosta s0c seed 42 | 11.822266 | preliminary contaminated |
+
+第 5 项 Orange s0a seed 42 没有形成可用 summary，队列在全面协议复核时停止。已有日志与不完整 checkpoint 只读保留，不视为结果。
+
+## 2026-07-19 v3 全面修复阶段
+
+全面审查已经覆盖数据构建、事件去重、切分隔离、掩码传播、验证指标聚合、图支持矩阵、训练输入边界、输出身份校验和远程队列恢复策略。v3 将同一预测时刻规范化为唯一样本，按距预测时刻最近的事故锚点选择主事故，并用稳定事件身份处理并列情况。所有活跃事故参与 split 污染检查与 affected 并集计算，模型可见的事故槽位截断不再改变分析标签。验证 MAE 统一按全部有效观测点聚合，IGSTGNN 的 `x_mask` 与 `y_mask` 从转换、加载、训练到比较全链路保留。正式训练默认拒绝缺少身份、哈希、掩码或结果清单的产物。
+
+新协议为 `protocol_v3_noleak_dedup`，缓存 schema 为 3。默认缓存目录是 `outputs/dist_net/region_data_v3_noleak_dedup`，默认结果根目录是 `outputs/protocol_v3_noleak_dedup`。正式缓存构建代码 SHA 为 `29159f626494de52c69b36fe5bba9854f13cb56c`。训练代码 SHA 将在 v3 修复合并到 main 时锁定。完整回归测试结果为 143 项通过，另有 1 条既有张量转标量警告，没有测试失败。
+
+组员 Fu 在 `origin/fu` 的 `625aacf` 提出了空 mask batch 可跳过的处理思路。v3 已通过共享 `MaskedMAEAccumulator` 与远程 runner 的全预测有限性检查吸收这一正确性要求，没有直接 cherry-pick 落后于当前协议的旧分支。
+
+截至本次更新，三地区正式 v3 缓存已经落盘到 `outputs/dist_net/region_data_v3_noleak_dedup`。缓存先在 staging 路径完成严格审计，发布到正式路径后再次执行同一审计，两次结果均为 verified。cache bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。
+
+正式 v3 事件样本与 train、val、test 切分如下。Alameda 共 45760 个样本，切分为 32001、6954、6805。ContraCosta 共 23337 个样本，切分为 16414、3472、3451。Orange 共 60015 个样本，切分为 42372、9098、8545。
+
+v3 训练尚未重新启动，5080 当前不应被描述为正在产出正式结果。下一步是推送代码，建立远端 clean clone，传输正式缓存并复验哈希，然后启动全新 v3 队列。旧结果与四个 v2 preliminary summary 的 contaminated 状态保持不变，论文写作继续暂停。
 
 ---
 
@@ -48,17 +73,21 @@ v2 缓存会记录 schema version、协议版本、精确切分边界、预处�
 
 从最初设想的方法论文，最终确定为应用与复现性研究论文。核心命题是事故标签无增益，证据链包括标准 SOTA 模型 label-free 超越事故感知模型、官方代码 bug 取证、事故模块即插即用主张复现失败、多种架构尝试系统性无增益、显著性检验与多种子背书。对标 IGSTGNN 本身能中 KDD，我们处在同一问题赛道，证据更完整，结论更反直觉。
 
+历史方法层级固定为 `RADS ⊂ RADS-O ⊂ NDR-Net`。RADS 是状态自适应锚点重组机制，RADS-O 在其上加入逐 horizon 门控与 oracle 蒸馏，NDR-Net 再加入双残差头。该层级是代码与消融关系，不代表审计前性能结论已经在 v3 上复现。
+
 ### 最新进展，2026-07-18，发现数据泄露并完成 v2 代码修复
 
 代码与落盘 H5 审计确认，旧数据管线存在未来插值、label-informed 气候态、事后事故特征、切分目标重叠与统计范围越界。所有使用旧 XTraffic 缓存的模型都受影响。标准基准 METR-LA、PEMS04 与 PEMS08 不经过该缓存，不受本次审计影响。项目从论文写作切回数据修复与最小判别矩阵复跑，旧结果保留但不再视为已关账证据。
 
-同日完成无泄露 v2 的代码实现与本地回归验证。正式数据入口、数据集加载器、主要训练脚本、ICSF 和 IGSTGNN 转换器已经切换到版本化协议与独立输出目录。仓库根目录的重复训练脚本已经清理，脚本、文档、远程启动文件和本地产物均有明确目录与索引。当前阻塞已经从代码修复转为正式缓存生成和实验复跑。
+同日完成无泄露 v2 的代码实现与本地回归验证。正式数据入口、数据集加载器、主要训练脚本、ICSF 和 IGSTGNN 转换器已经切换到版本化协议与独立输出目录。仓库根目录的重复训练脚本已经清理，脚本、文档、远程启动文件和本地产物均有明确目录与索引。当时的阻塞从代码修复转为正式缓存生成和实验复跑。
 
-### 最新进展，2026-07-19，正式 v2 缓存通过验收并启动重跑
+### 最新进展，2026-07-19，v2 队列停止并进入 v3 全面修复
 
 三地区正式 v2 缓存和事故关系缓存已经生成。事件协议与 full-window 协议的目标时刻集合均完成互斥验收，event group 不跨 split，可部署事故输入不含最终 duration、severity 与 affected，provenance 指向干净的 main 提交 `bf3045ac`。远端 28 项测试全部通过。
 
-45 项最小判别队列已经在 5080 上串行启动。首项 Alameda s0a seed 42 已稳定占用 GPU。当前没有新 summary，因此这一进展只代表数据和计算入口通过验收，不代表任何旧结论已经复现。
+45 项最小判别队列曾在 5080 上串行启动。全面复核随后确认 v2 仍存在同一预测时刻重复采样、主事故选择不规范和验证指标聚合不精确等问题，队列已经停止。已完成的四个 summary 统一标记为 `preliminary contaminated`，第 5 项没有形成可用 summary。
+
+v3 已完成代码修复，schema 为 3，协议名为 `protocol_v3_noleak_dedup`。正式缓存构建代码 SHA 是 `29159f626494de52c69b36fe5bba9854f13cb56c`，训练代码 SHA 将在 main 合并时锁定。完整测试为 143 项通过与 1 条既有警告。三地区正式缓存已经落盘，staging 与正式路径两次严格审计均为 verified。训练尚未重启。
 
 ### 最新进展，2026-06-25
 
@@ -90,15 +119,17 @@ Orange 的 s0a 对 s0c 三种子完成，配对差负 0.114 与负 0.132 与负 
 
 ### 接下来要做什么
 
-代码阶段已经完成旧结果冻结、v2 schema 与 provenance、因果缺失处理、train-only climatology、完整目标窗和 event group 互斥切分、事故输入与分析标签拆分、训练统计边界修正、IGSTGNN 对齐及本地回归测试。
+代码阶段已经完成旧结果冻结、v3 schema 与 provenance、因果缺失处理、train-only climatology、完整目标窗和 event group 互斥切分、预测时刻去重、事故输入与分析标签拆分、训练统计边界修正、IGSTGNN 掩码对齐及本地回归测试。
 
 当前待执行事项如下。
 
-1. 三地区 `region_data_v2_noleak` 已生成。
-2. 三地区事故与节点关系缓存已生成。
-3. 缓存 smoke test、目标集合互斥检查和 provenance 验收已通过。
-4. 正在重跑三地区 STAEformer s0a 对 s0c、两地区 s0f 对 s0g、三地区 ICSF A/B 与 full-window 九宫格。
-5. 队列完成后根据无泄露结果重新判断论文主张，再恢复 baseline zoo 与论文写作。
+1. v2 缓存与四个 preliminary summary 已冻结为 contaminated，不再续跑。
+2. 三地区 `region_data_v3_noleak_dedup` 已从 clean 提交重建完成。
+3. staging 与正式路径的 schema、哈希、去重、split、掩码、关系特征与 provenance 全量审计均为 verified。
+4. 推送当前代码并在 5080 建立远端 clean clone。
+5. 传输正式缓存，逐级复验 bundle ID、bundle digest 与文件哈希。
+6. 复验通过后启动全新的 v3 结果目录与严格身份校验队列。
+7. v3 最小判别矩阵完成后重新判断论文主张，再决定 baseline zoo 与论文写作是否恢复。
 
 ---
 
@@ -123,7 +154,10 @@ Orange 的 s0a 对 s0c 三种子完成，配对差负 0.114 与负 0.132 与负 
 15. 第十三阶段，2026-07-06：Orange 收官，配对全负均值负 0.092。当时判断 RADS 六个骨干乘区域格全部为正，全部实验证据关账，并转入论文写作。该状态于 2026-07-18 被数据审计推翻。
 16. 第十四阶段，2026-07-18：代码与 H5 审计确认全年未来插值、label-informed 气候态、事后事故特征、split 重叠、统计范围越界与 IGSTGNN adapter 错位错绑。论文写作暂停，旧 XTraffic 结果统一冻结为 contaminated。
 17. 第十五阶段，2026-07-18：完成无泄露 v2 代码修复。因果填充、train-only climatology、目标窗和 event group 隔离、可部署事故输入、统计边界、IGSTGNN 对齐、schema 与 provenance 已接入正式入口。28 项本地测试通过。仓库根目录与文档索引完成整理。下一阶段只生成正式缓存并重跑最小判别矩阵。
-18. 第十六阶段，2026-07-19：三地区正式 v2 缓存与事故关系缓存生成完成，事件协议、full-window 协议、schema、provenance 和远端 28 项测试全部通过。45 项最小判别矩阵在 5080 上开始串行重跑，当前尚无新结果。
+18. 第十六阶段，2026-07-19：三地区正式 v2 缓存与事故关系缓存生成完成，事件协议、full-window 协议、schema、provenance 和远端 28 项测试通过。45 项最小判别矩阵在 5080 上开始串行重跑。
+19. 第十七阶段，2026-07-19：v2 后续复核发现同一预测时刻重复采样、主事故选择不规范、验证 MAE 聚合不精确，以及活跃事故、分析标签、IGSTGNN 掩码、图支持和远程结果身份仍有完整性缺口。队列停止，四个已完成 summary 降级为 preliminary contaminated，第 5 项未形成可用 summary。
+20. 第十八阶段，2026-07-19：v3 全面修复完成。schema 升级为 3，协议切换为 `protocol_v3_noleak_dedup`，143 项测试通过并保留 1 条既有警告。`origin/fu` 的 `625aacf` 所提空 mask batch 正确性要求已通过共享指标累加器与 runner 有限性检查吸收，没有直接合并旧分支。
+21. 第十九阶段，2026-07-19：三地区正式 v3 缓存从构建代码 SHA `29159f626494de52c69b36fe5bba9854f13cb56c` 重建完成。staging 与正式路径两次严格审计均为 verified。训练代码 SHA 将在 main 合并时锁定。下一步为推送、远端 clean clone、缓存传输与哈希复验，训练尚未重启。
 
 ---
 
@@ -520,29 +554,38 @@ Orange 区域已于 2026-06-23 在云 5090 补齐，all 12.500，affected 18.107
 
 ## 第十部分：接下来要做什么
 
-2026-07-06 时项目曾判断全部实验证据关账。2026-07-18 数据有效性审计推翻了这一状态判断。无泄露 v2 的代码重建已经完成，当前进入正式缓存生成和最小证据矩阵复跑阶段。审计前最低历史数字为 Alameda NDR-Net 11.052，不能作为当前有效最佳结果。
+2026-07-06 时项目曾判断全部实验证据关账。2026-07-18 数据有效性审计推翻了这一状态判断。2026-07-19 对 v2 的后续全面复核又确认，仅修复最初泄露点仍不足以保证样本唯一性、验证选择和全链路结果身份正确。v2 队列已经停止，v3 正式缓存重建与两次最终审计已经完成，当前进入代码推送与远端部署阶段。审计前最低历史数字为 Alameda NDR-Net 11.052，四个 v2 preliminary summary 也均不能作为当前有效结果。
 
 已经完成的代码与管理事项如下。
 
 1. 冻结 `outputs/dist_net/region_data/` 与全部旧 XTraffic 输出。有效性状态写入 `docs/audits/result_validity.csv`，不删除也不覆盖旧 summary。
-2. 为 v2 缓存定义 schema，记录原始文件哈希、切分边界、缺失处理、climatology 范围、Git SHA 与 dirty 状态。
+2. 为 v3 缓存定义 schema 3，记录原始文件哈希、切分边界、缺失处理、climatology 范围、Git SHA、dirty 状态、缓存 bundle 与配对身份。
 3. 将全年双向插值改为 prefix-invariant 的因果缺失处理。
 4. 建立完全不读取事故文件的 train-only climatology。
-5. 按完整目标区间切分，并按 event group 隔离事件样本。
+5. 按完整目标区间切分，并按全部活跃事件身份隔离事件样本。
 6. 将 deployable incident inputs 与 analysis-only labels 物理拆开。
-7. 让 scaler 和残差统计严格使用显式 train_end，并修复 IGSTGNN 的 forecast origin、目标对齐和事件绑定。
-8. 增加数据协议回归测试。当前完整测试结果为 28 项通过。
-9. 将正式训练入口默认切换到 `region_data_v2_noleak` 与 `protocol_v2_noleak`，旧缓存默认拒绝加载。
-10. 整理根目录、脚本索引、文档索引、远程启动文件和实验室共享配置。
+7. 让 scaler 和残差统计严格使用显式 train_end，并修复 IGSTGNN 的 forecast origin、目标对齐、事件绑定与目标缺失掩码传播。
+8. 对同一预测时刻去重，按最近锚点与稳定事件身份选择主事故，并用全部活跃事故计算 affected 并集。
+9. 将验证 MAE 统一为所有有效观测点的总误差除以总有效点数，同时修复反向邻接归一化与 blind 模式的分析标签隔离。
+10. 增加数据、训练与远程运行完整性回归测试。当前完整测试结果为 143 项通过，另有 1 条既有警告。
+11. 将正式训练入口默认切换到 `region_data_v3_noleak_dedup` 与 `protocol_v3_noleak_dedup`，旧缓存默认拒绝加载。
+12. 增加正式运行的代码 SHA、缓存 bundle、任务清单、新鲜输出目录与 summary 身份校验。
+13. 整理根目录、脚本索引、文档索引、远程启动文件和实验室共享配置。
+14. 完成三地区正式 v3 traffic、samples 与 `event_rel_feat` 构建。正式路径为 `outputs/dist_net/region_data_v3_noleak_dedup`。
+15. 在 staging 与正式路径各执行一次严格缓存审计，两次均为 verified。cache bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。
+16. 验收正式事件样本。Alameda 为 45760，split 为 32001、6954、6805。ContraCosta 为 23337，split 为 16414、3472、3451。Orange 为 60015，split 为 42372、9098、8545。
 
 当前待执行事项按优先级排列。
 
-1. 生成 Alameda、ContraCosta 与 Orange 的正式 v2 traffic 和 samples 缓存。
-2. 生成三地区 `event_rel_feat`，运行缓存 smoke test、目标集合互斥检查和 provenance 验收。
-3. 重跑三地区 STAEformer s0a 与 s0c。
-4. 重跑 Alameda 与 ContraCosta 的 s0f 与 s0g。
-5. 重跑三地区 ICSF A/B 与 full-window GWN、FDN、STAEformer。
-6. 根据无泄露结果重新决定事故标签无增益、RADS 跨骨干增益和 NDR-Net 性能主张。baseline zoo 与论文写作在这之后恢复。
+1. 推送当前代码与文档。
+2. 在 5080 建立指向准确代码提交的 clean clone，拒绝沿用旧 v2 工作目录。
+3. 传输正式 v3 缓存与必要图文件，复验 bundle ID、bundle digest、传输包哈希和逐文件哈希。
+4. 远端运行严格缓存审计与训练入口检查。
+5. 全部复验通过后，在全新 v3 结果目录启动 45 项最小判别矩阵。
+6. 重跑三地区 STAEformer s0a 与 s0c。
+7. 重跑 Alameda 与 ContraCosta 的 s0f 与 s0g。
+8. 重跑三地区 ICSF A/B 与 full-window GWN、FDN、STAEformer。
+9. 根据无泄露 v3 结果重新决定事故标签无增益、RADS 跨骨干增益和 NDR-Net 性能主张。baseline zoo 与论文写作在这之后恢复。
 
 ---
 
@@ -559,12 +602,16 @@ Orange 区域已于 2026-06-23 在云 5090 补齐，all 12.500，affected 18.107
 | docs/audits/result_validity.csv | 各实验族的机器可读有效性状态 |
 | docs/archive/项目总结报告_2026-06-10.md | 已归档，止于 06-10 的全部结果、13 节审计实验、14 节决策、复现命令，详情已并入本文 |
 | docs/archive/去季节化方向_交接_2026-06-26.md | 已归档，去季节化方向的会话交接，核心已并入本文第 4.8 与第十二部分 |
-| dist_net/protocol.py | 无泄露 v2 的因果填充、窗口、切分、事件隔离与事故特征共享协议 |
-| scripts/build_full_county_cache.py | v2 XTraffic 缓存构建器，默认写入独立目录并拒绝覆盖 |
-| scripts/build_event_rel_feat.py | v2 事故与节点关系缓存，校验协议和事件排序 |
-| scripts/build_igstgnn_data_from_h5.py | v2 IGSTGNN 转换器，统一预测时刻并绑定锚定事故 |
-| dist_net/data.py | 默认拒绝旧缓存的事件锚定与 full-window 数据接口 |
-| tests/data/ | 数据协议、缓存元数据、窗口和事故对齐回归测试 |
+| dist_net/protocol.py | 无泄露 v3 的因果填充、窗口、切分、事件身份与共享协议 |
+| scripts/build_full_county_cache.py | v3 XTraffic 缓存构建器，执行预测时刻去重、主事故规范化与完整活跃事故处理 |
+| scripts/build_event_rel_feat.py | v3 事故与节点关系缓存，校验协议、稳定事件身份和配对缓存身份 |
+| scripts/build_igstgnn_data_from_h5.py | v3 IGSTGNN 转换器，统一预测时刻、锚定事故与输入目标掩码 |
+| scripts/audit_protocol_v3_cache.py | v3 正式缓存的 schema、哈希、计数、split、掩码与关系特征验收入口 |
+| dist_net/data.py | 默认拒绝旧缓存并校验内容身份的事件锚定与 full-window 数据接口 |
+| dist_net/metrics.py 与 graph.py | 全局 masked MAE 聚合与统一图支持矩阵实现 |
+| dist_net/run_integrity.py 与 training_runtime.py | 正式训练的代码、缓存、任务、输出与 summary 身份校验 |
+| scripts/remote/windows/protocol_v3_runner.py | 5080 上严格按清单串行执行 v3 最小判别矩阵 |
+| tests/data/、tests/training/ 与 tests/remote/ | 数据协议、训练正确性与远程运行完整性回归测试 |
 | config/lab_hosts.env | 实验室共享主机、地址与密码的集中明文配置 |
 | scripts/train_fourier_dual_net.py | FDN 训练 |
 | scripts/train_graphwavenet.py | GWN 训练 |
@@ -603,4 +650,4 @@ Orange 区域已于 2026-06-23 在云 5090 补齐，all 12.500，affected 18.107
 
 数据现实，三类协变量的可用性。第一，节假日已在数据内。time_enc 的第五列是 2023 年美国联邦假日标志，构建见 scripts/build_full_county_cache.py 的 US_FEDERAL_HOLIDAYS_2023。但气候态基线 baseline_median 形状为 2 乘 288 乘 N 乘 3，只分工作日与周末两类日型，没有单独建假日类，假日当前错用工作日或周末基线。改进点是把基线粒度扩成三类，或把假日当协变量喂给学习式基线，预期对 all 影响很小，因为假日只占全年约 3%，是正确性修补而非主增益。第二，天气数据集里没有，要用需外接 Meteostat 或 NOAA ISD，按传感器经纬度找最近站取 2023 年逐小时再广播到 5 分钟，属独立数据工程，有站点稀疏与对齐与仅 2023 一年的风险，先不外接，作后续可插拔项。第三，活动不可行，数据里除事故外无其他活动事件，投入产出比太低，放下。
 
-当时已定的下一步顺序是先用 in-data 的 holiday 与自适应把骨架搭通，再做骨干无关性验证。两项后来均已完成，审计前结果见第 4.8 至 4.12 节。天气仍作为后续可插拔项，holiday 感知基线仍是正确性小修补。当前优先级已经改为生成无泄露 v2 缓存并重跑证据矩阵。所有判读继续坚持等参数、多种子和显著性，不在单种子结果上收官。
+当时已定的下一步顺序是先用 in-data 的 holiday 与自适应把骨架搭通，再做骨干无关性验证。两项后来均已完成，审计前结果见第 4.8 至 4.12 节。天气仍作为后续可插拔项，holiday 感知基线仍是正确性小修补。无泄露 v3 缓存重建与两次严格审计现已完成，当前优先级是推送、远端 clean clone、缓存传输与哈希复验，然后重启证据矩阵。所有判读继续坚持等参数、多种子和显著性，不在单种子结果上收官。方法实现层级始终为 `RADS ⊂ RADS-O ⊂ NDR-Net`。

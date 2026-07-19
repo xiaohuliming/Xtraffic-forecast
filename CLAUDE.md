@@ -5,12 +5,13 @@
 ## 新会话先读
 
 1. `README.md`
-2. `docs/audits/data_leakage_2026-07-18.md`
-3. `docs/audits/result_validity.csv`
-4. `XTraffic项目完整汇报.md`
-5. `docs/README.md`
+2. `docs/audits/protocol_v3_review_2026-07-19.md`
+3. `docs/audits/data_leakage_2026-07-18.md`
+4. `docs/audits/result_validity.csv`
+5. `XTraffic项目完整汇报.md`
+6. `docs/README.md`
 
-`XTraffic项目完整汇报.md` 是研究历史、实验数字和出处的唯一权威长报告。数据是否仍可用于论文，以 2026-07-18 审计和有效性清单为准。
+`XTraffic项目完整汇报.md` 是研究历史、实验数字和出处的唯一权威长报告。数据是否仍可用于论文，以 v3 复审、2026-07-18 泄露审计和有效性清单为准。
 
 ## 当前状态
 
@@ -27,7 +28,7 @@
 
 以上是历史实验进度，不是当前可发表状态。
 
-## 当前最高优先级
+## 当前协议状态
 
 2026-07-18 审计确认旧 XTraffic 管线存在 P0 数据问题：
 
@@ -39,18 +40,40 @@
 
 因此，所有旧 XTraffic 绝对数值和配对结论均暂停进入论文。旧结果只读保留，不能删除或原地覆盖。
 
-无泄露 v2 代码已经完成：共享协议位于 `dist_net/protocol.py`，正式构建入口为 `scripts/build_full_county_cache.py`，数据测试位于 `tests/data/`。当前完整测试结果为 28 项通过。仓库已同步远端 main 的组员修复，可用部分已经并入正式 `scripts/` 入口，根目录重复脚本和远程运行产物已经归位。
+v2 随后修复了原始泄露问题，但全面复审又确认了四类影响实验有效性的缺陷：
 
-2026-07-19 已在 Mac 上从完整原始数据生成三地区正式缓存与事故关系缓存，并传到 5080。缓存 provenance 指向 main 的 `bf3045ac`，构建工作区为 clean。事件样本 train、val、test 数分别为 Alameda 43973、9450、9366，ContraCosta 19159、4026、4040，Orange 75395、15727、14368。三地区 event group 与目标时刻集合均无交集，full-window 三地区均为 73561、10501、21013，远端 28 项测试全部通过。
+1. 同一 forecast origin 可能因多个事故重复进入训练或测试，指标会被重复样本扭曲。
+2. active event identity 仍可能跨越 split，按锚定事故分组不足以保证严格隔离。
+3. 部分验证 MAE 按 batch 或样本均值累计，没有按全部有效观测点统一计算。
+4. 多个训练入口缺少一致的 mask、图支持、缓存身份、输出隔离和恢复契约。
 
-5080 的 Tailscale 地址在线。旧的 contaminated baseline zoo 队列已停止并保留日志。45 项 v2 最小判别队列于 2026-07-19 00:39 启动，严格串行，首项为 Alameda STAEformer s0a seed 42。启动判活时 GPU 利用率为 91%，显存使用约 6.0 GiB。当前还没有新 summary，因此旧 XTraffic 结论仍不可恢复。
+因此 v2 已冻结，5080 队列已停止。队列最先完成的 4 个结果只能标记为 `contaminated preliminary`，不能用于论文、模型选择或恢复旧结论。v2 的三地区样本数、远端测试记录和启动时 GPU 状态保留为历史运维记录，不再视为正式协议验收证据。
+
+当前修复版本为 `protocol_v3_noleak_dedup`，cache schema 为 3。正式缓存构建代码 SHA 为 clean commit `29159f626494de52c69b36fe5bba9854f13cb56c`。它不是最终训练代码 SHA。纳入 `origin/fu` 的合理修复后，完整测试结果为 143 项通过，1 个既有 warning。最终训练代码 SHA 等 main 合并后锁定。默认缓存目录为 `outputs/dist_net/region_data_v3_noleak_dedup`，默认结果根目录为 `outputs/protocol_v3_noleak_dedup`。
+
+三地区 v3 正式缓存已在 `outputs/dist_net/region_data_v3_noleak_dedup` 落盘，并通过两次严格复验。正式 bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。
+
+| 区域 | 正式样本数 | train | val | test |
+|---|---:|---:|---:|---:|
+| Alameda | 45760 | 32001 | 6954 | 6805 |
+| ContraCosta | 23337 | 16414 | 3472 | 3451 |
+| Orange | 60015 | 42372 | 9098 | 8545 |
+
+缓存状态现为 `verified`。v3 训练仍未启动，当前没有任何可恢复论文结论的 v3 结果。实时状态和验收记录见 `docs/audits/protocol_v3_review_2026-07-19.md`，实验族机器可读状态见 `docs/audits/result_validity.csv`。
+
+## v2 冻结记录
+
+2026-07-19 曾从提交 `bf3045ac` 构建 v2 三地区缓存。事件样本 train、val、test 数分别为 Alameda 43973、9450、9366，ContraCosta 19159、4026、4040，Orange 75395、15727、14368。full-window 三地区曾记录为 73561、10501、21013，远端曾有 28 项测试通过。45 项队列于 00:39 启动，启动判活时 GPU 利用率为 91%，显存使用约 6.0 GiB。
+
+这些数字只用于追溯 v2 运维历史。它们不能证明 v2 数据和指标有效，也不能写入论文结果。
 
 ## 下一步顺序
 
-1. 三地区 `region_data_v2_noleak` 与事故关系缓存已生成。
-2. cache smoke test、目标集合互斥检查和 provenance 检查已通过。
-3. 正在用 `protocol_v2_noleak` 新结果目录重跑最小判别矩阵。
-4. 队列完成后根据新结果决定论文主张，再恢复 baseline zoo。
+1. 把已验证的 v3 cache bundle 传输到 5080。
+2. 在远端复验 archive、bundle manifest 和三地区缓存文件哈希。
+3. main 合并后锁定最终训练代码 SHA，从该精确 SHA 创建 clean clone，并核对 worktree、代码 SHA、bundle ID 与 bundle digest。
+4. 使用 `protocol_v3_noleak_dedup` 的新输出目录启动 45 项最小判别矩阵。
+5. 队列完成后根据新结果决定论文主张，再评估是否恢复 baseline zoo。
 
 ## 最小判别矩阵
 
@@ -63,6 +86,7 @@
 
 - 所有汇报数字必须来自已落盘文件，严禁估算填充。
 - XTraffic 旧缓存与旧 summary 只读冻结。
+- v2 缓存和最先完成的 4 个远程结果同样只读冻结。
 - 新结果必须记录协议、split、normalizer 与 climatology 拟合范围、缓存哈希、Git SHA、dirty 状态和 schema version。
 - 等参数比较优先，多种子约定为 42、1、2。
 - 指标使用 masked MAE，并按需要报告 all、affected 与 unaffected。

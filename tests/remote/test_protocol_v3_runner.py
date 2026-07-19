@@ -395,6 +395,7 @@ def test_results_root_rejects_unowned_content_without_deleting_it(tmp_path):
         ("wrong_valid_count", "prediction valid_count"),
         ("wrong_prediction_metric", "prediction metric"),
         ("bad_prediction_schema", "prediction artifact"),
+        ("nonfinite_masked_prediction", "non-finite prediction"),
         ("missing_artifact", "artifact"),
     ],
 )

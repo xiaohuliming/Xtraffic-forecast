@@ -3,13 +3,14 @@
 开始工作前依次阅读：
 
 1. `CLAUDE.md`
-2. `docs/audits/data_leakage_2026-07-18.md`
-3. `docs/audits/result_validity.csv`
-4. `XTraffic项目完整汇报.md`
+2. `docs/audits/protocol_v3_review_2026-07-19.md`
+3. `docs/audits/data_leakage_2026-07-18.md`
+4. `docs/audits/result_validity.csv`
+5. `XTraffic项目完整汇报.md`
 
-当前 XTraffic 旧缓存已被标记为 `contaminated`。不得把旧结果写成已验证论文结论，不得覆盖旧 summary。数据修复必须使用新 schema、新缓存版本和新输出目录。
+当前 XTraffic 的旧缓存、v2 缓存和既有结果均不得写成已验证论文结论，也不得覆盖旧 summary。v2 已冻结。除原有泄露问题外，复审还确认了重复 forecast origin、active event 跨 split、验证指标累计错误和训练契约不完整。5080 已停止旧队列，最先完成的 4 个 v2 结果只可视为 `contaminated preliminary`。
 
-无泄露 v2 代码已经实现，默认缓存目录为 `outputs/dist_net/region_data_v2_noleak`，默认结果根目录为 `outputs/protocol_v2_noleak`。三地区正式缓存已于 2026-07-19 完成构建与验收，最小判别矩阵正在 5080 上串行重跑，尚未产生可恢复论文结论的新结果。
+当前修复协议为 `protocol_v3_noleak_dedup`，cache schema 为 3。正式缓存构建代码 SHA 为 clean commit `29159f626494de52c69b36fe5bba9854f13cb56c`。纳入 `origin/fu` 的合理修复后，完整测试为 143 项通过，1 个既有 warning。三地区正式缓存已在 `outputs/dist_net/region_data_v3_noleak_dedup` 落盘，并通过两次严格复验。bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。正式样本数与 train、val、test 切分为 Alameda 45760 和 32001/6954/6805，ContraCosta 23337 和 16414/3472/3451，Orange 60015 和 42372/9098/8545。默认结果根目录为 `outputs/protocol_v3_noleak_dedup`，v3 训练尚未启动。最终训练代码 SHA 必须等 main 合并后锁定。下一步是传输缓存、执行远端哈希复验，再从最终训练 SHA 的 clean clone 启动队列。
 
 项目方法层级为 `RADS ⊂ RADS-O ⊂ NDR-Net`。完整研究史和数字出处见主报告，当前有效性见审计文件。
 

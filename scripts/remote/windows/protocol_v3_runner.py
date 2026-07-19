@@ -1029,12 +1029,13 @@ def _validate_prediction_artifact(
         chunk_valid = valid[start:stop]
         chunk_prediction = prediction[start:stop]
         chunk_actual = actual[start:stop]
-        if (
-            not np.isfinite(chunk_prediction[chunk_valid]).all()
-            or not np.isfinite(chunk_actual[chunk_valid]).all()
-        ):
+        if not np.isfinite(chunk_prediction).all():
             raise ResultValidationError(
-                "prediction artifact contains non-finite valid flow values"
+                "prediction artifact contains a non-finite prediction"
+            )
+        if not np.isfinite(chunk_actual[chunk_valid]).all():
+            raise ResultValidationError(
+                "prediction artifact contains non-finite valid target values"
             )
         chunk_error = np.abs(
             chunk_prediction[chunk_valid].astype(np.float64)
