@@ -39,6 +39,21 @@ def test_nonfinite_prediction_fails_even_at_masked_position():
         numpy_forecast_metrics(pred.numpy(), target.numpy(), mask.numpy())
 
 
+def test_empty_batch_can_be_skipped_but_is_not_silently_accepted_by_default():
+    pred = torch.ones((2, 3), dtype=torch.float32)
+    target = torch.zeros_like(pred)
+    mask = torch.zeros_like(pred, dtype=torch.bool)
+
+    with pytest.raises(ValueError, match="no valid target observations"):
+        finite_masked_absolute_error_totals(pred, target, mask)
+
+    error_sum, valid_count = finite_masked_absolute_error_totals(
+        pred, target, mask, context="test", allow_empty=True
+    )
+    assert error_sum.item() == 0.0
+    assert valid_count.item() == 0
+
+
 def _formal_summary(seed: int = 42) -> dict:
     rows = [
         {

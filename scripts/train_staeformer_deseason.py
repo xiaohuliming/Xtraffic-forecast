@@ -161,7 +161,9 @@ def masked_mae(pred, target, mask):
     return ((pred - target).abs() * mask).sum() / mask.sum().clamp(min=1.0)
 
 
-def finite_masked_absolute_error_totals(pred, target, mask, *, context="evaluation"):
+def finite_masked_absolute_error_totals(
+    pred, target, mask, *, context="evaluation", allow_empty=False
+):
     """Return the global absolute-error numerator and valid-observation count.
 
     Model predictions must be finite everywhere.  Targets only participate where
@@ -181,6 +183,13 @@ def finite_masked_absolute_error_totals(pred, target, mask, *, context="evaluati
         raise FloatingPointError(f"{context}: model produced {bad} NaN/Inf predictions")
     valid = mask.bool()
     if not bool(valid.any()):
+        if allow_empty:
+            # A contiguous batch can legitimately fall inside a period where
+            # every raw target is missing.  It contributes no observations to
+            # the split-level metric, but predictions must still be finite
+            # (checked above).  The caller remains responsible for rejecting
+            # an entirely empty validation/test split.
+            return torch.zeros((), dtype=torch.float64, device=pred.device), valid.sum()
         raise ValueError(f"{context}: batch contains no valid target observations")
     finite_target = torch.isfinite(target)
     if not bool(finite_target[valid].all()):
@@ -543,7 +552,7 @@ def main():
                 y = forward_batch(model, batch)
                 t = batch["y_true"][..., 0].to(device); msk = batch["y_mask"][..., 0].to(device)
                 batch_sum, batch_count = finite_masked_absolute_error_totals(
-                    y, t, msk, context="validation"
+                    y, t, msk, context="validation", allow_empty=True
                 )
                 error_sum += float(batch_sum.item())
                 valid_count += int(batch_count.item())
@@ -600,6 +609,7 @@ def main():
             finite_masked_absolute_error_totals(
                 pred, batch["y_true"][..., 0].to(device),
                 batch["y_mask"][..., 0].to(device), context="test",
+                allow_empty=True,
             )
             y = pred.permute(0, 2, 1).cpu().numpy()                         # (B,T_p,N)
             bs = y.shape[0]
@@ -619,6 +629,8 @@ def main():
         raise FloatingPointError("test predictions contain NaN/Inf")
     if not np.isfinite(actual_flow[y_mask_flow]).all():
         raise FloatingPointError("test cache contains non-finite valid targets")
+    if not y_mask_flow.any():
+        raise RuntimeError("test split contains no valid target observations")
 
     diff = np.abs(pred_flow - actual_flow)
     aff3 = np.broadcast_to(affected[:, None, :], (S, T_p, N))
