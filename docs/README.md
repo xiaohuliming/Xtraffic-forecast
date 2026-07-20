@@ -8,14 +8,14 @@
 |---|---|
 | `../README.md` | 仓库总览与当前有效性状态 |
 | `../CLAUDE.md` | 新会话入口、工作顺序与协作约定 |
-| `../XTraffic项目完整汇报.md` | 完整研究历史与审计前落盘结果 |
+| `../XTraffic项目完整汇报.md` | 完整研究历史、当前进度与落盘数字出处 |
 | `audits/protocol_v3_review_2026-07-19.md` | v2 冻结原因、v3 修复范围与当前协议状态 |
 | `audits/data_leakage_2026-07-18.md` | 原始数据泄露问题与验收基础 |
 | `audits/result_validity.csv` | 各实验族的机器可读有效性状态 |
 
 `XTraffic项目完整汇报.md` 仍是研究历史和数字出处的权威文档，但其中的 XTraffic 数值在 v3 复跑前均属于历史结果。当前是否可用于论文，以 v3 协议复审、数据泄露审计和有效性清单为准。
 
-当前协议为 `protocol_v3_noleak_dedup`，cache schema 为 3。正式缓存构建代码 SHA 为 clean commit `29159f626494de52c69b36fe5bba9854f13cb56c`，最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。纳入 `origin/fu` 的合理修复并补齐 Windows 路径测试后，Mac 与 5080 均为 143 项通过，1 个既有 warning。v3 正式缓存已在 `outputs/dist_net/region_data_v3_noleak_dedup` 落盘，并通过本地两次及 5080 一次严格复验。bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。正式样本数与 train、val、test 切分为 Alameda 45760 和 32001/6954/6805，ContraCosta 23337 和 16414/3472/3451，Orange 60015 和 42372/9098/8545。缓存状态为 `verified`，45 项 v3 队列运行中，尚无完成并验收的新结果。v2 和最先完成的 4 个远程结果均已冻结为无效历史记录。
+当前协议为 `protocol_v3_noleak_dedup`，cache schema 为 3。正式缓存构建代码 SHA 为 clean commit `29159f626494de52c69b36fe5bba9854f13cb56c`，最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。训练 checkout 在 Mac、5080 与 5090 均为 143 项通过、1 个既有 warning。新增双机调度、postflight 与 Windows 收尾包装器后，本地全仓为 186 项通过、1 个既有 warning。v3 正式缓存已通过本地两次、5080 一次和 5090 一次严格复验。tasks001-006 已通过 runner 验收，但都只有 seed42。正式 45 项采用双机分层矩阵，5080 当前 4/24，5090 当前 2/21。两分片独立验收并通过只读 composite index 汇合，不改写 summary。完整 45 项和多种子统计尚未完成。v2 和最先完成的 4 个 v2 远程结果仍冻结为无效历史记录。
 
 ## 当前方法说明
 

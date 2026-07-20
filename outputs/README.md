@@ -24,13 +24,13 @@
 | `dist_net/region_data/` | 旧 XTraffic H5 缓存 | `contaminated`，只读冻结 |
 | `dist_net/region_data_v2_noleak/` | v2 XTraffic H5 缓存 | `contaminated`，只读冻结，Git 忽略 |
 | `protocol_v2_noleak/` | v2 训练结果统一根目录 | 已停止，最先完成的 4 项为 `contaminated preliminary` |
-| `dist_net/region_data_v3_noleak_dedup/` | schema 3 的 v3 XTraffic 缓存 | 已通过本地两次及 5080 一次严格复验，状态为 `verified` |
-| `protocol_v3_noleak_dedup/` | v3 训练结果统一根目录 | 5080 队列运行中，尚无完成并验收的新 summary |
+| `dist_net/region_data_v3_noleak_dedup/` | schema 3 的 v3 XTraffic 缓存 | 已通过本地两次、5080 一次和 5090 一次严格复验，状态为 `verified` |
+| `protocol_v3_noleak_dedup/` | v3 训练结果统一根目录 | 已验收 tasks 001 至 006，5080 与 5090 正在运行互斥的 24 项和 21 项分片 |
 | `paper_artifacts/` | 旧事故双支论文资产 | Legacy，不代表当前论文方向 |
 | `impact_guided_next_stage/` | 大量旧事故增强实验 | Legacy，不再扩展 |
 | `remote_runs/` | 本地远程回传包与队列日志 | Git 忽略 |
 
-v3 正式缓存的 bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。正式缓存构建代码 SHA 为 `29159f626494de52c69b36fe5bba9854f13cb56c`，最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。正式样本数与 train、val、test 切分为 Alameda 45760 和 32001/6954/6805，ContraCosta 23337 和 16414/3472/3451，Orange 60015 和 42372/9098/8545。远端传输归档 SHA-256 为 `6c5d3ccb53af30d6d90c1032453c83cb463711456839dad151ba676e2bb80ea5`。45 项 v3 队列已于 2026-07-19 20:18 新加坡时间启动，当前只可标记为 `running`，不能把未完成任务写成正式结果。
+v3 正式缓存的 bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。正式缓存构建代码 SHA 为 `29159f626494de52c69b36fe5bba9854f13cb56c`，最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。正式样本数与 train、val、test 切分为 Alameda 45760 和 32001/6954/6805，ContraCosta 23337 和 16414/3472/3451，Orange 60015 和 42372/9098/8545。远端传输归档 SHA-256 为 `6c5d3ccb53af30d6d90c1032453c83cb463711456839dad151ba676e2bb80ea5`。5080 的任务 001 至 004 与 5090 的任务 005 至 006 已通过 runner 验收，但均只有 seed 42。5080 当前为 4/24，task 007 已在主机内存运维故障后用新 attempt 恢复训练。5090 当前为 2/21，正在 task 011。两个分片互斥并完整覆盖 canonical 45，保留独立结果身份，最终只生成只读 composite index。只有原子提升到正式任务目录的结果才可计为已验收，完整矩阵完成前不得恢复论文结论。
 
 ## 保留与命名规则
 

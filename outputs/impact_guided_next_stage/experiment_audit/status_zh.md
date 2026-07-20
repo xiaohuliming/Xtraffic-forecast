@@ -1,6 +1,6 @@
 # 实验审计与进度状态
 
-## 当前协议状态，2026-07-19
+## 当前协议状态，2026-07-21
 
 2026-07-18 前的完整候选模型、dual-branch gate 和 no-aux 数字仍保留在本文件后半部分，用于追溯研究过程和诚实负结果。它们来自旧 XTraffic 数据管线，当前统一标记为 contaminated，不得直接进入论文，也不得被称为已经验证的当前结论。
 
@@ -17,11 +17,11 @@
 
 第 5 项 Orange s0a seed 42 没有形成可用 summary，队列已经停止。日志与不完整 checkpoint 只读保留。
 
-当前协议已升级为 `protocol_v3_noleak_dedup`，缓存 schema 为 3。默认缓存目录是 `outputs/dist_net/region_data_v3_noleak_dedup`，默认结果根目录是 `outputs/protocol_v3_noleak_dedup`。正式缓存构建代码 SHA 为 `29159f626494de52c69b36fe5bba9854f13cb56c`，最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。Mac 与 5080 的完整测试结果均为 143 项通过，另有 1 条既有张量转标量警告。
+当前协议已升级为 `protocol_v3_noleak_dedup`，缓存 schema 为 3。默认缓存目录是 `outputs/dist_net/region_data_v3_noleak_dedup`，默认结果根目录是 `outputs/protocol_v3_noleak_dedup`。正式缓存构建代码 SHA 为 `29159f626494de52c69b36fe5bba9854f13cb56c`，最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。Mac、5080 与 5090 的完整测试结果均为 143 项通过，另有 1 条既有张量转标量警告。
 
 组员 Fu 在 `origin/fu` 的 `625aacf` 提出了空 mask batch 可跳过的处理思路。v3 已通过共享 `MaskedMAEAccumulator` 与远程 runner 的全预测有限性检查吸收这一正确性要求，没有直接 cherry-pick 落后于当前协议的旧分支。
 
-三地区正式 v3 缓存已经落盘到 `outputs/dist_net/region_data_v3_noleak_dedup`。缓存先在 staging 路径完成严格审计，发布到正式路径后再次执行同一审计，两次结果均为 verified。缓存传到 5080 后又完成一次只读严格审计，结果仍为 verified。cache bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。远端传输归档大小为 1,896,581,632 字节，SHA-256 为 `6c5d3ccb53af30d6d90c1032453c83cb463711456839dad151ba676e2bb80ea5`。
+三地区正式 v3 缓存已经落盘到 `outputs/dist_net/region_data_v3_noleak_dedup`。缓存先在 staging 路径完成严格审计，发布到正式路径后再次执行同一审计，两次结果均为 verified。缓存传到 5080 和 5090 后分别完成一次只读严格审计，结果仍为 verified。cache bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。传到 5080 时使用的归档大小为 1,896,581,632 字节，SHA-256 为 `6c5d3ccb53af30d6d90c1032453c83cb463711456839dad151ba676e2bb80ea5`。
 
 正式事件样本与 train、val、test 切分如下：
 
@@ -31,7 +31,30 @@
 | ContraCosta | 23337 | 16414 | 3472 | 3451 |
 | Orange | 60015 | 42372 | 9098 | 8545 |
 
-45 项 v3 最小判别矩阵已于 2026-07-19 20:18 新加坡时间在 RTX 5080 上严格串行启动。远端 worktree clean，代码 SHA、bundle ID 与 bundle digest 均由 runner 记录。启动时首项 `001_event_staeformer_s0a_alameda_seed42` 为 `running`，GPU 利用率为 93%，显存使用为 10522 MiB。首项 epoch 1 日志已落盘，train loss 为 18.7316，val loss 为 14.7119，用时 351 秒，并保存当前 best checkpoint。随后复查时 GPU 利用率为 96%。当前没有任务完成 runner 的 prediction artifact 与 summary 复验，因此仍无可用于论文的新结果。当前优先级是监控队列，逐项保留诚实结果，全部完成后再汇总配对比较与多种子统计。
+5080 已完成任务 001 到 004，5090 已完成任务 005 和 006。六项的 prediction artifact 与 summary 均通过 runner 验收。
+
+| 主机 | 任务 | test all masked MAE | test affected masked MAE | test unaffected masked MAE | best val masked MAE |
+|---|---|---:|---:|---:|---:|
+| 5080 | 001 Alameda s0a seed 42 | 11.339531 | 17.139917 | 11.005998 | 11.682158 |
+| 5080 | 002 Alameda s0c seed 42 | 11.025200 | 16.583555 | 10.705584 | 10.939075 |
+| 5080 | 003 ContraCosta s0a seed 42 | 12.066377 | 18.344279 | 11.771324 | 11.759196 |
+| 5080 | 004 ContraCosta s0c seed 42 | 11.718486 | 17.784800 | 11.433378 | 11.424961 |
+| 5090 | 005 Orange s0a seed 42 | 12.025650 | 17.932862 | 11.720226 | 11.872927 |
+| 5090 | 006 Orange s0c seed 42 | 11.740712 | 17.583309 | 11.438629 | 11.547319 |
+
+六项均为 seed 42，只能标记为 individually validated v3 result。它们不能直接形成多种子结论、显著性结论或论文最终结论。旧结果和 v2 的四项 `preliminary contaminated` 状态不变。
+
+5080 的任务 005 因迁移到显存更充足的 5090 而被主动终止。runner 记录 code 1，这是人为停止导致的运行状态，不是模型失败。
+
+5090 使用 clean checkout 的精确训练代码 SHA `3a4952837aaf6fbda1403d50b610b1bf40c6098a`，全套测试为 143 项通过和 1 条既有 warning。同一正式 bundle 的只读严格审计为 verified。正式结果根为 `/root/autodl-tmp/protocol_v3_noleak_dedup/remote_runs/minimal_45_5090`。
+
+旧 5090 队列完成任务 005 和 006 后在任务边界安全停止。边界切换的同一秒，旧 runner 曾为 task 007 写入 running state、零字节日志和未完成 staging，但没有 summary 或正式任务目录。这些残留不计为结果，并被 source-host postflight 与上传 allowlist 排除。
+
+2026-07-20 22:23 新加坡时间起，正式执行改为双机分层矩阵。5080 固定执行 tasks 001 到 004、007 到 010、013 到 016、019 到 030，共 24 项。5090 固定执行 tasks 005 到 006、011 到 012、017 到 018、031 到 045，共 21 项。两分片互斥且并集为 canonical 45，所有直接比较组保持同机。5080 runner 重新验收并跳过前四项，当前为 4/24。task 007 的 `attempt_0001` 因两条遗留诊断 PowerShell 扫描耗尽主机内存而在 epoch 9 数据装载阶段失败，没有 summary 或正式任务目录。内存恢复后，runner 已用 `attempt_0002` 重启 task 007。该记录属于主机运维故障，不是模型、数据协议或训练数值失败。截至 2026-07-21 00:02 新加坡时间，`attempt_0002` 已完成 epoch 7，train 为 12.0424，val 为 12.6845。5090 runner 重新验收并跳过前两项，当前为 2/21。截至同一时间，task 011 已完成 epoch 8，train 为 12.3250，val 为 12.3937。
+
+两台机器保留独立结果根、路径相关 `config_hash`、运行时 provenance 和 source-host postflight。两个分片分别通过严格 allowlist 与远端逐文件 SHA-256 复验后，只读 composite index 验证 canonical 45 完整性，不复制任务目录或改写 summary。结果只能称为 `host-stratified distributed 45`，不能称为 homogeneous 5090 matrix。
+
+5090 分片自动收尾进程 PID 为 106466。21 项训练、source-host postflight、严格回传与服务器端哈希全部通过后，5090 才会关机。5080 收尾进程 PID 为 12524。它等待 5090 上传标记后回传 24 项，成功后保持实验室工作站开机。两个进程都已通过独立进程检查和持续 WAIT 日志复验。任一失败都会保持相应机器开机。结果服务器约有 6.3 GB 空闲，双分片粗估约 11.6 GB。服务器有 12.25 GB 未使用 Docker build cache，但尚未获授权清理，当前仍有容量阻塞。
 
 方法实现层级固定为 `RADS ⊂ RADS-O ⊂ NDR-Net`。这一层级只说明组件包含关系，不恢复任何 contaminated 性能主张。
 

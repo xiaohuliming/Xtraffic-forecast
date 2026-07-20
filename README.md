@@ -7,7 +7,7 @@
 
 ## 当前状态
 
-> **v2 已冻结。v3 正式缓存已从 cache-build clean commit `29159f626494de52c69b36fe5bba9854f13cb56c` 构建并通过本地两次及 5080 一次严格复验。最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。45 项 v3 队列已在 5080 启动，尚无完成的新结果，论文写作继续暂停。**
+> **v2 已冻结。v3 正式缓存已从 cache-build clean commit `29159f626494de52c69b36fe5bba9854f13cb56c` 构建，并通过本地两次、5080 一次和 5090 一次严格复验。最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。tasks001-006 已通过 runner 验收，但都只有 seed42。正式 45 项现采用双机分层矩阵：5080 为 4/24，task007 已在主机内存故障后用新 attempt 恢复训练；5090 为 2/21，正在 task011。两分片独立验收且所有直接比较组保持同机。完整矩阵和多种子统计尚未完成，论文写作继续暂停。**
 >
 > 2026-07-18 的审计确认旧版 XTraffic 数据管线存在未来信息泄露和切分边界污染。2026-07-19 的全面复审进一步确认 v2 存在重复 forecast origin、active event 跨 split、验证累计和训练契约问题。此前报告的所有 XTraffic 数值与最先完成的 4 个 v2 远程结果均保留为历史记录，不应作为论文结论或最终基准引用。完整证据见 [v3 协议复审](docs/audits/protocol_v3_review_2026-07-19.md) 和 [数据泄露审计](docs/audits/data_leakage_2026-07-18.md)。
 
@@ -19,9 +19,9 @@
 - 完成三地区、多种子、等参数消融和一批标准基准实验。
 - 启动统一管线下的 baseline zoo，但结果尚未完成权威汇总。
 
-这些工作仍有方法设计和工程价值，但 XTraffic 上的数值证据需要按新协议重建。当前 v3 代码实现了因果填充、label-free train-only 气候态、完整目标窗切分、forecast origin 去重、active event split 隔离、可部署事故特征、显式 mask、全局有效观测点指标累计、缓存身份校验、输出隔离和 IGSTGNN 对齐。协议为 `protocol_v3_noleak_dedup`，cache schema 为 3。纳入 `origin/fu` 的合理修复并补齐 Windows 路径测试后，Mac 与 5080 均为 143 项通过，1 个既有 warning。
+这些工作仍有方法设计和工程价值，但 XTraffic 上的数值证据需要按新协议重建。当前 v3 代码实现了因果填充、label-free train-only 气候态、完整目标窗切分、forecast origin 去重、active event split 隔离、可部署事故特征、显式 mask、全局有效观测点指标累计、缓存身份校验、输出隔离和 IGSTGNN 对齐。协议为 `protocol_v3_noleak_dedup`，cache schema 为 3。纳入 `origin/fu` 的合理修复并补齐 Windows 路径测试后，Mac、5080 与 5090 均为 143 项通过，1 个既有 warning。
 
-正式缓存位于 `outputs/dist_net/region_data_v3_noleak_dedup`。它已通过两次严格复验，状态为 `verified`。bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。
+正式缓存位于 `outputs/dist_net/region_data_v3_noleak_dedup`。它已在本地正式路径和两个远端训练环境完成严格复验，状态均为 `verified`。bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。
 
 | 区域 | 正式样本数 | train | val | test |
 |---|---:|---:|---:|---:|
@@ -29,7 +29,7 @@
 | ContraCosta | 23337 | 16414 | 3472 | 3451 |
 | Orange | 60015 | 42372 | 9098 | 8545 |
 
-45 项最小判别矩阵已于 2026-07-19 20:18 新加坡时间在 5080 串行启动。远端 clean checkout、代码 SHA、传输归档 SHA-256、bundle ID、bundle digest 和严格缓存审计均已复验。首项 `001_event_staeformer_s0a_alameda_seed42` 已进入运行状态，启动判活时 GPU 利用率为 93%，显存使用为 10522 MiB。当前尚无完成并通过结果验收的新 summary。
+5080 分片固定为 tasks001-004、007-010、013-016、019-030，共 24 项。5090 分片固定为 tasks005-006、011-012、017-018、031-045，共 21 项。两台机器保留各自结果根、路径相关 `config_hash`、运行时 provenance 与 source-host postflight，最终通过只读 composite index 验证互斥并集为 canonical 45。结果只能称为双机分层矩阵，不能称为 5090 同机矩阵。现有已验收单项不能代替完整多种子统计或最终论文结论。
 
 ## 已确认的数据问题
 
@@ -45,7 +45,7 @@
 | P0 | 部分验证 MAE 按 batch 或样本均值累计 | 最佳 checkpoint 可能选择错误 |
 | P1 | 多个训练入口的 mask、图支持和结果恢复契约不一致 | 对比结果不能可靠配对 |
 
-旧缓存、v2 缓存和旧结果没有被覆盖。v3 默认缓存目录为 `outputs/dist_net/region_data_v3_noleak_dedup`，新训练默认写入 `outputs/protocol_v3_noleak_dedup`。三地区正式缓存已经通过本地与 5080 的严格复验，v3 队列正在独立的新结果目录运行。本地回归测试位于 `tests/data/`、`tests/training/` 和 `tests/remote/`。
+旧缓存、v2 缓存和旧结果没有被覆盖。v3 默认缓存目录为 `outputs/dist_net/region_data_v3_noleak_dedup`，新训练默认写入 `outputs/protocol_v3_noleak_dedup`。三地区正式缓存已经通过本地、5080 与 5090 的严格复验。v3 队列正在独立的新结果目录运行。本地回归测试位于 `tests/data/`、`tests/training/` 和 `tests/remote/`。
 
 ## 方法关系
 
@@ -83,7 +83,7 @@ RADS
 2. [v3 协议复审](docs/audits/protocol_v3_review_2026-07-19.md)：v2 冻结原因、v3 修复范围与正式缓存验收状态。
 3. [数据泄露审计](docs/audits/data_leakage_2026-07-18.md)：原始泄露问题、影响范围与验收基础。
 4. [结果有效性清单](docs/audits/result_validity.csv)：实验族当前是否可用于论文。
-5. [XTraffic 项目完整汇报](XTraffic项目完整汇报.md)：审计前的完整研究史与全部落盘数字。
+5. [XTraffic 项目完整汇报](XTraffic项目完整汇报.md)：完整研究史、当前进度与全部落盘数字出处。
 6. [RADS 与 NDR 汇报讲稿](docs/RADS_NDR_汇报讲稿.md)：方法结构和诚实的新颖性定位。
 
 ## 关键入口
@@ -94,7 +94,7 @@ RADS
 - `dist_net/protocol.py`：因果填充、切分、窗口和事故特征的共享协议实现。
 - `dist_net/data.py`：事件锚定和全滑窗数据集定义，严格校验 schema、协议、身份、mask 与 split。
 - `dist_net/training_runtime.py`：正式训练输出、缓存身份与 summary 契约。
-- `scripts/remote/windows/protocol_v3_runner.py`：5080 的 45 项 v3 串行队列，任务表见同目录 manifest。
+- `scripts/remote/windows/protocol_v3_runner.py`：5080 与 5090 共用的 v3 严格串行 runner，固定任务表见同目录 manifest。
 - `scripts/train_graphwavenet.py`：GWN 训练。
 - `scripts/train_fourier_dual_net.py`：FDN 训练。
 - `scripts/train_staeformer_xtraffic.py`：STAEformer 的 XTraffic 训练。

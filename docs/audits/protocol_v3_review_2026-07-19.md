@@ -2,13 +2,15 @@
 
 复核日期：2026-07-19
 
-复核状态：v3 代码审查与回归测试完成，正式缓存已在本地两次及 5080 一次通过严格审计，45 项最小判别矩阵正在运行
+状态更新：2026-07-21
+
+复核状态：v3 代码审查与回归测试完成，正式缓存已在本地两次、5080 一次和 5090 一次通过严格审计。v3 最小判别矩阵已有 6 项通过 runner 验收，其余任务正在 5080 与 5090 的固定分片上运行
 
 正式缓存构建代码 SHA：`29159f626494de52c69b36fe5bba9854f13cb56c`
 
 最终训练代码 SHA：`3a4952837aaf6fbda1403d50b610b1bf40c6098a`
 
-测试结果：Mac 与 5080 均为 143 passed、1 warning
+测试结果：Mac、5080 与 5090 均为 143 passed、1 warning
 协议版本：`protocol_v3_noleak_dedup`
 
 缓存 schema：3
@@ -25,9 +27,13 @@
 
 v2 修复了 2026-07-18 审计发现的主要因果泄露，但后续全面复核确认，v2 仍存在重复预测时刻、active event 跨 split、验证集指标聚合错误及若干训练实现问题。最先完成的四项 v2 远程结果不能恢复为论文证据，状态统一为 `contaminated preliminary`。其余 v2 队列已经停止。
 
-v3 已完成相应代码修复，并为缓存、训练和远程 runner 增加严格身份契约。正式缓存已经落盘，并在 staging 路径和正式路径各执行一次严格审计，两次均为 `verified`。本报告中的正式样本数、split 数、区域 digest 与 artifact SHA-256 均来自正式路径的 `cache_bundle_manifest.json`。
+v3 已完成相应代码修复，并为缓存、训练和远程 runner 增加严格身份契约。正式缓存已经落盘，并在 staging 路径和正式路径各执行一次严格审计，两次均为 `verified`。5080 与 5090 又分别完成一次只读严格审计。本报告中的正式样本数、split 数、区域 digest 与 artifact SHA-256 均来自正式路径的 `cache_bundle_manifest.json`。
 
-45 项 v3 最小判别矩阵已于 2026-07-19 20:18 新加坡时间在 5080 严格串行启动。启动时首项 `001_event_staeformer_s0a_alameda_seed42` 为 `running`，GPU 利用率为 93%，显存使用为 10522 MiB。首项 epoch 1 日志已落盘，train loss 为 18.7316，val loss 为 14.7119，用时 351 秒，并保存当前 best checkpoint。随后复查时 GPU 利用率为 96%。当前还没有任务完成并通过 runner 的 prediction artifact 与 summary 复验，因此没有新的 v3 模型结果。缓存通过审计和训练开始都不能证明模型性能，也不能恢复任何旧论文结论。baseline zoo 继续保持 `pending`。
+5080 已完成任务 001 到 004，5090 已完成任务 005 和 006。六项的 prediction artifact 与 summary 均通过 runner 验收。六项都只使用 seed 42，因此只能视为单项有效的 v3 结果，不能据此给出多种子结论、显著性结论或论文最终结论。5080 上的任务 005 曾因迁移到显存更充足的 5090 而被主动终止，runner 记录的退出码为 1。这是人为停止导致的运行状态，不是模型失败。
+
+5090 使用 clean checkout 的精确训练代码 SHA `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。全套测试结果为 143 passed、1 warning，正式缓存只读严格审计为 `verified`，bundle 身份与本报告一致。旧 41 项队列完成任务 005 和 006 后在任务边界安全停止。边界切换的同一秒，旧 runner 曾为任务 007 写入 running state、零字节日志和未完成 staging，但没有产生 summary 或正式任务目录。该残留不计为结果，并被 source-host postflight 与上传 allowlist 排除。
+
+2026-07-20 22:23 新加坡时间起，正式执行口径改为 `host-stratified distributed 45`。5080 固定执行 tasks 001 到 004、007 到 010、013 到 016、019 到 030，共 24 项。5090 固定执行 tasks 005 到 006、011 到 012、017 到 018、031 到 045，共 21 项。两组任务互不交叉，并集严格覆盖 canonical 45，所有直接 A/B 比较组保持在同一台机器。5080 当前为 4/24、skipped valid 为 4，正在 task 007。task 007 的首个 attempt 因主机内存运维故障失败且没有 summary，第二个 attempt 已恢复训练并完成 epoch 7。5090 当前为 2/21、skipped valid 为 2，正在 task 011。截至 2026-07-21 00:02 新加坡时间，task 011 已完成 epoch 8。两台机器保留独立结果根、路径相关 `config_hash`、运行时 provenance 与 source-host postflight，最终只生成只读 composite index。不得把双机结果称为 homogeneous 5090 matrix。缓存通过审计、训练 epoch 完成和六个单种子结果都不能单独恢复论文结论。baseline zoo 继续保持 `pending`。
 
 ## 复核范围
 
@@ -78,7 +84,70 @@ manifest 状态为 `verified`，cache schema 为 3，协议为 `protocol_v3_nole
 
 构建器身份均为 clean worktree，正式缓存构建代码 SHA 为 `29159f626494de52c69b36fe5bba9854f13cb56c`。该 SHA 属于缓存 provenance，不等同于最终训练代码 SHA。
 
-缓存与图文件传到 5080 时使用的归档大小为 1,896,581,632 字节，归档 SHA-256 为 `6c5d3ccb53af30d6d90c1032453c83cb463711456839dad151ba676e2bb80ea5`。远端合并分块后先核对归档哈希，再解包到最终 clean clone。远端随后以 `--no-write-manifest` 再次运行严格缓存审计，结果为 `verified`，bundle ID 与 bundle digest 和本节完全一致。
+缓存与图文件传到 5080 时使用的归档大小为 1,896,581,632 字节，归档 SHA-256 为 `6c5d3ccb53af30d6d90c1032453c83cb463711456839dad151ba676e2bb80ea5`。远端合并分块后先核对归档哈希，再解包到最终 clean clone。5080 随后以 `--no-write-manifest` 再次运行严格缓存审计，结果为 `verified`。同一正式缓存传到 5090 后也通过一次 `--no-write-manifest` 严格审计。两台远端机器的 bundle ID 与 bundle digest 均和本节完全一致。
+
+## v3 远程执行身份与当前结果
+
+### 结果根与运行身份
+
+5080 结果根为：
+
+`C:\Users\ASUS\traffic_fourier_v3_final\outputs\protocol_v3_noleak_dedup\remote_runs\minimal_45_5080`
+
+5090 结果根为：
+
+`/root/autodl-tmp/protocol_v3_noleak_dedup/remote_runs/minimal_45_5090`
+
+两台机器均使用训练代码 SHA `3a4952837aaf6fbda1403d50b610b1bf40c6098a` 和同一个正式 cache bundle。5080 的 manifest 文件采用 CRLF 换行，原始文件 SHA-256 为 `63ea48fcae187e0aa160fa2499dcb2eca46ac9cdead421807abedf6c1b9bf71a`。5090 的 manifest 文件采用 LF 换行，原始文件 SHA-256 为 `7d64c2e7ffcef8088691d63548f7c3addae662a0b52d11291a38cf1aebc8d25c`。两份文件解析后的规范 JSON SHA-256 均为 `92b65401cd945502bd89cf77d42c11881d847b91b4b86aac3b0d40b2988bdb6c`。
+
+两个原始 manifest 摘要的差异只来自换行字节。两份 manifest 解析后具有相同的 45 个任务、相同任务顺序和相同字段值。任务 `config_hash` 不使用原始 manifest 文件摘要，因此换行差异不改变任务身份或结果身份。审计时仍需同时保留原始文件摘要和规范 JSON 摘要，不能把两个原始文件错误写成字节完全相同。
+
+上述两份文件用于确认 canonical production manifest 身份。当前 24 项和 21 项分片不是另外维护的手写任务表，而是由分片器从这份 canonical manifest 只替换任务子集生成。组合验收还会再次要求分片名称与任务集合精确匹配固定契约。
+
+两台远端机器的训练运行时如下。正式矩阵保留两个独立分片，不把两套运行时、绝对路径或路径相关 `config_hash` 混成同机结果。所有直接比较组在分片设计中保持同机。
+
+| 主机 | Python | PyTorch | CUDA | NumPy | h5py | pandas |
+|---|---|---|---|---|---|---|
+| RTX 5080 | 3.13.3 | 2.10.0.dev20251203+cu128 | 12.8 | 2.2.6 | 3.14.0 | 2.3.1 |
+| RTX 5090 | 3.12.3 | 2.8.0+cu128 | 12.8 | 2.3.2 | 3.16.0 | 3.0.3 |
+
+### 已验收的六项 v3 结果
+
+| 主机 | 任务 | test all masked MAE | test affected masked MAE | test unaffected masked MAE | best val masked MAE |
+|---|---|---:|---:|---:|---:|
+| 5080 | 001 Alameda s0a seed 42 | 11.339531 | 17.139917 | 11.005998 | 11.682158 |
+| 5080 | 002 Alameda s0c seed 42 | 11.025200 | 16.583555 | 10.705584 | 10.939075 |
+| 5080 | 003 ContraCosta s0a seed 42 | 12.066377 | 18.344279 | 11.771324 | 11.759196 |
+| 5080 | 004 ContraCosta s0c seed 42 | 11.718486 | 17.784800 | 11.433378 | 11.424961 |
+| 5090 | 005 Orange s0a seed 42 | 12.025650 | 17.932862 | 11.720226 | 11.872927 |
+| 5090 | 006 Orange s0c seed 42 | 11.740712 | 17.583309 | 11.438629 | 11.547319 |
+
+六个 summary 与 prediction artifact 均通过 runner 验收。Alameda 的 s0c 减 s0a 差值为 all `-0.314331`、affected `-0.556362`、unaffected `-0.300414`。ContraCosta 的对应差值为 all `-0.347891`、affected `-0.559479`、unaffected `-0.337946`。Orange 的对应差值为 all `-0.284938`、affected `-0.349553`、unaffected `-0.281597`。这些差值只描述 seed 42 的已落盘结果，不构成多种子稳定性结论，也不能恢复旧结果或 v2 结果的有效性。
+
+5080 开始任务 005 后，Orange 配置在该机器上长时间未完成首个 epoch。5090 完成同配置显存预检并正式完成 epoch 1 后，5080 的任务 005 被主动终止以避免重复占用。runner 因子进程退出而记录 code 1。该状态仅表示任务迁移，不表示模型训练失败。任务 001 到 004 的已验收目录保持不变。5080 现已重新投入 24 项正式分片训练。
+
+### 双机固定分片
+
+分片规则由 `scripts/remote/distributed/protocol_v3_distributed.py` 固定，并从 canonical production manifest 只替换任务子集。分片器验证任务集合互斥、并集为 45，并验证每个直接比较组只属于一台主机。
+
+5080 runner 重新验收并跳过任务 001 到 004，状态为 4/24、skipped valid 为 4，正在训练 `007_event_staeformer_s0a_alameda_seed1`。task 007 的 `attempt_0001` 在 epoch 9 数据装载阶段触发 NumPy `ArrayMemoryError`。两条遗留诊断 PowerShell 扫描当时占用约 48 GB 私有内存。该 attempt 没有 summary 或正式任务目录，失败记录原样保留。停止两条诊断进程后，runner 以 `attempt_0002` 重启 task 007，训练与 GPU 均恢复正常。该记录属于主机运维故障，不是模型失败、数据协议失败或训练数值失败。
+
+截至 2026-07-21 00:02 新加坡时间，5080 的 task 007 `attempt_0002` 已完成 epoch 7，train 为 12.0424，val 为 12.6845，用时 359 秒，GPU 利用率为 92%。
+
+5090 runner 重新验收并跳过任务 005 和 006，状态为 2/21、skipped valid 为 2，正在训练 `011_event_staeformer_s0a_orange_seed1`。截至同一时间，task 011 已完成 epoch 8，train 为 12.3250，val 为 12.3937，用时 659 秒，并保存当前 best checkpoint。
+
+两个结果根分别执行 source-host postflight。postflight 复验 queue、任务目录、prediction artifact、summary、任务配置哈希、缓存 bundle、Git SHA 和运行时 provenance，并只导出分片被分配的正式任务、状态和日志。旧任务 005 迁移记录、旧 task 007 残留、未完成 staging 与其他主机任务都不进入 allowlist。两份结果回传后，只读 composite postflight 验证 canonical 45 完整并集和逐文件 SHA-256，不复制任务目录，也不改写既有 summary。
+
+### 自动回传与关机契约
+
+5090 已在 `/root/autodl-tmp/protocol_v3_finalize_5090_shard.sh` 部署分片自动收尾守护进程，当前 PID 为 106466。守护进程只有在以下条件全部满足时才关机：
+
+1. 5090 分片 queue status 为 completed，完成数为 21/21，skipped valid 数为 2。
+2. source-host postflight 对 21 项重新执行 summary 身份、必需 artifact、prediction artifact 指标复算和运行时 provenance 检查。
+3. 严格 allowlist 同步到 `root@8.134.12.5:/root/xtraffic_results/protocol_v3_noleak_dedup/distributed_45_5080_5090/shards/rtx5090_21`。
+4. 结果服务器按逐文件 SHA-256 清单完成全量复验，并将 incoming 目录原子提升为正式目录。
+
+5080 的 PowerShell 收尾进程 PID 为 12524。它等待 5090 上传完成标记，再验收并回传 24 项到同一父目录下的 `rtx5080_24`，成功后保持实验室工作站开机。5090 收尾进程 PID 为 106466。两个进程都已通过独立进程检查和持续 WAIT 日志复验。任一条件失败时，相应收尾进程都会保持机器开机。测试已覆盖队列未完成、postflight 失败、服务器空间不足、传输失败和远端哈希失败。结果服务器约有 6.3 GB 空闲，可回收的未使用 Docker build cache 为 12.25 GB。缓存清理尚未授权，双分片粗估约 11.6 GB，因此完整回传当前仍有容量阻塞。
 
 ## v2 落盘复核
 
@@ -187,7 +256,7 @@ runner 在启动前验证 clean Git checkout、精确代码 SHA、缓存审计�
 
 ## 回归测试
 
-最终训练代码 SHA `3a4952837aaf6fbda1403d50b610b1bf40c6098a` 已纳入 `origin/fu` 提交 `625aacf` 中经复核合理的部分，并修正了协议路径测试在 Windows 上的分隔符断言。Mac 与 5080 的全套测试结果均为 143 passed、1 warning。新增与加强的测试覆盖：
+最终训练代码 SHA `3a4952837aaf6fbda1403d50b610b1bf40c6098a` 已纳入 `origin/fu` 提交 `625aacf` 中经复核合理的部分，并修正了协议路径测试在 Windows 上的分隔符断言。Mac、5080 与 5090 的全套测试结果均为 143 passed、1 warning。新增与加强的测试覆盖：
 
 - forecast origin 唯一化和最近 anchor 选择。
 - 完整 origin event 与 active event 保留。
@@ -210,9 +279,9 @@ runner 在启动前验证 clean Git checkout、精确代码 SHA、缓存审计�
 | 旧 XTraffic 缓存与结果 | contaminated | 否 |
 | v2 最先完成的四项远程结果 | contaminated preliminary | 否 |
 | v2 其余最小判别矩阵 | stopped | 否 |
-| v3 训练代码 | verified checkout | 是正式训练输入，SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`，远端 worktree clean |
+| v3 训练代码 | verified checkout | 是正式训练输入，SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`，5080 与 5090 的远端 worktree 均 clean |
 | v3 正式缓存 | verified | 可作为 v3 训练输入，不能单独产生模型结论 |
-| v3 最小判别矩阵 | running | 否，尚无完成并验收的新结果 |
+| v3 最小判别矩阵 | running distributed partial, 6 validated | 否，任务 001 到 006 已分别验收但均只有 seed 42，5080 的 24 项分片与 5090 的 21 项分片仍在运行 |
 | v3 baseline zoo | pending | 否，尚未启动 |
 
 ## 正式启动门槛
@@ -229,4 +298,4 @@ runner 在启动前验证 clean Git checkout、精确代码 SHA、缓存审计�
 5. runner 环境中的代码 SHA、cache bundle ID 与 digest 和本地审计清单一致。
 6. 新结果写入 `outputs/protocol_v3_noleak_dedup` 下的新 attempt，不读取或覆盖 v2 输出。
 
-远端正式 checkout 的 Git SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`，worktree clean。runner 的 queue status 记录同一代码 SHA、cache bundle ID、bundle digest、schema 3 和 45 项任务。首项已进入新的 attempt 目录运行，未读取或覆盖 v2 输出。正式缓存保持 `verified`，最小判别矩阵状态更新为 `running`。
+5080 与 5090 的正式 checkout 均为 Git SHA `3a4952837aaf6fbda1403d50b610b1bf40c6098a`，worktree clean。两台机器的 runner 身份均绑定同一 cache bundle ID、bundle digest 和 schema 3。5080 的任务 001 到 004 与 5090 的任务 005 到 006 已完成并通过 runner 验收。5080 上曾主动终止的任务 005 只作为迁移记录保留，code 1 不是模型失败。5080 的 task 007 首个 attempt 因主机内存运维故障失败且没有 summary，第二个 attempt 已恢复训练。正式训练现由 5080 的 24 项分片和 5090 的 21 项分片并行执行，分别为 4/24 和 2/21。两分片保持独立结果身份，最终只通过只读 composite index 验证完整性。正式缓存保持 `verified`，最小判别矩阵状态为 `running_distributed_partial_6_validated`。
