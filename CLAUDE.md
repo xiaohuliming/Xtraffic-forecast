@@ -1,6 +1,6 @@
 # XTraffic 项目导航与协作约定
 
-最近更新：2026-07-21
+最近更新：2026-07-22
 
 ## 新会话先读
 
@@ -63,17 +63,23 @@ v2 随后修复了原始泄露问题，但全面复审又确认了四类影响�
 
 5080 上的 v3 tasks001-004 已完成，并通过 runner 对 prediction artifact、有效点数及 all、affected、unaffected 指标的验收。task005 在迁移到 5090 后被主动终止，runner 如实记录退出码 1。这是计划内迁移，不是模型失败。
 
-5080 的这 4 个结果与 5090 已验收的 tasks005-006 合计为 6 个正式 v3 单项结果。它们与冻结的 4 个 v2 `contaminated preliminary` 结果性质不同，不能混为一谈。但 6 个 v3 结果都只有 seed42，尚不能代表种子 42、1、2 的多种子结论，也不能恢复论文结论。
+最先落盘的 5080 tasks001-004 与 5090 tasks005-006 合计为 6 个 seed42 正式 v3 单项结果。它们与冻结的 4 个 v2 `contaminated preliminary` 结果性质不同，不能混为一谈。截至 2026-07-22 20:51 新加坡时间，runner 层已完成或重新验收 38/45，其中 5080 的旧 24 项队列为 24/24，5090 的旧 21 项队列为 14/21。完整矩阵、双分片回传与 composite index 仍未完成，因此仍不能恢复多种子、显著性或论文结论。
 
 2026-07-20 22:23 新加坡时间起，正式运行口径改为双机分层矩阵。两台机器保留独立结果根、各自主机路径相关的 `config_hash`、独立 source-host postflight 与运行时 provenance。最终产物称为 `host-stratified distributed 45`，不再称为“5090 同机完整矩阵”。固定分片不交叉且并集严格覆盖 canonical 45，所有直接比较组保持同机。
 
-5080 分片为 tasks001-004、007-010、013-016、019-030，共 24 项。runner 已重新验收并跳过 tasks001-004，当前队列为 4/24、skipped valid 为 4，正在训练 task007。task007 的 `attempt_0001` 在 epoch 9 数据装载阶段因主机内存耗尽触发 NumPy `ArrayMemoryError`。根因是两条遗留诊断 PowerShell 扫描占用约 48 GB 私有内存。该 attempt 没有 summary 或正式任务目录，失败记录原样保留。只停止两条诊断进程后内存恢复，runner 已用 `attempt_0002` 重启 task007，训练与 GPU 均正常。这是主机运维故障，不是模型、数据协议或训练数值失败。截至 2026-07-21 00:02 新加坡时间，`attempt_0002` 已完成 epoch 7，train 为 12.0424，val 为 12.6845，用时 359 秒，GPU 利用率为 92%。旧 task005 的失败日志继续作为迁移记录保留，不进入正式导出 allowlist。
+5080 的旧固定分片为 tasks001-004、007-010、013-016、019-030，共 24 项。2026-07-22 18:13:06 新加坡时间，队列达到 24/24，skipped valid 为 4，runner 输出 `ALL_DONE` 并以退出码 0 结束。task007 的 `attempt_0001` 在 epoch 9 数据装载阶段因两条遗留诊断 PowerShell 扫描占用约 48 GB 私有内存而触发 NumPy `ArrayMemoryError`。该 attempt 没有 summary 或正式任务目录，失败记录原样保留。停止两条诊断进程后，runner 以 `attempt_0002` 完整重跑并验收 task007。这是主机运维故障，不是模型、数据协议或训练数值失败。旧 task005 迁移记录不进入正式导出 allowlist。18:14:38，5080 source-host postflight 对 24 项复验通过。18:14:45，导出 allowlist 确认 134 个文件，总计 3,372,164,933 字节。
 
-5090 分片为 tasks005-006、011-012、017-018、031-045，共 21 项。task005 与 task006 已完成并通过 runner 验收，新分片重新验收并跳过两项。当前队列为 2/21、skipped valid 为 2，正在训练 task011。截至 2026-07-21 00:02 新加坡时间，task011 已完成 epoch 8，train 为 12.3250，val 为 12.3937，用时 659 秒，并保存当前 best checkpoint。task005 的 all、affected、unaffected MAE 为 12.025650、17.932862、11.720226。task006 为 11.740712、17.583309、11.438629。两项都只有 seed42，只能作为方向性证据。旧 5090 队列在边界切换时为 task007 创建了零字节日志、running state 和未完成 staging，未产生 summary 或正式目录，postflight、上传和 composite index 均明确排除。
+5090 的旧固定分片为 tasks005-006、011-012、017-018、031-045，共 21 项。task005 与 task006 在分片启动时由 runner 重新验收并跳过。截至 2026-07-22 20:51 新加坡时间，队列为 14/21，skipped valid 为 2，正在训练 `039_fullwindow_staeformer_base_alameda_seed42`。task039 的最近完整记录为 epoch 18，train 为 10.0878，val 为 10.9942，用时 518 秒，并保存新的 best checkpoint。现场读取时 epoch 19 已进行到 batch 2700/4598，GPU 利用率为 83%。task005 的 all、affected、unaffected MAE 为 12.025650、17.932862、11.720226。task006 为 11.740712、17.583309、11.438629。这两项都只有 seed42，只能作为方向性证据。旧 5090 队列在更早的边界切换时为 task007 创建了零字节日志、running state 和未完成 staging，未产生 summary 或正式目录，postflight、上传和 composite index 均明确排除。
 
-5090 自动收尾进程 PID 为 106466。它等待 21/21、skipped valid 为 2、source-host postflight、严格 allowlist、结果服务器逐文件 SHA-256 与原子提升全部通过，然后上传到 `root@8.134.12.5:/root/xtraffic_results/protocol_v3_noleak_dedup/distributed_45_5080_5090/shards/rtx5090_21` 并关闭 5090。5080 收尾进程 PID 为 12524，它会在 5090 上传标记出现后上传 `rtx5080_24`，成功后保持实验室工作站开机。两个进程都已通过独立进程检查和持续 WAIT 日志复验。任何失败都保持机器开机。
+2026-07-22 20:40 新加坡时间，用户批准将 ContraCosta full-window 的 tasks040-042 整组迁到 5080。目标固定分片现为 5080 共 27 项，任务是 tasks001-004、007-010、013-016、019-030、040-042。5090 共 18 项，任务是 tasks005-006、011-012、017-018、031-039、043-045。两组互不交叉，并集严格为 canonical 45。tasks037-039、tasks040-042 与 tasks043-045 三个直接比较组各自保持同机。
 
-结果服务器当前约有 6.3 GB 空闲，双分片粗估约 11.6 GB，容量仍不足。服务器有 12.25 GB 未使用 Docker build cache 可回收，但在获得明确授权前不得清理。5080 的专用 relay SSH 私钥只保存在工作站用户目录，不进入仓库。新增分片、source-host postflight、组合索引和双机收尾后，本地全仓测试为 186 passed、1 个既有 warning。
+27/18 切换已经布防，但尚未越过原子提交点。5090 边界 watcher PID 为 213135，目标是 task039，状态为 `waiting`。transition PID 为 216008，正在消费该 watcher。旧 5090 runner PID 为 104478，旧 21 项 finalizer PID 为 106466。task039 完整落盘后，watcher 才会停止旧 runner。transition 随后严格复验 task039、确认 task040 没有正式目录、停止旧 finalizer、发布 relay ready marker，再启动 18 项 runner 与 finalizer。新 5090 分片会继承 15 项，从 task043 开始，最终上传名为 `rtx5090_18`。
+
+5080 的旧 finalizer PID 12524 及其卡住的 SSH 子进程已经停止。27 项等待器 PID 为 2764，已脱离一次性任务计划并持续记录 `WAIT_BOUNDARY`。ready marker 出现后，它会再次确认旧队列仍为 24/24、task040 没有正式目录及旧 finalizer 已清零，然后启动 27 项 runner 与 finalizer。新 5080 分片会继承 24 项，从 task040 开始，最终上传名为 `rtx5080_27`。5080 上传成功后保持工作站开机。任何训练、复验、空间、传输或哈希错误都保持相应机器开机。
+
+27/18 控制实现已进入 Git。固定分片与 Linux 控制提交为 `60405a9`，Windows 退出码刷新尝试提交为 `e191c27`，最终采用临时退出码文件的可靠实现提交为 `30bcb81`。训练 checkout 与正式训练代码 SHA 仍保持 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`，控制提交没有改动训练输入。Mac 全仓回归为 230 passed、1 个既有 warning。5080 已完成正式脚本 SHA-256、PowerShell AST 与真实 relay 冒烟复验。冒烟确认 `BOUNDARY_ABSENT` 被正确识别为成功查询并进入 `WAIT_BOUNDARY`。
+
+截至 20:51 新加坡时间，task040 在两台机器上都没有正式目录，5090 本地 ready marker 与 relay ready marker 均不存在。结果服务器空闲 6,280,982,528 字节，尚无新分片完成标记或 incoming 目录。双分片粗估约 11.6 GB，容量仍不足。服务器有约 12.25 GB 未使用 Docker build cache 可回收，但在获得明确清理授权前不得清理。5080 的专用 relay SSH 私钥只保存在工作站用户目录，不进入仓库。
 
 ## v2 冻结记录
 
@@ -83,13 +89,14 @@ v2 随后修复了原始泄露问题，但全面复审又确认了四类影响�
 
 ## 下一步顺序
 
-1. 持续监控 5080 的 24 项分片与 5090 的 21 项分片，确保任务集合不交叉。
-2. 每项完成后由 runner 复算 prediction artifact 的有效点数与 all、affected、unaffected 指标，再原子提升到各自主机正式任务目录。
-3. 两个分片分别完成 source-host postflight、严格 allowlist 和逐文件 SHA-256 回传。
-4. 在结果服务器上生成只读 composite index，验证两分片互斥、并集为 canonical 45，且不改写任何 summary。
-5. 完整矩阵完成后按同机直接比较组执行配对比较、显著性检验和跨种子统计。
-6. 解决结果服务器容量阻塞，确保 5090 上传复验后自动关机。
-7. 只根据完整的 v3 落盘结果决定论文主张，再评估是否恢复 baseline zoo。
+1. 持续监控 5090 task039、边界 watcher、transition 与 5080 等待器，确认 ready marker 发布前 task040 始终没有正式目录。
+2. task039 边界完成后，验收 5090 新队列为 18 项且从 task043 开始，验收 5080 新队列为 27 项且从 task040 开始。
+3. 两台机器每项完成后由 runner 复算 prediction artifact 的有效点数与 all、affected、unaffected 指标，再原子提升到正式任务目录。
+4. 两个新分片分别完成 source-host postflight 与严格 allowlist 后，上传 `rtx5090_18` 和 `rtx5080_27` 并执行结果服务器逐文件 SHA-256 复验。
+5. 解决结果服务器容量阻塞，确保 5090 上传复验后自动关机。未获授权前不得清理 Docker build cache。
+6. 在结果服务器上生成只读 composite index，验证两分片互斥、并集为 canonical 45，且不改写任何 summary。
+7. 完整矩阵完成后按同机直接比较组执行配对比较、显著性检验和跨种子统计。
+8. 只根据完整的 v3 落盘结果决定论文主张，再评估是否恢复 baseline zoo。
 
 ## 最小判别矩阵
 
