@@ -78,19 +78,19 @@ v2 缓存会记录 schema version、协议版本、精确切分边界、预处�
 
 在 2026-07-21 00:02 新加坡时间的历史快照中，5080 的 task 007 `attempt_0002` 已完成 epoch 7，train 为 12.0424，val 为 12.6845，用时 359 秒，GPU 利用率为 92%。5090 的 task 011 已完成 epoch 8，train 为 12.3250，val 为 12.3937，用时 659 秒，并保存当前 best checkpoint。两台队列当时分别为 4/24 与 2/21。
 
-截至 2026-07-22 20:51 新加坡时间，runner 层共完成或重新验收 38/45。5080 的旧 24 项分片已达到 24/24，skipped valid 为 4，runner 输出 `ALL_DONE` 并以退出码 0 结束。其 source-host postflight 已复验 24 项，严格导出 allowlist 包含 134 个文件，共 3,372,164,933 字节。旧 finalizer PID 12524 已安全停止，27 项边界等待器 PID 2764 持续处于 `WAIT_BOUNDARY`。5090 的旧队列仍为 14/21，skipped valid 为 2，正在训练 `039_fullwindow_staeformer_base_alameda_seed42`。最近完整的 epoch 18 记录 train 10.0878、val 10.9942、用时 518 秒，并保存新的 best checkpoint。现场读取时 epoch 19 已进行到 batch 2700/4598。完整双分片回传与 composite index 均未形成。
+截至 2026-07-22 22:56 新加坡时间，runner 层共完成或重新验收 39/45。5080 的旧 24 项分片已完成并通过 source-host postflight。5090 的 task039 于 22:49 完成并通过边界验收，随后原子发布 27/18 ready marker。旧 5090 runner、旧 finalizer、边界 watcher 与 transition 均按设计退出。完整双分片回传与 composite index 尚未形成。
 
-27/18 重分片方案已获得用户批准并完成控制层布防。task039 与已在 5090 完成的 tasks 037 至 038 属于同一个直接比较组，因此保留在 5090。到达 task039 边界后，5090 的新 18 项分片将继承已验收的 15 项，只新跑 Orange full-window 的 tasks 043 至 045。5080 的新 27 项分片将继承已验收的 24 项，再跑 ContraCosta full-window 的 tasks 040 至 042。当前尚未到 task039 边界，ready marker 与 task040 正式目录均不存在，因此新 runner 还没有启动，27/18 切换也尚未完成。
+27/18 重分片已经实际生效。5090 的新 18 项队列继承 15 项，skipped valid 为 15，正在运行 task043。5080 的新 27 项队列继承 24 项，skipped valid 为 24，正在运行 task040。task039 与 tasks037 至 038 保持在 5090，tasks040 至 042 保持在 5080，tasks043 至 045 保持在 5090，所有直接比较组继续同机。22:56 的现场快照中，task043 为 epoch 2 batch 1100/2299，task040 为 epoch 3 batch 1200/2299。
 
 Windows 5080 与 Linux 5090 的绝对路径和运行时环境不同，因此两台机器保留独立结果根、独立 `config_hash`、独立运行时 provenance 和独立 source-host postflight。最终结果只能称为 `host-stratified distributed 45`。只读 composite index 会验证两个分片互斥并完整覆盖 45 项，但不会复制任务目录、改写 summary 或把跨主机结果伪装成同机矩阵。论文写作继续暂停，只有完整矩阵与多种子比较完成后才重新评估原主张。
 
 ### 自动回传与关机安排
 
-5090 的边界 watcher PID 为 213135，27/18 transition PID 为 216008，旧 21 项 finalizer PID 为 106466。transition 将在 task039 的 summary 与 completed state 都通过验收后发布原子 ready marker，再启动新 18 项 runner 与 finalizer。新 5090 分片只跑 tasks 043 至 045，上传名为 `rtx5090_18`。source-host postflight、严格导出 allowlist、结果服务器逐文件 SHA-256 和原子提升全部通过后，5090 才会关机。
+5090 新 18 项 runner PID 为 241437，finalizer PID 为 241585。task043 正在训练，GPU 利用率为 83%，显存占用为 5,111/32,607 MB。新分片只新跑 tasks043 至 045，上传名为 `rtx5090_18`。source-host postflight、严格导出 allowlist、结果服务器逐文件 SHA-256 和原子提升全部通过后，5090 才会关机。
 
-5080 的旧 finalizer PID 12524 已停止，27 项等待器 PID 2764 持续等待同一 ready marker。标记通过哈希、PID、边界任务和 task040 未启动条件验证后，它才启动新 27 项 runner 与 finalizer。新 5080 分片只新跑 tasks 040 至 042，上传名为 `rtx5080_27`。5080 是实验室共享工作站，上传成功后保持开机。它使用的专用 relay SSH 私钥只保存在工作站用户目录，不进入 Git 仓库。
+5080 边界等待器已完成任务并按设计退出。新 27 项 runner PID 为 17260，finalizer PID 为 6152。task040 正在训练，GPU 利用率为 70%，显存占用为 3,212/16,303 MB。新分片只新跑 tasks040 至 042，上传名为 `rtx5080_27`。5080 是实验室共享工作站，上传成功后保持开机。它使用的专用 relay SSH 私钥只保存在工作站用户目录，不进入 Git 仓库。
 
-重分片控制代码已经过提交 `60405a9`、`e191c27` 和 `30bcb81` 固化。本地全仓回归为 230 项通过和 1 条既有警告，5080 真实 PowerShell AST 解析与退出码冒烟验证均通过。结果服务器当前精确空闲 6,280,982,528 字节，容量仍然阻塞完整双分片回传。服务器上的 Docker build cache 在获得明确授权前不得擅自清理。任何训练、复验、空间、传输或哈希错误都会保持相应机器开机。
+重分片控制代码已经过提交 `60405a9`、`e191c27` 和 `30bcb81` 固化。本地全仓回归为 230 项通过和 1 条既有警告，5080 真实 PowerShell AST 解析与退出码冒烟验证均通过。用户授权处理容量后，仅清理结果服务器未使用的 Docker build cache。build cache 从 12.25 GB 降为 0 B，可用空间增至 19,434,708,992 字节，4 个业务容器持续运行，ready marker 与结果根完好。容量阻塞已经解除。任何训练、复验、空间、传输或哈希错误都会保持相应机器开机。
 
 ---
 
@@ -136,13 +136,13 @@ v3 已完成代码修复，schema 为 3，协议名为 `protocol_v3_noleak_dedup
 
 正式 45 项从该时点起采用固定双机分片。5080 执行 24 项，当时为 4/24。task 007 的首个 attempt 因遗留诊断进程耗尽主机内存而失败，未产生 summary，随后用第二个 attempt 恢复训练并完成 epoch 7。5090 执行 21 项，当时为 2/21。截至 2026-07-21 00:02 新加坡时间，task 011 已完成 epoch 8。两个分片互斥且并集为 canonical 45，所有直接比较组保持同机。两台机器独立验收与上传，最终只生成只读 composite index，不将跨主机路径和运行时身份混为同机结果。
 
-### 最新进展，2026-07-22，27/18 重分片已批准并布防
+### 最新进展，2026-07-22，27/18 重分片已完成切换
 
-截至 20:51 新加坡时间，runner 层共完成或重新验收 38/45。5080 的旧 24 项分片已全部完成，runner 退出码为 0。source-host postflight 对 24 项复验通过，严格导出 allowlist 包含 134 个文件，共 3,372,164,933 字节。旧 finalizer PID 12524 已停止，新 27 项等待器 PID 2764 持续处于 `WAIT_BOUNDARY`。
+截至 22:56 新加坡时间，runner 层共完成或重新验收 39/45。5080 的旧 24 项分片已全部完成，runner 退出码为 0。source-host postflight 对 24 项复验通过，严格导出 allowlist 包含 134 个文件，共 3,372,164,933 字节。task039 也已完成并通过 5090 runner 与边界 transition 的双重验收。
 
-5090 的旧队列仍为 14/21，正在训练 task039。最近完整的 epoch 18 记录 train 10.0878、val 10.9942 和用时 518 秒，并保存新的 best checkpoint。现场读取时 epoch 19 已进行到 batch 2700/4598。边界 watcher PID 213135、transition PID 216008 和旧 finalizer PID 106466 均已布防。
+22:49，新加坡时间，task039 边界通过，ready marker 原子发布。旧 5090 runner、旧 finalizer、watcher 与 transition 随后按设计退出。新 5090 队列为 15/18，正在 task043。runner PID 为 241437，finalizer PID 为 241585。task043 已到 epoch 2 batch 1100/2299，GPU 利用率为 83%。
 
-用户已批准 27/18 重分片。到达 task039 边界后，5090 继承 15 项并只新跑 tasks043 至 045，5080 继承 24 项并新跑 tasks040 至 042。ready marker 和 task040 正式目录当前均不存在，这证明自动切换尚未触发，两个新 runner 也尚未启动。控制提交为 `60405a9`、`e191c27` 和 `30bcb81`，本地全仓回归为 230 项通过和 1 条既有警告，5080 真实 PowerShell AST 与退出码冒烟验证通过。
+新 5080 队列为 24/27，正在 task040。runner PID 为 17260，finalizer PID 为 6152，边界 waiter 已按设计退出。task040 已到 epoch 3 batch 1200/2299，GPU 利用率为 70%。用户授权处理容量后，结果服务器仅清理未使用的 Docker build cache，可用空间增至 19,434,708,992 字节，4 个业务容器保持运行。控制提交仍为 `60405a9`、`e191c27` 和 `30bcb81`。
 
 ### 审计前旧管线历史，2026-06-25，旧云 5090 实验
 
@@ -181,12 +181,12 @@ Orange 的 s0a 对 s0c 三种子完成，配对差负 0.114 与负 0.132 与负 
 1. v2 缓存与四个 preliminary summary 已冻结为 contaminated，不再续跑。
 2. 三地区 `region_data_v3_noleak_dedup` 已从 clean 提交重建完成，本地两次、5080 一次与 5090 一次严格审计均为 verified。
 3. 最终训练代码 SHA 已锁定，Mac、5080 与 5090 均为 143 项测试通过与 1 条既有警告。
-4. runner 层共完成或重新验收 38/45。5080 已完成旧分片 24/24、source-host postflight 和严格导出 allowlist。旧 finalizer 已停止，27 项等待器正在等待边界。
-5. 5090 的旧队列为 14/21，正在训练 task039。20:51 新加坡时间的现场快照为 epoch 19 batch 2700/4598，最近完整的 epoch 18 记录 train 10.0878 与 val 10.9942。
-6. 27/18 方案已获批准并布防。在 task039 边界达成前，ready marker 和 task040 正式目录应继续不存在，新 runner 不应提前启动。
-7. 边界后由 5090 继承 15 项并新跑 tasks043 至 045，由 5080 继承 24 项并新跑 tasks040 至 042。两个新分片分别上传为 `rtx5090_18` 和 `rtx5080_27`。
-8. 两个分片分别完成 source-host postflight、严格 allowlist、回传和远端哈希复验后，生成只读 composite index 验证 canonical 45 完整并集。
-9. 结果服务器当前空闲 6,280,982,528 字节，容量仍然阻塞。Docker build cache 在获得明确授权前不得清理。
+4. runner 层共完成或重新验收 39/45，task039 已通过边界验收，27/18 重分片已经实际生效。
+5. 5090 新队列为 15/18，正在 task043。5080 新队列为 24/27，正在 task040。两台机器各自只剩 3 项，当前有 2 项并行训练。
+6. 两个新 runner 与两个 finalizer 均存活。旧控制进程与 5080 边界 waiter 已在成功交接后按设计退出。
+7. 两个分片完成后分别上传为 `rtx5090_18` 和 `rtx5080_27`，执行 source-host postflight、严格 allowlist 与远端哈希复验。
+8. 结果服务器 build cache 已清零，可用空间为 19,434,708,992 字节，容量阻塞已解除，4 个业务容器未受影响。
+9. 回传完成后生成只读 composite index，验证 canonical 45 完整并集。
 10. v3 分层矩阵完成后重新判断论文主张，再决定 baseline zoo 与论文写作是否恢复。
 
 ---
@@ -221,6 +221,8 @@ Orange 的 s0a 对 s0c 三种子完成，配对差负 0.114 与负 0.132 与负 
 24. 第二十二阶段，2026-07-20：为了让 5080 分担训练，同时避免 Windows 与 Linux 的路径相关 `config_hash` 和运行时 provenance 被错误混合，正式口径改为 `host-stratified distributed 45`。5080 固定承担 24 项，5090 固定承担 21 项。两分片互斥、并集为 canonical 45，所有直接比较组保持同机。旧 5090 队列在任务边界停止时留下 task 007 的零字节日志和未完成 staging，没有 summary，已从正式导出中排除。
 25. 第二十三阶段，2026-07-20：5080 的 task 007 `attempt_0001` 因两条遗留诊断进程耗尽主机内存而在 epoch 9 数据装载阶段失败。该 attempt 没有 summary 或正式任务目录。清理两条诊断进程后，runner 用 `attempt_0002` 恢复训练。5090 分片继续运行，两台机器的自动收尾进程均已重新部署并复验。
 26. 第二十四阶段，2026-07-22：5080 固定分片达到 24/24，runner 退出码为 0，source-host postflight 和严格导出 allowlist 均通过。5090 达到 14/21 并进入 task039，runner 层合计 38/45。用户批准 27/18 重分片后，控制契约、两端 finalizer、边界 transition、ready marker 和严格 postflight 已更新并布防。控制提交为 `60405a9`、`e191c27` 和 `30bcb81`，本地回归为 230 项通过和 1 条既有警告，5080 真实 PowerShell AST 与退出码冒烟验证通过。截至 20:51 新加坡时间，新 runner 尚未启动，ready marker 与 task040 正式目录均不存在。
+27. 第二十五阶段，2026-07-22：22:49，task039 完成并通过边界验收，ready marker 原子发布。旧 5090 runner、旧 finalizer、watcher 与 transition 按设计退出。5090 新 18 项队列继承 15 项并开始 task043，5080 新 27 项队列继承 24 项并开始 task040。runner 层合计达到 39/45。
+28. 第二十六阶段，2026-07-22：用户授权处理结果服务器容量。仅清理 12.25 GB 未使用 Docker build cache，清理后 build cache 为 0 B，可用空间为 19,434,708,992 字节。4 个业务容器、ready marker 与结果根均保持正常，容量阻塞解除。
 
 ---
 
@@ -619,7 +621,7 @@ Orange 区域曾于 2026-06-23 在审计前旧管线的云 5090 上补齐，all 
 
 2026-07-06 时项目曾判断全部实验证据关账。2026-07-18 数据有效性审计推翻了这一状态判断。2026-07-19 对 v2 的后续全面复核又确认，仅修复最初泄露点仍不足以保证样本唯一性、验证选择和全链路结果身份正确。v2 队列已经停止，四个 v2 preliminary summary 继续标记为 contaminated。v3 正式缓存已完成本地两次、5080 一次与 5090 一次严格审计，结果均为 verified。
 
-runner 层现已完成或重新验收 38/45。5080 的旧 24 项分片已完成 24/24，runner 输出 `ALL_DONE` 并以退出码 0 结束，source-host postflight 与 134 文件严格导出 allowlist 均已通过。旧 finalizer PID 12524 已停止，27 项等待器 PID 2764 正在等待 task039 边界。5090 的旧队列为 14/21，正在 task039。截至 20:51 新加坡时间，最近完整的 epoch 18 记录 train 10.0878、val 10.9942 与用时 518 秒，并保存新的 best checkpoint。现场 epoch 19 已进行到 batch 2700/4598。27/18 重分片已批准并布防，但尚未到边界，新 runner 未启动，ready marker 与 task040 正式目录均不存在。最先落盘的六项 seed42 指标仍只能用于方向性观察。5080 上的 task005 因训练迁移而主动终止，不是模型失败。task007 的首个 attempt 因主机内存运维故障失败且未产生 summary，第二个 attempt 已完整重跑并验收。两个结果根保持独立，最终只通过只读 composite index 验证完整性。审计前最低历史数字 Alameda NDR-Net 11.052 仍不得作为当前有效结果。
+runner 层现已完成或重新验收 39/45。task039 于 22:49 完成并通过边界验收，27/18 ready marker 已发布。5090 新队列为 15/18，正在 task043。5080 新队列为 24/27，正在 task040。两个 runner 与两个 finalizer 均正常存活，旧控制进程和边界 waiter 均已按设计退出。结果服务器未使用的 Docker build cache 已清零，可用空间为 19,434,708,992 字节，容量阻塞解除。两个结果根保持独立，最终只通过只读 composite index 验证完整性。最先落盘的六项 seed42 指标仍只能用于方向性观察。5080 上的 task005 因训练迁移而主动终止，不是模型失败。task007 的首个 attempt 因主机内存运维故障失败且未产生 summary，第二个 attempt 已完整重跑并验收。审计前最低历史数字 Alameda NDR-Net 11.052 仍不得作为当前有效结果。
 
 已经完成的代码与管理事项如下。
 
@@ -650,19 +652,19 @@ runner 层现已完成或重新验收 38/45。5080 的旧 24 项分片已完成 
 25. 启动 5080 的 24 项分片与 5090 的 21 项分片。两个分片互不交叉，完整覆盖 canonical 45，所有直接比较组保持同机。
 26. 完成 5080 的 24 项固定分片。runner 退出码为 0，source-host postflight 对 24 项复验通过，严格导出 allowlist 包含 134 个文件，共 3,372,164,933 字节。
 27. 批准并布防 27/18 重分片。固定任务表、source-host postflight、两端 finalizer、ready marker、原子 transition 与 composite 契约均已更新。控制提交为 `60405a9`、`e191c27` 和 `30bcb81`。本地回归为 230 项通过和 1 条既有警告，5080 真实 PowerShell AST 与退出码冒烟验证通过。
+28. 在 task039 完整验收后完成 27/18 原子切换。5090 继承 15 项并开始 task043，5080 继承 24 项并开始 task040。旧控制进程均按设计退出。
+29. 在用户授权后仅清理结果服务器未使用的 Docker build cache。build cache 从 12.25 GB 降为 0 B，4 个业务容器保持运行，可用空间增至 19,434,708,992 字节。
 
 当前待执行事项按优先级排列。
 
-1. 持续监控 5090 的 task039，同时验证 watcher PID 213135、transition PID 216008、旧 finalizer PID 106466 和 5080 waiter PID 2764 持续存活。
-2. 在 task039 的 summary 与 completed state 都通过验收后，原子发布 ready marker 并完成 27/18 切换。切换前必须继续确认 task040 正式目录不存在。
-3. 启动新分片后，5090 继承 15 项并新跑 tasks043 至 045，5080 继承 24 项并新跑 tasks040 至 042。
-4. 每项训练完成后，由 runner 复算 prediction artifact 的有效点数与 all、affected、unaffected 指标，并完成 summary 身份校验。
-5. 两个分片分别完成 source-host postflight、严格 allowlist、结果回传与结果服务器逐文件 SHA-256 复验。远端分片名为 `rtx5090_18` 和 `rtx5080_27`。
-6. 解决结果服务器容量阻塞。当前精确空闲 6,280,982,528 字节。Docker build cache 在获得明确授权前不得擅自清理。
-7. 在两个独立结果根之外生成只读 composite index，验证任务互斥、canonical 45 完整覆盖和每项 source-host provenance。
-8. 只统计已原子提升到正式任务目录的结果，保留失败任务、迁移记录与诚实负结果。
-9. 分层 45 项矩阵完成后，按同机直接比较组重新执行配对比较、显著性检验与跨种子统计。
-10. 根据无泄露 v3 结果重新决定事故标签无增益、RADS 跨骨干增益和 NDR-Net 性能主张。baseline zoo 与论文写作在这之后恢复。
+1. 持续监控 5090 的 task043 与 5080 的 task040，以及两个新 runner 和两个 finalizer。
+2. 当前任务完成后，5090 继续 tasks044 至 045，5080 继续 tasks041 至 042。
+3. 每项训练完成后，由 runner 复算 prediction artifact 的有效点数与 all、affected、unaffected 指标，并完成 summary 身份校验。
+4. 两个分片分别完成 source-host postflight、严格 allowlist、结果回传与结果服务器逐文件 SHA-256 复验。远端分片名为 `rtx5090_18` 和 `rtx5080_27`。
+5. 在两个独立结果根之外生成只读 composite index，验证任务互斥、canonical 45 完整覆盖和每项 source-host provenance。
+6. 只统计已原子提升到正式任务目录的结果，保留失败任务、迁移记录与诚实负结果。
+7. 分层 45 项矩阵完成后，按同机直接比较组重新执行配对比较、显著性检验与跨种子统计。
+8. 根据无泄露 v3 结果重新决定事故标签无增益、RADS 跨骨干增益和 NDR-Net 性能主张。baseline zoo 与论文写作在这之后恢复。
 
 ---
 
@@ -736,4 +738,4 @@ runner 层现已完成或重新验收 38/45。5080 的旧 24 项分片已完成 
 
 数据现实，三类协变量的可用性。第一，节假日已在数据内。time_enc 的第五列是 2023 年美国联邦假日标志，构建见 scripts/build_full_county_cache.py 的 US_FEDERAL_HOLIDAYS_2023。但气候态基线 baseline_median 形状为 2 乘 288 乘 N 乘 3，只分工作日与周末两类日型，没有单独建假日类，假日当前错用工作日或周末基线。改进点是把基线粒度扩成三类，或把假日当协变量喂给学习式基线，预期对 all 影响很小，因为假日只占全年约 3%，是正确性修补而非主增益。第二，天气数据集里没有，要用需外接 Meteostat 或 NOAA ISD，按传感器经纬度找最近站取 2023 年逐小时再广播到 5 分钟，属独立数据工程，有站点稀疏与对齐与仅 2023 一年的风险，先不外接，作后续可插拔项。第三，活动不可行，数据里除事故外无其他活动事件，投入产出比太低，放下。
 
-当时已定的下一步顺序是先用 in-data 的 holiday 与自适应把骨架搭通，再做骨干无关性验证。两项后来均已完成，审计前结果见第 4.8 至 4.12 节。天气仍作为后续可插拔项，holiday 感知基线仍是正确性小修补。无泄露 v3 缓存重建、本地和远端严格审计、clean checkout 与正式队列启动现已完成。5080 的旧 24 项固定分片也已完成并通过 source-host postflight。当前 27/18 方案已获批准并布防，但仍在等待 task039 边界，新 runner 尚未启动。边界后由 5080 继承 24 项并新跑 tasks040 至 042，由 5090 继承 15 项并新跑 tasks043 至 045。当前优先级是完成自动边界切换，解决结果服务器容量阻塞，完成双分片回传与只读 composite index。Docker build cache 在获得明确授权前不得擅自清理。所有判读继续坚持等参数、多种子和显著性，不在单种子结果上收官。方法实现层级始终为 `RADS ⊂ RADS-O ⊂ NDR-Net`。
+当时已定的下一步顺序是先用 in-data 的 holiday 与自适应把骨架搭通，再做骨干无关性验证。两项后来均已完成，审计前结果见第 4.8 至 4.12 节。天气仍作为后续可插拔项，holiday 感知基线仍是正确性小修补。无泄露 v3 缓存重建、本地和远端严格审计、clean checkout 与正式队列启动现已完成。5080 的旧 24 项固定分片也已完成并通过 source-host postflight。27/18 原子切换已经完成，5080 正在 task040，5090 正在 task043。结果服务器容量阻塞也已通过清理未使用的 Docker build cache 解除。当前优先级是完成剩余 6 项训练、双分片回传与只读 composite index。所有判读继续坚持等参数、多种子和显著性，不在单种子结果上收官。方法实现层级始终为 `RADS ⊂ RADS-O ⊂ NDR-Net`。

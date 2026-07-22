@@ -14,15 +14,15 @@
 
 2026-07-20 22:23 新加坡时间起，正式运行口径由“5090 同机 45 项”改为双机分层矩阵。两台机器保持独立结果根、独立 `config_hash`、独立 postflight 和运行时 provenance。最终只能称为 `host-stratified distributed 45`，不得称为 homogeneous 5090 matrix。固定分片不交叉且并集严格为 45 项，所有直接 A/B 比较组保持在同一台机器。
 
-2026-07-22，用户批准并布防 27/18 重分片。目标 5080 分片共 27 项：tasks001-004、007-010、013-016、019-030、040-042。目标 5090 分片共 18 项：tasks005-006、011-012、017-018、031-039、043-045。两分片互斥且并集严格为 canonical 45，所有直接比较组保持同机。切换提交点是 task039 完整落盘后发布的 relay ready marker。marker 发布前仍是旧 24/21 runner 的现场状态，不得写成 27/18 已完成切换。
+2026-07-22，用户批准的 27/18 重分片已于 22:49 新加坡时间完成原子切换。5080 分片共 27 项：tasks001-004、007-010、013-016、019-030、040-042。5090 分片共 18 项：tasks005-006、011-012、017-018、031-039、043-045。两分片互斥且并集严格为 canonical 45，所有直接比较组保持同机。task039 完整落盘后通过 `BOUNDARY_RESULT_OK`，relay ready marker 已发布且保持完好。
 
 5080 的旧 24 项队列已于 2026-07-22 18:13:06 新加坡时间完成 24/24，skipped valid 为 4，runner 退出码为 0。旧 24 项 source-host postflight 与 134 文件 allowlist 已通过。task007 的首个 attempt 因两条遗留诊断 PowerShell 扫描耗尽主机内存而失败，没有 summary 或正式任务目录，第二个 attempt 已完整重跑并验收。这是主机运维故障，不是模型失败。旧 task005 迁移记录不进入正式导出 allowlist。
 
-截至 2026-07-22 20:51 新加坡时间，runner 层完成或重验 38/45。5090 旧队列为 14/21，skipped valid 为 2，正在 task039。最近完整记录为 epoch 18，train 10.0878、val 10.9942、用时 518 秒，并保存 best checkpoint。现场 epoch 19 已到 batch 2700/4598，GPU 利用率为 83%。task040 在两台机器上均无正式目录，ready marker 尚不存在。
+截至 2026-07-22 22:56 新加坡时间，runner 层完成或重验 39/45。5090 新队列为 15/18，skipped valid 为 15，正在 task043。task043 已进入 epoch 2 batch 1100/2299，GPU 利用率为 83%，显存为 5111/32607 MB。5080 新队列为 24/27，skipped valid 为 24，正在 task040。task040 已进入 epoch 3 batch 1200/2299，GPU 利用率为 70%，显存为 3212/16303 MB。
 
-5090 边界 watcher PID 为 213135，transition PID 为 216008，旧 runner PID 为 104478，旧 21 项 finalizer PID 为 106466。transition 只消费现有 watcher。它在 task039 后复验边界、停止旧 finalizer、发布 marker、启动 18 项 runner 与新 finalizer。新 5090 分片继承 15 项，从 task043 开始，上传名为 `rtx5090_18`。5080 旧 finalizer PID 12524 已停止。27 项等待器 PID 为 2764，持续 `WAIT_BOUNDARY`。它收到 marker 后启动新 runner 与 finalizer，继承 24 项，从 task040 开始，上传名为 `rtx5080_27`。5080 成功上传后保持开机。
+5090 新 runner PID 为 241437，新 finalizer PID 为 241585。旧 runner、旧 finalizer、边界 watcher 与 transition 均已按设计退出。新 5090 分片继承 15 项，从 task043 开始，上传名为 `rtx5090_18`。5080 新 runner PID 为 17260，新 finalizer PID 为 6152，边界等待器已正常退出。新 5080 分片继承 24 项，从 task040 开始，上传名为 `rtx5080_27`。5080 成功上传后保持开机。
 
-控制提交依次为 `60405a9`、`e191c27` 与最终退出码文件实现 `30bcb81`。训练代码 SHA 仍为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。本地全仓测试为 230 passed、1 个既有 warning。5080 的正式 PowerShell 已通过 SHA-256、AST 和真实 relay 冒烟。结果服务器空闲 6,280,982,528 字节，容量仍被阻塞。服务器约有 12.25 GB 未使用 Docker build cache，但尚未获得清理授权。5080 relay 私钥只保存在工作站用户目录。任何训练、复验、空间、传输或哈希错误都保持相应机器开机。
+控制提交依次为 `60405a9`、`e191c27` 与最终退出码文件实现 `30bcb81`。训练代码 SHA 仍为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。本地全仓测试为 230 passed、1 个既有 warning。5080 的正式 PowerShell 已通过 SHA-256、AST 和真实 relay 冒烟。用户授权处理容量后，结果服务器仅清理了未使用的 Docker build cache，Build Cache 从 12.25 GB 降为 0B，可用空间增至 19,434,708,992 字节。4 个业务容器不受影响，relay ready marker 保持完好。两个上传分片尚未出现，这是训练未完成时的正常状态。5080 relay 私钥只保存在工作站用户目录。任何训练、复验、空间、传输或哈希错误都保持相应机器开机。
 
 项目方法层级为 `RADS ⊂ RADS-O ⊂ NDR-Net`。完整研究史和数字出处见主报告，当前有效性见审计文件。
 
