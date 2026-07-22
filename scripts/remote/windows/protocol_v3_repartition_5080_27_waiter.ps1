@@ -103,11 +103,65 @@ function Invoke-NativeCapture {
     }
     $stdoutPath = [System.IO.Path]::GetTempFileName()
     $stderrPath = [System.IO.Path]::GetTempFileName()
+    $payloadPath = [System.IO.Path]::GetTempFileName()
+    $nativeExitCodePath = [System.IO.Path]::GetTempFileName()
+    $wrapperSeedPath = [System.IO.Path]::GetTempFileName()
+    $wrapperPath = [System.IO.Path]::ChangeExtension(
+        $wrapperSeedPath,
+        ".ps1"
+    )
+    Remove-Item -LiteralPath $nativeExitCodePath, $wrapperSeedPath -Force
+    $payload = [PSCustomObject]@{
+        FilePath = $FilePath
+        ArgumentList = @($ArgumentList)
+        ExitCodePath = $nativeExitCodePath
+    }
+    $payload | Export-Clixml -LiteralPath $payloadPath -Encoding UTF8
+    $wrapper = @'
+param([Parameter(Mandatory = $true)][string]$PayloadPath)
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+$payload = Import-Clixml -LiteralPath $PayloadPath
+$nativeFile = [string]$payload.FilePath
+$nativeArguments = @(
+    $payload.ArgumentList | ForEach-Object { [string]$_ }
+)
+$nativeExitCode = 127
+try {
+    & $nativeFile @nativeArguments
+    $nativeExitCode = [int]$LASTEXITCODE
+}
+catch {
+    [Console]::Error.WriteLine($_.Exception.ToString())
+}
+finally {
+    [System.IO.File]::WriteAllText(
+        [string]$payload.ExitCodePath,
+        [string]$nativeExitCode,
+        [System.Text.UTF8Encoding]::new($false)
+    )
+}
+exit $nativeExitCode
+'@
+    [System.IO.File]::WriteAllText(
+        $wrapperPath,
+        $wrapper,
+        [System.Text.UTF8Encoding]::new($false)
+    )
     $process = $null
     try {
         $startParameters = @{
-            FilePath = $FilePath
-            ArgumentList = $ArgumentList
+            FilePath = (Join-Path $PSHOME "powershell.exe")
+            ArgumentList = @(
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                $wrapperPath,
+                "-PayloadPath",
+                $payloadPath
+            )
             RedirectStandardOutput = $stdoutPath
             RedirectStandardError = $stderrPath
             NoNewWindow = $true
@@ -122,7 +176,6 @@ function Invoke-NativeCapture {
         }
         else {
             [void]$process.WaitForExit()
-            $process.Refresh()
         }
         $output = @()
         if (Test-Path -LiteralPath $stdoutPath -PathType Leaf) {
@@ -135,11 +188,16 @@ function Invoke-NativeCapture {
             $exitCode = 124
         }
         else {
-            $exitCode = $process.ExitCode
-            if ($null -eq $exitCode) {
-                Stop-Waiter "native process exit code is unavailable"
+            if (-not (Test-Path -LiteralPath $nativeExitCodePath -PathType Leaf)) {
+                Stop-Waiter "native process exit code file is unavailable"
             }
-            $exitCode = [int]$exitCode
+            $exitCodeText = (
+                Get-Content -LiteralPath $nativeExitCodePath -Raw -Encoding UTF8
+            ).Trim()
+            if ($exitCodeText -notmatch "^-?[0-9]+$") {
+                Stop-Waiter "native process exit code is invalid"
+            }
+            $exitCode = [int]$exitCodeText
         }
         return [PSCustomObject]@{
             ExitCode = $exitCode
@@ -148,7 +206,16 @@ function Invoke-NativeCapture {
         }
     }
     finally {
-        foreach ($temporaryPath in @($stdoutPath, $stderrPath)) {
+        foreach (
+            $temporaryPath in @(
+                $stdoutPath,
+                $stderrPath,
+                $payloadPath,
+                $nativeExitCodePath,
+                $wrapperSeedPath,
+                $wrapperPath
+            )
+        ) {
             if (Test-Path -LiteralPath $temporaryPath) {
                 Remove-Item -LiteralPath $temporaryPath -Force
             }

@@ -220,8 +220,10 @@ def test_all_finalizer_ssh_and_scp_calls_have_keepalives_and_tree_kill_timeouts(
     assert "[int]$ScpWallClockTimeoutSeconds" in script
     assert "[int]$PostflightWallClockTimeoutSeconds" in script
     assert "$process.WaitForExit($TimeoutSeconds * 1000)" in script
-    assert "$process.WaitForExit()" in script
-    assert "$process.Refresh()" in script
+    assert "$nativeExitCodePath" in script
+    assert "Export-Clixml" in script
+    assert "Import-Clixml" in script
+    assert "$process.ExitCode" not in script
     assert "$process.Kill($true)" in script
     assert '"/PID", ([string]$ProcessId), "/T", "/F"' in script
     assert "TimedOut = $timedOut" in script
