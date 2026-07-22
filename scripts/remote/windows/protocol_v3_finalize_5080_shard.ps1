@@ -1,19 +1,19 @@
 [CmdletBinding()]
 param(
     [string]$Repo = "C:\Users\ASUS\traffic_fourier_v3_final",
-    [string]$OpsRoot = "C:\Users\ASUS\ops",
+    [string]$OpsRoot = "C:\Users\ASUS\ops_27_18",
     [string]$ResultsRoot = "C:\Users\ASUS\traffic_fourier_v3_final\outputs\protocol_v3_noleak_dedup\remote_runs\minimal_45_5080",
-    [string]$RunnerExitCode = "C:\Users\ASUS\protocol_v3_5080_shard.exitcode",
+    [string]$RunnerExitCode = "C:\Users\ASUS\protocol_v3_5080_shard27.exitcode",
     [string]$Python = "C:\Python313\python.exe",
-    [string]$Postflight = "C:\Users\ASUS\ops\scripts\remote\distributed\protocol_v3_shard_postflight.py",
-    [string]$PostflightReport = "C:\Users\ASUS\protocol_v3_5080_shard_postflight.json",
-    [string]$TransferManifest = "C:\Users\ASUS\protocol_v3_5080_shard_transfer.sha256",
-    [string]$TransferFileList = "C:\Users\ASUS\protocol_v3_5080_shard_files.txt",
-    [string]$TransferMarker = "C:\Users\ASUS\protocol_v3_5080_shard_complete.json",
+    [string]$Postflight = "C:\Users\ASUS\ops_27_18\scripts\remote\distributed\protocol_v3_shard_postflight.py",
+    [string]$PostflightReport = "C:\Users\ASUS\protocol_v3_5080_shard27_postflight.json",
+    [string]$TransferManifest = "C:\Users\ASUS\protocol_v3_5080_shard27_transfer.sha256",
+    [string]$TransferFileList = "C:\Users\ASUS\protocol_v3_5080_shard27_files.txt",
+    [string]$TransferMarker = "C:\Users\ASUS\protocol_v3_5080_shard27_complete.json",
     [string]$Relay = "root@8.134.12.5",
     [string]$RelayBase = "/root/xtraffic_results/protocol_v3_noleak_dedup/distributed_45_5080_5090/shards",
-    [string]$RemoteName = "rtx5080_24",
-    [string]$DependencyName = "rtx5090_21",
+    [string]$RemoteName = "rtx5080_27",
+    [string]$DependencyName = "rtx5090_18",
     [string]$SshKey = "C:\Users\ASUS\.ssh\xtraffic_relay_ed25519",
     [string]$Ssh = "C:\Windows\System32\OpenSSH\ssh.exe",
     [string]$Scp = "C:\Windows\System32\OpenSSH\scp.exe",
@@ -21,8 +21,14 @@ param(
     [int]$PollSeconds = 60,
     [int]$RunnerExitWaitSeconds = 300,
     [int]$SpaceRetrySeconds = 300,
+    [int]$NativeWallClockTimeoutSeconds = 120,
+    [int]$SshWallClockTimeoutSeconds = 60,
+    [int]$RemoteVerificationWallClockTimeoutSeconds = 3600,
+    [int]$ScpWallClockTimeoutSeconds = 7200,
+    [int]$PostflightWallClockTimeoutSeconds = 1800,
     [int]$MaxWaitIterations = 0,
-    [string]$Log = "C:\Users\ASUS\protocol_v3_5080_shard_finalize.log"
+    [string]$PidFile = "C:\Users\ASUS\protocol_v3_5080_shard27_finalize.pid",
+    [string]$Log = "C:\Users\ASUS\protocol_v3_5080_shard27_finalize.log"
 )
 
 Set-StrictMode -Version Latest
@@ -68,10 +74,10 @@ function Wait-ForCompletedQueue {
         $skippedTasks = [int]$queue.skipped_valid_tasks
         if (
             $queue.State -eq "completed" -and
-            $totalTasks -eq 24 -and
-            $completedTasks -eq 24 -and
-            $skippedTasks -ge 4 -and
-            $skippedTasks -le 24
+            $totalTasks -eq 27 -and
+            $completedTasks -eq 27 -and
+            $skippedTasks -ge 24 -and
+            $skippedTasks -le 27
         ) {
             return $queue
         }
@@ -110,17 +116,85 @@ function Wait-ForRunnerSuccess {
     Stop-Finalizer "runner exit code is missing or stale"
 }
 
+function Stop-NativeProcessTree {
+    param([Parameter(Mandatory = $true)][int]$ProcessId)
+
+    $process = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+    if ($null -eq $process) {
+        return
+    }
+    try {
+        $process.Kill($true)
+    }
+    catch {
+        $taskkill = Join-Path $env:SystemRoot "System32\taskkill.exe"
+        $taskkillArguments = @("/PID", ([string]$ProcessId), "/T", "/F")
+        $killParameters = @{
+            FilePath = $taskkill
+            ArgumentList = $taskkillArguments
+            WindowStyle = "Hidden"
+            Wait = $true
+            PassThru = $true
+        }
+        $kill = Start-Process @killParameters
+        if (
+            $kill.ExitCode -ne 0 -and
+            $null -ne (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue)
+        ) {
+            Stop-Finalizer "cannot terminate native process tree rooted at PID $ProcessId"
+        }
+    }
+}
+
 function Invoke-NativeCapture {
     param(
         [Parameter(Mandatory = $true)][string]$FilePath,
-        [Parameter(Mandatory = $true)][string[]]$ArgumentList
+        [Parameter(Mandatory = $true)][string[]]$ArgumentList,
+        [int]$TimeoutSeconds = $NativeWallClockTimeoutSeconds
     )
 
-    $output = @(& $FilePath @ArgumentList 2>&1)
-    $exitCode = $LASTEXITCODE
-    return [PSCustomObject]@{
-        ExitCode = $exitCode
-        Output = @($output | ForEach-Object { $_.ToString() })
+    if ($TimeoutSeconds -le 0) {
+        Stop-Finalizer "native process timeout must be positive"
+    }
+    $stdoutPath = [System.IO.Path]::GetTempFileName()
+    $stderrPath = [System.IO.Path]::GetTempFileName()
+    $process = $null
+    try {
+        $startParameters = @{
+            FilePath = $FilePath
+            ArgumentList = $ArgumentList
+            RedirectStandardOutput = $stdoutPath
+            RedirectStandardError = $stderrPath
+            NoNewWindow = $true
+            PassThru = $true
+        }
+        $process = Start-Process @startParameters
+        $finished = $process.WaitForExit($TimeoutSeconds * 1000)
+        $timedOut = -not $finished
+        if ($timedOut) {
+            Stop-NativeProcessTree -ProcessId $process.Id
+            [void]$process.WaitForExit(5000)
+        }
+        $output = @()
+        if (Test-Path -LiteralPath $stdoutPath -PathType Leaf) {
+            $output += @(Get-Content -LiteralPath $stdoutPath -Encoding UTF8)
+        }
+        if (Test-Path -LiteralPath $stderrPath -PathType Leaf) {
+            $output += @(Get-Content -LiteralPath $stderrPath -Encoding UTF8)
+        }
+        $exitCode = if ($timedOut) { 124 } else { $process.ExitCode }
+        return [PSCustomObject]@{
+            ExitCode = $exitCode
+            TimedOut = $timedOut
+            Output = @($output | ForEach-Object { $_.ToString() })
+        }
+    }
+    finally {
+        foreach ($temporaryPath in @($stdoutPath, $stderrPath)) {
+            if (Test-Path -LiteralPath $temporaryPath) {
+                Remove-Item -LiteralPath $temporaryPath -Force
+            }
+        }
     }
 }
 
@@ -151,9 +225,17 @@ function Invoke-Postflight {
             "--report", $PostflightReport
         )
         Write-FinalizerLog "POSTFLIGHT_START"
-        $result = Invoke-NativeCapture -FilePath $Python -ArgumentList $arguments
+        $invokeParameters = @{
+            FilePath = $Python
+            ArgumentList = $arguments
+            TimeoutSeconds = $PostflightWallClockTimeoutSeconds
+        }
+        $result = Invoke-NativeCapture @invokeParameters
         foreach ($line in $result.Output) {
             Write-FinalizerLog "POSTFLIGHT $line"
+        }
+        if ($result.TimedOut) {
+            Stop-Finalizer "native process timed out during postflight"
         }
         if ($result.ExitCode -ne 0) {
             Stop-Finalizer "postflight validation failed with code $($result.ExitCode)"
@@ -206,19 +288,19 @@ function Read-VerifiedExportRecords {
         Stop-Finalizer "invalid postflight report identity"
     }
     if (
-        [int]$report.validated_tasks -ne 24 -or
-        [int]$report.expected_skipped_valid_tasks -ne 4 -or
-        [int]$report.minimum_skipped_valid_tasks -ne 4
+        [int]$report.validated_tasks -ne 27 -or
+        [int]$report.expected_skipped_valid_tasks -ne 24 -or
+        [int]$report.minimum_skipped_valid_tasks -ne 24
     ) {
         Stop-Finalizer "invalid postflight task counts"
     }
     [int]$actualSkipped = $report.actual_skipped_valid_tasks
-    if ($actualSkipped -lt 4 -or $actualSkipped -gt 24) {
+    if ($actualSkipped -lt 24 -or $actualSkipped -gt 27) {
         Stop-Finalizer "invalid actual postflight skip count"
     }
     $expectedSkipIds = @($report.expected_skipped_task_ids)
     $actualSkipIds = @($report.actual_skipped_task_ids)
-    if ($expectedSkipIds.Count -ne 4 -or $actualSkipIds.Count -ne $actualSkipped) {
+    if ($expectedSkipIds.Count -ne 24 -or $actualSkipIds.Count -ne $actualSkipped) {
         Stop-Finalizer "invalid postflight skipped task identity"
     }
     $actualSkipSet = [System.Collections.Generic.HashSet[string]]::new(
@@ -235,7 +317,7 @@ function Read-VerifiedExportRecords {
         }
     }
     $tasks = @($report.tasks)
-    if ($tasks.Count -ne 24) {
+    if ($tasks.Count -ne 27) {
         Stop-Finalizer "invalid postflight task records"
     }
     [int]$completedStateCount = 0
@@ -259,7 +341,7 @@ function Read-VerifiedExportRecords {
     }
     if (
         $skippedStateCount -ne $actualSkipped -or
-        $completedStateCount + $skippedStateCount -ne 24 -or
+        $completedStateCount + $skippedStateCount -ne 27 -or
         [int]$report.task_state_counts.completed -ne $completedStateCount -or
         [int]$report.task_state_counts.skipped_valid -ne $skippedStateCount -or
         -not $taskSkipSet.SetEquals($actualSkipSet)
@@ -268,8 +350,8 @@ function Read-VerifiedExportRecords {
     }
     if (
         $report.queue_status.state -ne "completed" -or
-        [int]$report.queue_status.total_tasks -ne 24 -or
-        [int]$report.queue_status.completed_tasks -ne 24 -or
+        [int]$report.queue_status.total_tasks -ne 27 -or
+        [int]$report.queue_status.completed_tasks -ne 27 -or
         [int]$report.queue_status.skipped_valid_tasks -ne $actualSkipped -or
         $report.verified_at -ne $report.queue_status.updated_at -or
         $report.source_completed_at -ne $report.queue_status.updated_at
@@ -387,14 +469,14 @@ function Read-VerifiedExportRecords {
         file_count = $ordered.Count
         file_list_sha256 = $fileListDigest
         manifest_sha256 = $manifestDigest
-        minimum_skipped_valid_tasks = 4
+        minimum_skipped_valid_tasks = 24
         postflight_files_digest = $postflightFilesDigest
         postflight_sha256 = $reportDigest
         schema_version = 1
         shard = "5080"
         source_bytes = $sourceBytes
         status = "verified"
-        validated_tasks = 24
+        validated_tasks = 27
     }
     $markerParent = Split-Path -Parent $TransferMarker
     if ($markerParent -and -not (Test-Path -LiteralPath $markerParent)) {
@@ -431,17 +513,27 @@ function Get-LastNativeOutputLine {
 }
 
 function Invoke-SshCapture {
-    param([Parameter(Mandatory = $true)][string]$Command)
+    param(
+        [Parameter(Mandatory = $true)][string]$Command,
+        [int]$TimeoutSeconds = $SshWallClockTimeoutSeconds
+    )
 
     $arguments = @(
         "-i", $SshKey,
         "-o", "BatchMode=yes",
         "-o", "StrictHostKeyChecking=accept-new",
         "-o", "ConnectTimeout=15",
+        "-o", "ServerAliveInterval=5",
+        "-o", "ServerAliveCountMax=3",
         $Relay,
         $Command
     )
-    return Invoke-NativeCapture -FilePath $Ssh -ArgumentList $arguments
+    $invokeParameters = @{
+        FilePath = $Ssh
+        ArgumentList = $arguments
+        TimeoutSeconds = $TimeoutSeconds
+    }
+    return Invoke-NativeCapture @invokeParameters
 }
 
 function Invoke-SshRequired {
@@ -451,6 +543,9 @@ function Invoke-SshRequired {
     )
 
     $result = Invoke-SshCapture -Command $Command
+    if ($result.TimedOut) {
+        Stop-Finalizer "native process timed out during SSH operation"
+    }
     if ($result.ExitCode -ne 0) {
         foreach ($line in $result.Output) {
             Write-FinalizerLog "SSH_ERROR $line"
@@ -495,7 +590,7 @@ function Test-RemoteVerifiedTree {
         "awk -F/ '{ path=`"`"; for (i=1; i<NF; i++) { path=(path ? path `"/`" : `"`") `$i; print path }}' ../metadata/transfer.files | LC_ALL=C sort -u > `"`$tmp/expected.dirs`"; " +
         "find . -mindepth 1 -type d -printf '%P\n' | LC_ALL=C sort > `"`$tmp/actual.dirs`"; " +
         "cmp `"`$tmp/actual.dirs`" `"`$tmp/expected.dirs`"; rm -rf `"`$tmp`""
-    $result = Invoke-SshCapture -Command $command
+    $result = Invoke-SshCapture -Command $command -TimeoutSeconds $RemoteVerificationWallClockTimeoutSeconds
     if ($result.ExitCode -eq 0) {
         return $true
     }
@@ -634,10 +729,20 @@ function Upload-RemoteFileByHash {
         "-o", "BatchMode=yes",
         "-o", "StrictHostKeyChecking=accept-new",
         "-o", "ConnectTimeout=15",
+        "-o", "ServerAliveInterval=5",
+        "-o", "ServerAliveCountMax=3",
         $LocalPath,
         "${Relay}:$remotePart"
     )
-    $copy = Invoke-NativeCapture -FilePath $Scp -ArgumentList $scpArguments
+    $copyParameters = @{
+        FilePath = $Scp
+        ArgumentList = $scpArguments
+        TimeoutSeconds = $ScpWallClockTimeoutSeconds
+    }
+    $copy = Invoke-NativeCapture @copyParameters
+    if ($copy.TimedOut) {
+        Stop-Finalizer "native process timed out during SCP upload for $RemotePath"
+    }
     if ($copy.ExitCode -ne 0) {
         foreach ($line in $copy.Output) {
             Write-FinalizerLog "SCP_ERROR $line"
@@ -714,12 +819,21 @@ function Transfer-VerifiedExports {
 }
 
 try {
+    $pidParent = Split-Path -Parent $PidFile
+    if ($pidParent -and -not (Test-Path -LiteralPath $pidParent)) {
+        New-Item -ItemType Directory -Path $pidParent -Force | Out-Null
+    }
+    [System.IO.File]::WriteAllText(
+        $PidFile,
+        (([string]$PID) + [Environment]::NewLine),
+        [System.Text.UTF8Encoding]::new($false)
+    )
     if (-not (Test-Path -LiteralPath $ResultsRoot -PathType Container)) {
         Stop-Finalizer "results root missing: $ResultsRoot"
     }
     $completedQueue = Wait-ForCompletedQueue
     Wait-ForRunnerSuccess
-    Write-FinalizerLog "QUEUE_OK completed=24/24 skipped=$($completedQueue.skipped_valid_tasks) runner_exit=0"
+    Write-FinalizerLog "QUEUE_OK completed=27/27 skipped=$($completedQueue.skipped_valid_tasks) runner_exit=0"
     Invoke-Postflight
     $exports = Read-VerifiedExportRecords
     Write-FinalizerLog "EXPORTS_OK files=$($exports.Records.Count) bytes=$($exports.SourceBytes)"
@@ -767,4 +881,9 @@ try {
 catch {
     Write-FinalizerLog "FINALIZE_BLOCKED $($_.Exception.Message)"
     exit 1
+}
+finally {
+    if (Test-Path -LiteralPath $PidFile -PathType Leaf) {
+        Remove-Item -LiteralPath $PidFile -Force
+    }
 }

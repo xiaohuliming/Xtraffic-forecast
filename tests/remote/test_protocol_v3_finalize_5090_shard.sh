@@ -65,8 +65,18 @@ for relative in paths:
     )
 queue = json.loads((root / "queue_status.json").read_text(encoding="utf-8"))
 actual_skips = queue["skipped_valid_tasks"]
-task_ids = [f"task{number:03d}" for number in range(1, 22)]
-expected_skip_ids = task_ids[:2]
+task_numbers = [
+    5,
+    6,
+    11,
+    12,
+    17,
+    18,
+    *range(31, 40),
+    *range(43, 46),
+]
+task_ids = [f"task{number:03d}" for number in task_numbers]
+expected_skip_ids = task_ids[:15]
 actual_skip_ids = task_ids[:actual_skips]
 tasks = [
     {
@@ -95,14 +105,14 @@ report.write_text(
             "shard": "5090",
             "verified_at": queue["updated_at"],
             "source_completed_at": queue["updated_at"],
-            "validated_tasks": 21,
-            "expected_skipped_valid_tasks": 2,
-            "minimum_skipped_valid_tasks": 2,
+            "validated_tasks": 18,
+            "expected_skipped_valid_tasks": 15,
+            "minimum_skipped_valid_tasks": 15,
             "actual_skipped_valid_tasks": actual_skips,
             "expected_skipped_task_ids": expected_skip_ids,
             "actual_skipped_task_ids": actual_skip_ids,
             "task_state_counts": {
-                "completed": 21 - actual_skips,
+                "completed": 18 - actual_skips,
                 "skipped_valid": actual_skips,
             },
             "queue_status": queue,
@@ -157,14 +167,22 @@ run_finalizer() {
   bash "$finalizer"
 }
 
-make_case success completed 21 21 2
+make_case success completed 18 18 15
 run_finalizer success
 test -f "$tmp_root/success/shutdown.called"
 grep -q '^shutdown -h now$' "$tmp_root/success/actions.log"
 grep -q -- '--files-from=' "$tmp_root/success/actions.log"
-grep -q "rm -rf '/srv/results/shards/.rtx5090_21.incoming'" \
+grep -q "rm -rf '/srv/results/shards/.rtx5090_18.incoming'" \
   "$tmp_root/success/actions.log"
 grep -q 'FINALIZE_SUCCESS' "$tmp_root/success/finalizer.log"
+while IFS= read -r action; do
+  case "$action" in
+    ssh\ *|rsync\ *)
+      [[ "$action" == *"ServerAliveInterval=5"* ]]
+      [[ "$action" == *"ServerAliveCountMax=3"* ]]
+      ;;
+  esac
+done < "$tmp_root/success/actions.log"
 python3 - "$tmp_root/success/complete.json" <<'PY'
 import json
 import sys
@@ -174,23 +192,24 @@ marker = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 assert marker["schema_version"] == 1
 assert marker["status"] == "verified"
 assert marker["shard"] == "5090"
-assert marker["validated_tasks"] == 21
-assert marker["minimum_skipped_valid_tasks"] == 2
-assert marker["actual_skipped_valid_tasks"] == 2
+assert marker["validated_tasks"] == 18
+assert marker["minimum_skipped_valid_tasks"] == 15
+assert marker["actual_skipped_valid_tasks"] == 15
 assert len(marker["manifest_sha256"]) == 64
 assert len(marker["file_list_sha256"]) == 64
 assert len(marker["postflight_sha256"]) == 64
 assert len(marker["postflight_files_digest"]) == 64
 PY
 printf '%s\n' "PASS verified shard transfers before shutdown"
+printf '%s\n' "PASS every relay transport has keepalive failure bounds"
 
-make_case safe_restart completed 21 21 7
+make_case safe_restart completed 18 18 17
 run_finalizer safe_restart
 test -f "$tmp_root/safe_restart/shutdown.called"
 grep -q 'FINALIZE_SUCCESS' "$tmp_root/safe_restart/finalizer.log"
 printf '%s\n' "PASS safe restart may increase skipped-valid count"
 
-make_case verified_reentry completed 21 21 7
+make_case verified_reentry completed 18 18 17
 FAKE_REMOTE_FINAL_EXISTS=1 run_finalizer verified_reentry
 test -f "$tmp_root/verified_reentry/shutdown.called"
 test "$(grep -c '^rsync ' "$tmp_root/verified_reentry/actions.log" || true)" -eq 0
@@ -198,7 +217,7 @@ grep -q 'REMOTE_ALREADY_VERIFIED' \
   "$tmp_root/verified_reentry/finalizer.log"
 printf '%s\n' "PASS existing destination receives full re-verification"
 
-make_case conflicting_reentry completed 21 21 2
+make_case conflicting_reentry completed 18 18 15
 set +e
 FAKE_REMOTE_FINAL_EXISTS=1 FAKE_VERIFY_RC=8 \
   run_finalizer conflicting_reentry
@@ -210,7 +229,7 @@ grep -q 'full verification failed' \
   "$tmp_root/conflicting_reentry/finalizer.log"
 printf '%s\n' "PASS invalid existing destination remains fail-closed"
 
-make_case incomplete running 21 2 2
+make_case incomplete running 18 15 15
 set +e
 run_finalizer incomplete
 rc=$?
@@ -221,7 +240,7 @@ grep -q 'FINALIZE_BLOCKED queue state is running' \
   "$tmp_root/incomplete/finalizer.log"
 printf '%s\n' "PASS incomplete shard remains on"
 
-make_case postflight_failure completed 21 21 2
+make_case postflight_failure completed 18 18 15
 export RESULTS_ROOT="$tmp_root/postflight_failure/results"
 export POSTFLIGHT_REPORT="$tmp_root/postflight_failure/postflight.json"
 export ACTION_LOG="$tmp_root/postflight_failure/actions.log"
@@ -245,7 +264,7 @@ grep -q 'FINALIZE_BLOCKED postflight validation failed' \
   "$tmp_root/postflight_failure/finalizer.log"
 printf '%s\n' "PASS postflight failure remains on"
 
-make_case insufficient_space completed 21 21 2
+make_case insufficient_space completed 18 18 15
 set +e
 FAKE_REMOTE_FREE=1 run_finalizer insufficient_space
 rc=$?
@@ -256,7 +275,7 @@ grep -q 'FINALIZE_BLOCKED relay capacity' \
   "$tmp_root/insufficient_space/finalizer.log"
 printf '%s\n' "PASS insufficient relay space remains on"
 
-make_case transfer_failure completed 21 21 2
+make_case transfer_failure completed 18 18 15
 set +e
 FAKE_RSYNC_RC=9 run_finalizer transfer_failure
 rc=$?
@@ -267,7 +286,7 @@ grep -q 'FINALIZE_BLOCKED result rsync failed' \
   "$tmp_root/transfer_failure/finalizer.log"
 printf '%s\n' "PASS transfer failure remains on"
 
-make_case verify_failure completed 21 21 2
+make_case verify_failure completed 18 18 15
 set +e
 FAKE_VERIFY_RC=8 run_finalizer verify_failure
 rc=$?

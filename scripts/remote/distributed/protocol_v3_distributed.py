@@ -69,9 +69,17 @@ SHARD_SPECS: Mapping[str, ShardSpec] = {
                 *range(7, 11),
                 *range(13, 17),
                 *range(19, 31),
+                *range(40, 43),
             }
         ),
-        expected_skip_numbers=frozenset(range(1, 5)),
+        expected_skip_numbers=frozenset(
+            {
+                *range(1, 5),
+                *range(7, 11),
+                *range(13, 17),
+                *range(19, 31),
+            }
+        ),
         default_results_root=Path(
             "outputs/protocol_v3_noleak_dedup/"
             "remote_runs/minimal_45_5080"
@@ -84,10 +92,18 @@ SHARD_SPECS: Mapping[str, ShardSpec] = {
                 *range(5, 7),
                 *range(11, 13),
                 *range(17, 19),
-                *range(31, 46),
+                *range(31, 40),
+                *range(43, 46),
             }
         ),
-        expected_skip_numbers=frozenset(range(5, 7)),
+        expected_skip_numbers=frozenset(
+            {
+                *range(5, 7),
+                *range(11, 13),
+                *range(17, 19),
+                *range(31, 40),
+            }
+        ),
         default_results_root=Path(
             "outputs/protocol_v3_noleak_dedup/"
             "remote_runs/minimal_45_5090"

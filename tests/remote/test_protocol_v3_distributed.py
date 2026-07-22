@@ -45,12 +45,14 @@ def test_fixed_shards_are_disjoint_complete_and_keep_comparisons_together():
             *range(7, 11),
             *range(13, 17),
             *range(19, 31),
+            *range(40, 43),
         },
         "5090": {
             *range(5, 7),
             *range(11, 13),
             *range(17, 19),
-            *range(31, 46),
+            *range(31, 40),
+            *range(43, 46),
         },
     }
     assert numbers["5080"].isdisjoint(numbers["5090"])
@@ -123,9 +125,89 @@ def test_shard_validation_rejects_a_complete_but_split_comparison():
         )
 
 
+def test_shard_validation_rejects_complete_comparison_group_exchange():
+    manifest = canonical_manifest()
+    shards = distributed.build_shard_manifests(manifest)
+    exchanged_numbers = {
+        "5080": (
+            set(distributed.SHARD_SPECS["5080"].task_numbers)
+            - {40, 41, 42}
+            | {43, 44, 45}
+        ),
+        "5090": (
+            set(distributed.SHARD_SPECS["5090"].task_numbers)
+            - {43, 44, 45}
+            | {40, 41, 42}
+        ),
+    }
+    exchanged = {
+        name: replace(
+            shards[name],
+            tasks=tuple(
+                task
+                for task in manifest.tasks
+                if task_number(task) in numbers
+            ),
+        )
+        for name, numbers in exchanged_numbers.items()
+    }
+
+    with pytest.raises(
+        distributed.ShardValidationError,
+        match="fixed task assignment",
+    ):
+        distributed.validate_shard_manifests(manifest, exchanged)
+
+
+def test_shard_validation_rejects_missing_migrated_task():
+    manifest = canonical_manifest()
+    shards = distributed.build_shard_manifests(manifest)
+    incomplete_5080 = replace(
+        shards["5080"],
+        tasks=tuple(
+            task
+            for task in shards["5080"].tasks
+            if task_number(task) != 42
+        ),
+    )
+
+    with pytest.raises(
+        distributed.ShardValidationError,
+        match=r"missing=\[42\]",
+    ):
+        distributed.validate_shard_manifests(
+            manifest,
+            {
+                "5080": incomplete_5080,
+                "5090": shards["5090"],
+            },
+        )
+
+
 @pytest.mark.parametrize(
     ("shard_name", "expected_count", "expected_skips"),
-    [("5080", 24, {1, 2, 3, 4}), ("5090", 21, {5, 6})],
+    [
+        (
+            "5080",
+            27,
+            {
+                *range(1, 5),
+                *range(7, 11),
+                *range(13, 17),
+                *range(19, 31),
+            },
+        ),
+        (
+            "5090",
+            18,
+            {
+                *range(5, 7),
+                *range(11, 13),
+                *range(17, 19),
+                *range(31, 40),
+            },
+        ),
+    ],
 )
 def test_cli_loads_canonical_manifest_and_delegates_to_runner(
     tmp_path: Path,
@@ -434,13 +516,13 @@ def test_postflight_validates_every_result_and_emits_per_file_hashes(
     )
 
     assert report["status"] == "verified"
-    assert report["validated_tasks"] == 24
-    assert report["expected_skipped_valid_tasks"] == 4
-    assert report["minimum_skipped_valid_tasks"] == 4
-    assert report["actual_skipped_valid_tasks"] == 4
+    assert report["validated_tasks"] == 27
+    assert report["expected_skipped_valid_tasks"] == 24
+    assert report["minimum_skipped_valid_tasks"] == 24
+    assert report["actual_skipped_valid_tasks"] == 24
     assert report["task_state_counts"] == {
-        "completed": 20,
-        "skipped_valid": 4,
+        "completed": 3,
+        "skipped_valid": 24,
     }
     assert report["runtime"]["hostname"] == "test-host"
     assert report["run_inputs"] == {
@@ -452,7 +534,7 @@ def test_postflight_validates_every_result_and_emits_per_file_hashes(
         "code_sha": run_inputs.code_sha,
         "python_executable": run_inputs.python_executable,
     }
-    assert len(report["files"]) > 24
+    assert len(report["files"]) > 27
     summary_path = (
         run_inputs.results_root
         / manifest.tasks[0].output_dir
@@ -490,39 +572,63 @@ def test_postflight_validates_every_result_and_emits_per_file_hashes(
         ) == task_report["config_hash"]
 
 
-def test_postflight_accepts_safe_restart_skips_after_full_result_validation(
+@pytest.mark.parametrize(
+    ("shard_name", "new_task_numbers"),
+    [
+        ("5080", (40, 41, 42)),
+        ("5090", (43, 44, 45)),
+    ],
+)
+@pytest.mark.parametrize("additional_skip_count", range(4))
+def test_postflight_accepts_every_safe_restart_skip_count(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    shard_name: str,
+    new_task_numbers: tuple[int, ...],
+    additional_skip_count: int,
 ):
     canonical = canonical_manifest()
-    manifest = distributed.build_shard_manifests(canonical)["5080"]
+    manifest = distributed.build_shard_manifests(canonical)[shard_name]
     run_inputs = postflight_inputs(tmp_path)
+    additional_skipped_numbers = set(
+        new_task_numbers[:additional_skip_count]
+    )
     write_valid_shard_results(
         manifest,
         run_inputs,
-        "5080",
-        additional_skipped_numbers={7, 8},
+        shard_name,
+        additional_skipped_numbers=additional_skipped_numbers,
     )
     patch_postflight_environment(monkeypatch)
 
     report = postflight.build_postflight_report(
-        shard_name="5080",
+        shard_name=shard_name,
         canonical=canonical,
         manifest=manifest,
         repo_root=REPO_ROOT,
         run_inputs=run_inputs,
     )
 
-    assert report["minimum_skipped_valid_tasks"] == 4
-    assert report["actual_skipped_valid_tasks"] == 6
+    expected_inherited = set(
+        distributed.SHARD_SPECS[shard_name].expected_skip_numbers
+    )
+    expected_skipped = expected_inherited | additional_skipped_numbers
+    expected_skip_count = len(expected_skipped)
+    assert report["expected_skipped_valid_tasks"] == len(
+        expected_inherited
+    )
+    assert report["minimum_skipped_valid_tasks"] == len(
+        expected_inherited
+    )
+    assert report["actual_skipped_valid_tasks"] == expected_skip_count
     assert report["task_state_counts"] == {
-        "completed": 18,
-        "skipped_valid": 6,
+        "completed": len(manifest.tasks) - expected_skip_count,
+        "skipped_valid": expected_skip_count,
     }
     assert {
         int(task_id.split("_", 1)[0])
         for task_id in report["actual_skipped_task_ids"]
-    } == {1, 2, 3, 4, 7, 8}
+    } == expected_skipped
 
 
 def test_postflight_attestation_is_stable_for_an_unchanged_completed_queue(
@@ -619,7 +725,7 @@ def test_postflight_rejects_queue_skip_count_that_differs_from_task_states(
     )
     queue_path = run_inputs.results_root / "queue_status.json"
     queue = json.loads(queue_path.read_text(encoding="utf-8"))
-    queue["skipped_valid_tasks"] = 5
+    queue["skipped_valid_tasks"] = 25
     queue_path.write_text(json.dumps(queue), encoding="utf-8")
 
     with pytest.raises(
@@ -668,7 +774,7 @@ def test_postflight_rejects_wrong_completed_queue(
     )
     queue_path = run_inputs.results_root / "queue_status.json"
     queue = json.loads(queue_path.read_text(encoding="utf-8"))
-    queue["completed_tasks"] = 23
+    queue["completed_tasks"] = 26
     queue_path.write_text(json.dumps(queue), encoding="utf-8")
 
     with pytest.raises(postflight.PostflightError, match="completed_tasks"):

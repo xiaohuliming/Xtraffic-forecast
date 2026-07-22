@@ -3,19 +3,19 @@
 set -euo pipefail
 
 REPO=${REPO:-/root/xtraffic_v3_5090_clean}
-OPS_ROOT=${OPS_ROOT:-/root/autodl-tmp/xtraffic_ops}
+OPS_ROOT=${OPS_ROOT:-/root/autodl-tmp/xtraffic_ops_27_18}
 RESULTS_ROOT=${RESULTS_ROOT:-/root/autodl-tmp/protocol_v3_noleak_dedup/remote_runs/minimal_45_5090}
-SHARD_PID_FILE=${SHARD_PID_FILE:-/root/autodl-tmp/protocol_v3_5090_shard.pid}
-SHARD_EXIT_CODE=${SHARD_EXIT_CODE:-/root/autodl-tmp/protocol_v3_5090_shard.exitcode}
+SHARD_PID_FILE=${SHARD_PID_FILE:-/root/autodl-tmp/protocol_v3_5090_shard18.pid}
+SHARD_EXIT_CODE=${SHARD_EXIT_CODE:-/root/autodl-tmp/protocol_v3_5090_shard18.exitcode}
 POSTFLIGHT=${POSTFLIGHT:-$OPS_ROOT/scripts/remote/distributed/protocol_v3_shard_postflight.py}
 POSTFLIGHT_CMD=${POSTFLIGHT_CMD:-}
-POSTFLIGHT_REPORT=${POSTFLIGHT_REPORT:-/root/autodl-tmp/protocol_v3_5090_shard_postflight.json}
-TRANSFER_MANIFEST=${TRANSFER_MANIFEST:-/root/autodl-tmp/protocol_v3_5090_shard_transfer.sha256}
-TRANSFER_FILE_LIST=${TRANSFER_FILE_LIST:-/root/autodl-tmp/protocol_v3_5090_shard_files.txt}
-TRANSFER_MARKER=${TRANSFER_MARKER:-/root/autodl-tmp/protocol_v3_5090_shard_complete.json}
+POSTFLIGHT_REPORT=${POSTFLIGHT_REPORT:-/root/autodl-tmp/protocol_v3_5090_shard18_postflight.json}
+TRANSFER_MANIFEST=${TRANSFER_MANIFEST:-/root/autodl-tmp/protocol_v3_5090_shard18_transfer.sha256}
+TRANSFER_FILE_LIST=${TRANSFER_FILE_LIST:-/root/autodl-tmp/protocol_v3_5090_shard18_files.txt}
+TRANSFER_MARKER=${TRANSFER_MARKER:-/root/autodl-tmp/protocol_v3_5090_shard18_complete.json}
 RELAY=${RELAY:-root@8.134.12.5}
 RELAY_BASE=${RELAY_BASE:-/root/xtraffic_results/protocol_v3_noleak_dedup/distributed_45_5080_5090/shards}
-REMOTE_NAME=${REMOTE_NAME:-rtx5090_21}
+REMOTE_NAME=${REMOTE_NAME:-rtx5090_18}
 SPACE_MARGIN_BYTES=${SPACE_MARGIN_BYTES:-2147483648}
 POLL_SECONDS=${POLL_SECONDS:-60}
 SPACE_RETRY_SECONDS=${SPACE_RETRY_SECONDS:-300}
@@ -25,7 +25,24 @@ PYTHON=${PYTHON:-/root/miniconda3/bin/python}
 SSH_BIN=${SSH_BIN:-/usr/bin/ssh}
 RSYNC_BIN=${RSYNC_BIN:-/usr/bin/rsync}
 SHUTDOWN_BIN=${SHUTDOWN_BIN:-/usr/bin/shutdown}
-LOG=${LOG:-/root/autodl-tmp/protocol_v3_5090_shard_finalize.log}
+LOG=${LOG:-/root/autodl-tmp/protocol_v3_5090_shard18_finalize.log}
+SSH_OPTIONS=(
+  -o BatchMode=yes
+  -o StrictHostKeyChecking=accept-new
+  -o ConnectTimeout=15
+  -o ServerAliveInterval=5
+  -o ServerAliveCountMax=3
+)
+RSYNC_SSH_OPTIONS=(
+  "$SSH_BIN"
+  -o BatchMode=yes
+  -o StrictHostKeyChecking=accept-new
+  -o ConnectTimeout=15
+  -o ServerAliveInterval=5
+  -o ServerAliveCountMax=3
+)
+printf -v RSYNC_SSH_COMMAND '%q ' "${RSYNC_SSH_OPTIONS[@]}"
+RSYNC_SSH_COMMAND=${RSYNC_SSH_COMMAND% }
 
 remote_incoming="$RELAY_BASE/.${REMOTE_NAME}.incoming"
 remote_final="$RELAY_BASE/$REMOTE_NAME"
@@ -72,7 +89,7 @@ shard_alive() {
   kill -0 "$pid" 2>/dev/null || return 1
   [[ -r "/proc/$pid/cmdline" ]] || return 1
   tr '\0' ' ' < "/proc/$pid/cmdline" \
-    | grep -Fq "protocol_v3_launch_5090_shard.sh"
+    | grep -Fq "protocol_v3_launch_5090_shard18.sh"
 }
 
 while true; do
@@ -87,10 +104,10 @@ while true; do
     || fail "queue skipped_valid_tasks is not an integer"
   if [[
     "$queue_state" == "completed"
-    && "$queue_total" == "21"
-    && "$queue_completed" == "21"
-    && "$queue_skipped" -ge 2
-    && "$queue_skipped" -le 21
+    && "$queue_total" == "18"
+    && "$queue_completed" == "18"
+    && "$queue_skipped" -ge 15
+    && "$queue_skipped" -le 18
   ]]; then
     break
   fi
@@ -182,31 +199,31 @@ def sha256_file(path):
 report = json.loads(report_path.read_text(encoding="utf-8"))
 if report.get("status") != "verified" or report.get("shard") != "5090":
     raise SystemExit("invalid postflight report identity")
-if report.get("validated_tasks") != 21:
+if report.get("validated_tasks") != 18:
     raise SystemExit("invalid postflight validated_tasks")
-if report.get("expected_skipped_valid_tasks") != 2:
+if report.get("expected_skipped_valid_tasks") != 15:
     raise SystemExit("invalid inherited postflight skip count")
-if report.get("minimum_skipped_valid_tasks") != 2:
+if report.get("minimum_skipped_valid_tasks") != 15:
     raise SystemExit("invalid minimum postflight skip count")
 actual_skips = report.get("actual_skipped_valid_tasks")
 if (
     isinstance(actual_skips, bool)
     or not isinstance(actual_skips, int)
-    or not 2 <= actual_skips <= 21
+    or not 15 <= actual_skips <= 18
 ):
     raise SystemExit("invalid actual postflight skip count")
 expected_skip_ids = report.get("expected_skipped_task_ids")
 actual_skip_ids = report.get("actual_skipped_task_ids")
 if (
     not isinstance(expected_skip_ids, list)
-    or len(expected_skip_ids) != 2
+    or len(expected_skip_ids) != 15
     or not isinstance(actual_skip_ids, list)
     or len(actual_skip_ids) != actual_skips
     or not set(expected_skip_ids).issubset(actual_skip_ids)
 ):
     raise SystemExit("invalid postflight skipped task identity")
 tasks = report.get("tasks")
-if not isinstance(tasks, list) or len(tasks) != 21:
+if not isinstance(tasks, list) or len(tasks) != 18:
     raise SystemExit("invalid postflight task records")
 states = {"completed": 0, "skipped_valid": 0}
 task_skip_ids = []
@@ -228,8 +245,8 @@ queue = report.get("queue_status")
 if (
     not isinstance(queue, dict)
     or queue.get("state") != "completed"
-    or queue.get("total_tasks") != 21
-    or queue.get("completed_tasks") != 21
+    or queue.get("total_tasks") != 18
+    or queue.get("completed_tasks") != 18
     or queue.get("skipped_valid_tasks") != actual_skips
 ):
     raise SystemExit("invalid postflight queue summary")
@@ -322,14 +339,14 @@ marker = {
     "file_count": len(records),
     "file_list_sha256": file_list_digest,
     "manifest_sha256": manifest_digest,
-    "minimum_skipped_valid_tasks": 2,
+    "minimum_skipped_valid_tasks": 15,
     "postflight_files_digest": files_digest,
     "postflight_sha256": report_digest,
     "schema_version": 1,
     "shard": "5090",
     "source_bytes": total_bytes,
     "status": "verified",
-    "validated_tasks": 21,
+    "validated_tasks": 18,
 }
 marker_tmp = marker_path.with_suffix(marker_path.suffix + ".tmp")
 marker_tmp.write_text(
@@ -369,9 +386,7 @@ verify_remote_tree() {
   local root=$1
   local marker_name=$2
   "$SSH_BIN" \
-    -o BatchMode=yes \
-    -o StrictHostKeyChecking=accept-new \
-    -o ConnectTimeout=15 \
+    "${SSH_OPTIONS[@]}" \
     "$RELAY" \
     "set -eu; \
     root='$root'; marker_name='$marker_name'; \
@@ -423,9 +438,7 @@ verify_remote_tree() {
 while true; do
   read -r remote_free incoming_bytes final_exists < <(
     "$SSH_BIN" \
-      -o BatchMode=yes \
-      -o StrictHostKeyChecking=accept-new \
-      -o ConnectTimeout=15 \
+      "${SSH_OPTIONS[@]}" \
       "$RELAY" \
       "set -eu; mkdir -p '$RELAY_BASE'; \
       free=\$(df -PB1 '$RELAY_BASE' | awk 'NR==2 {print \$4}'); \
@@ -467,8 +480,7 @@ done
 
 log "TRANSFER_START bytes=$source_bytes files=$file_count"
 "$SSH_BIN" \
-  -o BatchMode=yes \
-  -o StrictHostKeyChecking=accept-new \
+  "${SSH_OPTIONS[@]}" \
   "$RELAY" \
   "set -eu; \
   rm -rf '$remote_incoming'; \
@@ -481,7 +493,7 @@ log "TRANSFER_START bytes=$source_bytes files=$file_count"
   --human-readable \
   --info=stats2 \
   --files-from="$TRANSFER_FILE_LIST" \
-  -e "$SSH_BIN -o BatchMode=yes -o StrictHostKeyChecking=accept-new" \
+  -e "$RSYNC_SSH_COMMAND" \
   "$RESULTS_ROOT/" \
   "$RELAY:$remote_incoming/results/" \
   >> "$LOG" 2>&1 \
@@ -489,28 +501,28 @@ log "TRANSFER_START bytes=$source_bytes files=$file_count"
 
 "$RSYNC_BIN" \
   --archive \
-  -e "$SSH_BIN -o BatchMode=yes -o StrictHostKeyChecking=accept-new" \
+  -e "$RSYNC_SSH_COMMAND" \
   "$TRANSFER_MANIFEST" \
   "$RELAY:$remote_incoming/metadata/transfer.sha256" \
   >> "$LOG" 2>&1 \
   || fail "manifest rsync failed"
 "$RSYNC_BIN" \
   --archive \
-  -e "$SSH_BIN -o BatchMode=yes -o StrictHostKeyChecking=accept-new" \
+  -e "$RSYNC_SSH_COMMAND" \
   "$TRANSFER_FILE_LIST" \
   "$RELAY:$remote_incoming/metadata/transfer.files" \
   >> "$LOG" 2>&1 \
   || fail "file list rsync failed"
 "$RSYNC_BIN" \
   --archive \
-  -e "$SSH_BIN -o BatchMode=yes -o StrictHostKeyChecking=accept-new" \
+  -e "$RSYNC_SSH_COMMAND" \
   "$POSTFLIGHT_REPORT" \
   "$RELAY:$remote_incoming/metadata/postflight.json" \
   >> "$LOG" 2>&1 \
   || fail "postflight report rsync failed"
 "$RSYNC_BIN" \
   --archive \
-  -e "$SSH_BIN -o BatchMode=yes -o StrictHostKeyChecking=accept-new" \
+  -e "$RSYNC_SSH_COMMAND" \
   "$TRANSFER_MARKER" \
   "$RELAY:$remote_incoming/_TRANSFER_COMPLETE.json.tmp" \
   >> "$LOG" 2>&1 \
@@ -520,8 +532,7 @@ log "REMOTE_VERIFY_START manifest=$manifest_digest"
 verify_remote_tree "$remote_incoming" "_TRANSFER_COMPLETE.json.tmp" \
   || fail "remote exact tree or hash verification failed"
 "$SSH_BIN" \
-  -o BatchMode=yes \
-  -o StrictHostKeyChecking=accept-new \
+  "${SSH_OPTIONS[@]}" \
   "$RELAY" \
   "set -eu; \
   test ! -e '$remote_final'; \
