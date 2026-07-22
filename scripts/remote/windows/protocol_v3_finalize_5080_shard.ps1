@@ -175,6 +175,10 @@ function Invoke-NativeCapture {
             Stop-NativeProcessTree -ProcessId $process.Id
             [void]$process.WaitForExit(5000)
         }
+        else {
+            [void]$process.WaitForExit()
+            $process.Refresh()
+        }
         $output = @()
         if (Test-Path -LiteralPath $stdoutPath -PathType Leaf) {
             $output += @(Get-Content -LiteralPath $stdoutPath -Encoding UTF8)
@@ -182,7 +186,16 @@ function Invoke-NativeCapture {
         if (Test-Path -LiteralPath $stderrPath -PathType Leaf) {
             $output += @(Get-Content -LiteralPath $stderrPath -Encoding UTF8)
         }
-        $exitCode = if ($timedOut) { 124 } else { $process.ExitCode }
+        if ($timedOut) {
+            $exitCode = 124
+        }
+        else {
+            $exitCode = $process.ExitCode
+            if ($null -eq $exitCode) {
+                Stop-Finalizer "native process exit code is unavailable"
+            }
+            $exitCode = [int]$exitCode
+        }
         return [PSCustomObject]@{
             ExitCode = $exitCode
             TimedOut = $timedOut

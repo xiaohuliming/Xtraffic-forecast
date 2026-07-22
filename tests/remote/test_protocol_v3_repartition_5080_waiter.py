@@ -232,6 +232,8 @@ def test_waiter_bounds_every_ssh_call_and_kills_the_timed_out_process_tree():
 
     assert "[int]$SshWallClockTimeoutSeconds" in script
     assert "$process.WaitForExit($TimeoutSeconds * 1000)" in script
+    assert "$process.WaitForExit()" in script
+    assert "$process.Refresh()" in script
     assert "$process.Kill($true)" in script
     assert '"/PID", ([string]$ProcessId), "/T", "/F"' in script
     assert "TimedOut = $timedOut" in script
