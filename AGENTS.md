@@ -18,11 +18,11 @@
 
 5080 的旧 24 项队列已于 2026-07-22 18:13:06 新加坡时间完成 24/24，skipped valid 为 4，runner 退出码为 0。旧 24 项 source-host postflight 与 134 文件 allowlist 已通过。task007 的首个 attempt 因两条遗留诊断 PowerShell 扫描耗尽主机内存而失败，没有 summary 或正式任务目录，第二个 attempt 已完整重跑并验收。这是主机运维故障，不是模型失败。旧 task005 迁移记录不进入正式导出 allowlist。
 
-截至 2026-07-22 22:56 新加坡时间，runner 层完成或重验 39/45。5090 新队列为 15/18，skipped valid 为 15，正在 task043。task043 已进入 epoch 2 batch 1100/2299，GPU 利用率为 83%，显存为 5111/32607 MB。5080 新队列为 24/27，skipped valid 为 24，正在 task040。task040 已进入 epoch 3 batch 1200/2299，GPU 利用率为 70%，显存为 3212/16303 MB。
+截至 2026-07-23 13:50 新加坡时间，runner 层正式完成或重验 42/45，剩余 tasks040-042。5090 新队列已完成 18/18，`rtx5090_18` 已回传并通过 marker 复验。source-host postflight 于 2026-07-23T04:40:34Z 验证通过，导出包含 97 个 source files、10,071,444,446 source bytes 和 18 个 task dirs。5090 已按计划关机，SSH 不可达。
 
-5090 新 runner PID 为 241437，新 finalizer PID 为 241585。旧 runner、旧 finalizer、边界 watcher 与 transition 均已按设计退出。新 5090 分片继承 15 项，从 task043 开始，上传名为 `rtx5090_18`。5080 新 runner PID 为 17260，新 finalizer PID 为 6152，边界等待器已正常退出。新 5080 分片继承 24 项，从 task040 开始，上传名为 `rtx5080_27`。5080 成功上传后保持开机。
+5080 task040 已完成 30 epochs 和 inference，但 summary 的 float32 MAE 11.305081367492676 与 runner 使用 float64 重算的 11.305101714317631 相差 2.03468e-5，因此被 runner 拒绝。队列以 failed 24/27 和退出码 4 结束，没有正式 task040 目录，也没有 postflight 或上传。`valid_count` 为 103270922，artifact 身份、mask 与 finite 检查均一致。这是指标精度契约问题，不是数据泄露或模型失败。
 
-控制提交依次为 `60405a9`、`e191c27` 与最终退出码文件实现 `30bcb81`。训练代码 SHA 仍为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。本地全仓测试为 230 passed、1 个既有 warning。5080 的正式 PowerShell 已通过 SHA-256、AST 和真实 relay 冒烟。用户授权处理容量后，结果服务器仅清理了未使用的 Docker build cache，Build Cache 从 12.25 GB 降为 0B，可用空间增至 19,434,708,992 字节。4 个业务容器不受影响，relay ready marker 保持完好。两个上传分片尚未出现，这是训练未完成时的正常状态。5080 relay 私钥只保存在工作站用户目录。任何训练、复验、空间、传输或哈希错误都保持相应机器开机。
+正式 task040 尚未产生，不得擅自写成已修复或已验收。完整 staging 包含 summary 7,895 字节、ckpt 1,306,955 字节、test_predictions 483,524,632 字节和 train.log 3,420 字节。确认无协议进程后，已写入 `C:\Users\ASUS\protocol_v3_5080_shutdown_state.json`。5080 于 13:49 按用户要求正常关机，SSH 和 ping 均不可达。结果服务器当前可用空间为 9,322,172,416 字节，`rtx5080_27` 不存在。5080 relay 私钥只保存在工作站用户目录。下一步是审查并修复控制层浮点精度验证与 staging recovery，重新开启 5080 后复用 task040 artifact 并运行 tasks041-042。
 
 项目方法层级为 `RADS ⊂ RADS-O ⊂ NDR-Net`。完整研究史和数字出处见主报告，当前有效性见审计文件。
 

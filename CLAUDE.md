@@ -1,6 +1,6 @@
 # XTraffic 项目导航与协作约定
 
-最近更新：2026-07-22
+最近更新：2026-07-23
 
 ## 新会话先读
 
@@ -63,7 +63,7 @@ v2 随后修复了原始泄露问题，但全面复审又确认了四类影响�
 
 5080 上的 v3 tasks001-004 已完成，并通过 runner 对 prediction artifact、有效点数及 all、affected、unaffected 指标的验收。task005 在迁移到 5090 后被主动终止，runner 如实记录退出码 1。这是计划内迁移，不是模型失败。
 
-最先落盘的 5080 tasks001-004 与 5090 tasks005-006 合计为 6 个 seed42 正式 v3 单项结果。它们与冻结的 4 个 v2 `contaminated preliminary` 结果性质不同，不能混为一谈。截至 2026-07-22 22:56 新加坡时间，runner 层已完成或重新验收 39/45。5080 新队列为 24/27，5090 新队列为 15/18。完整矩阵、双分片回传与 composite index 仍未完成，因此仍不能恢复多种子、显著性或论文结论。
+最先落盘的 5080 tasks001-004 与 5090 tasks005-006 合计为 6 个 seed42 正式 v3 单项结果。它们与冻结的 4 个 v2 `contaminated preliminary` 结果性质不同，不能混为一谈。截至 2026-07-23 13:50 新加坡时间，runner 层已正式完成或重新验收 42/45，剩余 tasks040-042。5090 队列已完成 18/18，5080 队列在 task040 验收时以 failed 24/27 结束。完整矩阵、5080 分片回传与 composite index 仍未完成，因此仍不能恢复多种子、显著性或论文结论。
 
 2026-07-20 22:23 新加坡时间起，正式运行口径改为双机分层矩阵。两台机器保留独立结果根、各自主机路径相关的 `config_hash`、独立 source-host postflight 与运行时 provenance。最终产物称为 `host-stratified distributed 45`，不再称为“5090 同机完整矩阵”。固定分片不交叉且并集严格覆盖 canonical 45，所有直接比较组保持同机。
 
@@ -73,13 +73,13 @@ v2 随后修复了原始泄露问题，但全面复审又确认了四类影响�
 
 2026-07-22 20:40 新加坡时间，用户批准将 ContraCosta full-window 的 tasks040-042 整组迁到 5080。目标固定分片现为 5080 共 27 项，任务是 tasks001-004、007-010、013-016、019-030、040-042。5090 共 18 项，任务是 tasks005-006、011-012、017-018、031-039、043-045。两组互不交叉，并集严格为 canonical 45。tasks037-039、tasks040-042 与 tasks043-045 三个直接比较组各自保持同机。
 
-27/18 已成功越过原子提交点。5090 旧 runner、旧 finalizer、边界 watcher 与 transition 均已按设计退出。relay ready marker 已发布且保持完好。新 5090 runner PID 为 241437，新 finalizer PID 为 241585。新队列继承 15 项，当前为 15/18，skipped valid 为 15，正在 task043。截至 22:56，task043 已进入 epoch 2 batch 1100/2299，GPU 利用率为 83%，显存为 5111/32607 MB。最终上传名为 `rtx5090_18`。
+27/18 已成功越过原子提交点。5090 旧 runner、旧 finalizer、边界 watcher 与 transition 均已按设计退出。relay ready marker 已发布且保持完好。5090 新队列已完成 18/18，source-host postflight 在 2026-07-23T04:40:34Z 验证通过。`rtx5090_18` 已回传并通过 marker 复验，包含 97 个 source files、10,071,444,446 source bytes 和 18 个 task dirs。5090 已按计划关机，SSH 不可达。
 
-5080 的边界等待器已正常退出。新 runner PID 为 17260，新 finalizer PID 为 6152。新队列继承 24 项，当前为 24/27，skipped valid 为 24，正在 task040。截至 22:56，task040 已进入 epoch 3 batch 1200/2299，GPU 利用率为 70%，显存为 3212/16303 MB。最终上传名为 `rtx5080_27`。5080 上传成功后保持工作站开机。任何训练、复验、空间、传输或哈希错误都保持相应机器开机。
+5080 task040 已完成 30 epochs 和 inference，但 summary 的 float32 MAE 11.305081367492676 与 runner 使用 float64 重算的 11.305101714317631 相差 2.03468e-5，因此被 runner 拒绝。队列以 failed 24/27 和退出码 4 结束。没有正式 task040 目录，也没有 postflight 或上传。`valid_count` 为 103270922，artifact 身份、mask 与 finite 检查均一致。这是指标精度契约问题，不是数据泄露或模型失败。
 
 27/18 控制实现已进入 Git。固定分片与 Linux 控制提交为 `60405a9`，Windows 退出码刷新尝试提交为 `e191c27`，最终采用临时退出码文件的可靠实现提交为 `30bcb81`。训练 checkout 与正式训练代码 SHA 仍保持 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`，控制提交没有改动训练输入。Mac 全仓回归为 230 passed、1 个既有 warning。5080 已完成正式脚本 SHA-256、PowerShell AST 与真实 relay 冒烟复验。冒烟确认 `BOUNDARY_ABSENT` 被正确识别为成功查询并进入 `WAIT_BOUNDARY`。
 
-用户授权处理容量后，结果服务器仅清理了未使用的 Docker build cache。Build Cache 从 12.25 GB 降为 0B，可用空间增至 19,434,708,992 字节。4 个业务容器不受影响，relay ready marker 保持完好。两个上传分片尚未出现，这是训练未完成时的正常状态。5080 的专用 relay SSH 私钥只保存在工作站用户目录，不进入仓库。
+task040 的 staging 完整，包含 summary 7,895 字节、ckpt 1,306,955 字节、test_predictions 483,524,632 字节和 train.log 3,420 字节。正式 task040 尚未产生，不得擅自写成已修复或已验收。确认无协议进程后，已写入 `C:\Users\ASUS\protocol_v3_5080_shutdown_state.json`。5080 于 13:49 按用户要求正常关机，SSH 和 ping 均不可达。结果服务器当前可用空间为 9,322,172,416 字节，`rtx5080_27` 不存在。5080 的专用 relay SSH 私钥只保存在工作站用户目录，不进入仓库。
 
 ## v2 冻结记录
 
@@ -89,10 +89,10 @@ v2 随后修复了原始泄露问题，但全面复审又确认了四类影响�
 
 ## 下一步顺序
 
-1. 持续监控 5080 task040 与 5090 task043，确认新 runner 和 finalizer 持续正常。
-2. 两台机器每项完成后由 runner 复算 prediction artifact 的有效点数与 all、affected、unaffected 指标，再原子提升到正式任务目录。
-3. 两个新分片分别完成 source-host postflight 与严格 allowlist 后，上传 `rtx5090_18` 和 `rtx5080_27` 并执行结果服务器逐文件 SHA-256 复验。
-4. 5090 在上传复验成功后自动关机，5080 在成功上传后保持开机。任何失败都保持相应机器开机。
+1. 审查并修复控制层浮点精度验证和 staging recovery，不改动数据、模型或已落盘 artifact。
+2. 修复通过测试与复审后，重新开启 5080，对 task040 staging 执行可审计 recovery 和 runner 验收。验收通过前不得写成正式 task040。
+3. task040 通过后继续运行 tasks041-042，每项完成后由 runner 复算 prediction artifact 的有效点数与 all、affected、unaffected 指标，再原子提升到正式任务目录。
+4. 5080 分片完成 source-host postflight 与严格 allowlist 后，上传 `rtx5080_27` 并执行结果服务器逐文件 SHA-256 复验。
 5. 在结果服务器上生成只读 composite index，验证两分片互斥、并集为 canonical 45，且不改写任何 summary。
 6. 完整矩阵完成后按同机直接比较组执行配对比较、显著性检验和跨种子统计。
 7. 只根据完整的 v3 落盘结果决定论文主张，再评估是否恢复 baseline zoo。
