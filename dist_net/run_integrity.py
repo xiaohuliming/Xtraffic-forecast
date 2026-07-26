@@ -427,7 +427,7 @@ def write_summary_json(
 
     lock = destination.with_name(f".{destination.name}.lock")
     temporary = destination.with_name(
-        f".{destination.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
+        f".s.{uuid.uuid4().hex[:16]}.tmp"
     )
     try:
         with lock.open("x", encoding="utf-8"):

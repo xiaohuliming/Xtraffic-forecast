@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -248,6 +249,53 @@ def test_write_summary_json_attaches_identity_and_valid_count_atomically(tmp_pat
     assert payload["valid_count"] == 123
     assert payload["all"] == 1.25
     assert not list(output.glob("*.tmp"))
+
+
+def test_write_summary_json_supports_destination_near_windows_path_limit(
+    tmp_path,
+    monkeypatch,
+):
+    target_length = 239
+    one_character_destination = (
+        tmp_path / "s" / "work" / "result" / "summary.json"
+    )
+    component_length = (
+        target_length - len(os.fspath(one_character_destination)) + 1
+    )
+    assert 1 <= component_length <= 255
+    staging_root = tmp_path / ("s" * component_length)
+    identity = RunIdentity.from_environment(
+        valid_environment(staging_root)
+    )
+    output = prepare_fresh_output_dir(
+        identity.staging_root / "work" / "result",
+        identity,
+    )
+    destination = output / "summary.json"
+    assert len(os.fspath(destination)) == target_length
+
+    original_open = Path.open
+
+    def open_with_legacy_windows_limit(path, *args, **kwargs):
+        if len(os.fspath(path)) >= 260:
+            raise FileNotFoundError(
+                2,
+                "simulated legacy Windows path limit",
+                os.fspath(path),
+            )
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", open_with_legacy_windows_limit)
+
+    written = write_summary_json(
+        destination,
+        {"all": 1.25},
+        identity=identity,
+        valid_count=123,
+        required_metrics=("all",),
+    )
+
+    assert json.loads(written.read_text(encoding="utf-8"))["all"] == 1.25
 
 
 @pytest.mark.parametrize(

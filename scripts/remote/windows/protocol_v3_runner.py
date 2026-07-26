@@ -8,7 +8,6 @@ import json
 import math
 import os
 import re
-import shutil
 import subprocess
 import sys
 import uuid
@@ -1361,6 +1360,62 @@ def _require_recovery_path(
         )
 
 
+def _trusted_completed_state(
+    path: Path,
+    *,
+    task: Task,
+    config_hash: str,
+    final_dir: Path,
+    results_root: Path,
+) -> dict[str, object] | None:
+    if path.is_symlink() or not path.is_file():
+        return None
+    try:
+        payload = _read_strict_json_object(path)
+    except ManifestError:
+        return None
+    attempt = payload.get("attempt")
+    returncode = payload.get("returncode")
+    if (
+        payload.get("state") != "completed"
+        or payload.get("task_id") != task.task_id
+        or payload.get("config_hash") != config_hash
+        or isinstance(attempt, bool)
+        or not isinstance(attempt, int)
+        or attempt <= 0
+        or isinstance(returncode, bool)
+        or not isinstance(returncode, int)
+        or returncode != 0
+    ):
+        return None
+    expected_log = (
+        results_root
+        / "logs"
+        / task.task_id
+        / f"attempt_{attempt:04d}.log"
+    )
+    if (
+        expected_log.is_symlink()
+        or not expected_log.is_file()
+        or expected_log.stat().st_size <= 0
+    ):
+        return None
+    try:
+        _require_recovery_path(
+            payload.get("final_dir"),
+            final_dir,
+            field="final_dir",
+        )
+        _require_recovery_path(
+            payload.get("log_path"),
+            expected_log,
+            field="log_path",
+        )
+    except ResultValidationError:
+        return None
+    return payload
+
+
 def _validate_recovery_queue_state(
     payload: Mapping[str, object] | None,
     *,
@@ -1848,8 +1903,22 @@ def run_queue(
         )
         final_dir = results_root / task.output_dir
         if should_skip:
-            skipped += 1
             completed += 1
+            if _trusted_completed_state(
+                task_status_path,
+                task=task,
+                config_hash=config_hash,
+                final_dir=final_dir,
+                results_root=results_root,
+            ) is not None:
+                print(
+                    f"KEEP_COMPLETED {task.task_id}",
+                    file=stdout,
+                    flush=True,
+                )
+                write_queue("running")
+                continue
+            skipped += 1
             _atomic_write_json(
                 task_status_path,
                 {

@@ -605,7 +605,7 @@ def test_recovery_rejects_incomplete_staging_without_retraining(
     ).exists()
 
 
-def test_restart_after_recovery_skips_valid_final_without_overwrite(
+def test_restart_after_recovery_keeps_valid_final_without_overwrite(
     tmp_path,
     monkeypatch,
 ):
@@ -622,6 +622,13 @@ def test_restart_after_recovery_skips_valid_final_without_overwrite(
         recover_staging_task=task.task_id,
     ) == 0
     final_dir = run_inputs.results_root / task.output_dir
+    task_state_path = (
+        run_inputs.results_root
+        / "state"
+        / "tasks"
+        / f"{task.task_id}.json"
+    )
+    task_state_before = task_state_path.read_bytes()
     before = {
         path.relative_to(final_dir).as_posix(): hashlib.sha256(
             path.read_bytes()
@@ -660,8 +667,9 @@ def test_restart_after_recovery_skips_valid_final_without_overwrite(
     )
     assert rc == 0
     assert before == after
-    assert queue["skipped_valid_tasks"] == 1
-    assert "SKIP_VALID" in stream.getvalue()
+    assert task_state_path.read_bytes() == task_state_before
+    assert queue["skipped_valid_tasks"] == 0
+    assert "KEEP_COMPLETED" in stream.getvalue()
     assert not (
         run_inputs.results_root
         / ".staging"
@@ -670,7 +678,7 @@ def test_restart_after_recovery_skips_valid_final_without_overwrite(
     ).exists()
 
 
-def test_valid_final_result_is_skipped_without_new_attempt(tmp_path):
+def test_valid_completed_result_is_kept_without_new_attempt(tmp_path):
     manifest = mini_manifest(tmp_path)
     run_inputs = inputs(tmp_path)
     first = io.StringIO()
@@ -696,8 +704,51 @@ def test_valid_final_result_is_skipped_without_new_attempt(tmp_path):
     task = manifest.tasks[0]
     logs = list((run_inputs.results_root / "logs" / task.task_id).glob("attempt_*.log"))
     assert [path.name for path in logs] == ["attempt_0001.log"]
-    assert "SKIP_VALID" in second.getvalue()
+    assert "KEEP_COMPLETED" in second.getvalue()
     assert "ALL_DONE" in second.getvalue()
+
+
+def test_valid_result_with_untrusted_completed_state_falls_back_to_skip(
+    tmp_path,
+):
+    manifest = mini_manifest(tmp_path)
+    run_inputs = inputs(tmp_path)
+    assert run_queue(
+        manifest,
+        run_inputs,
+        repo_root=REPO_ROOT,
+        command_builder=dummy_builder(),
+        verify_git=False,
+        stdout=io.StringIO(),
+    ) == 0
+    task = manifest.tasks[0]
+    state_path = (
+        run_inputs.results_root
+        / "state"
+        / "tasks"
+        / f"{task.task_id}.json"
+    )
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["final_dir"] = str(run_inputs.results_root / "wrong")
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    stream = io.StringIO()
+
+    assert run_queue(
+        manifest,
+        run_inputs,
+        repo_root=REPO_ROOT,
+        command_builder=dummy_builder("fail"),
+        verify_git=False,
+        stdout=stream,
+    ) == 0
+
+    rewritten = json.loads(state_path.read_text(encoding="utf-8"))
+    queue = json.loads(
+        (run_inputs.results_root / "queue_status.json").read_text()
+    )
+    assert rewritten["state"] == "skipped_valid"
+    assert queue["skipped_valid_tasks"] == 1
+    assert "SKIP_VALID" in stream.getvalue()
 
 
 def test_nonempty_invalid_final_directory_is_rejected_before_launch(tmp_path):
