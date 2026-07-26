@@ -1,6 +1,6 @@
 # XTraffic 项目导航与协作约定
 
-最近更新：2026-07-23
+最近更新：2026-07-26
 
 ## 新会话先读
 
@@ -63,7 +63,7 @@ v2 随后修复了原始泄露问题，但全面复审又确认了四类影响�
 
 5080 上的 v3 tasks001-004 已完成，并通过 runner 对 prediction artifact、有效点数及 all、affected、unaffected 指标的验收。task005 在迁移到 5090 后被主动终止，runner 如实记录退出码 1。这是计划内迁移，不是模型失败。
 
-最先落盘的 5080 tasks001-004 与 5090 tasks005-006 合计为 6 个 seed42 正式 v3 单项结果。它们与冻结的 4 个 v2 `contaminated preliminary` 结果性质不同，不能混为一谈。截至 2026-07-26 11:24 新加坡时间，runner 层已正式完成或重新验收 43/45。5090 队列已完成 18/18，5080 队列为 25/27，正在训练 task041。task042 尚未启动。完整矩阵、5080 分片回传与 composite index 仍未完成，因此仍不能恢复多种子、显著性或论文结论。
+最先落盘的 5080 tasks001-004 与 5090 tasks005-006 合计为 6 个 seed42 正式 v3 单项结果。它们与冻结的 4 个 v2 `contaminated preliminary` 结果性质不同，不能混为一谈。截至 2026-07-26 17:15 新加坡时间，runner 层已正式完成或重新验收 44/45。5090 队列已完成 18/18，5080 队列为 26/27，task041 已恢复并正式验收，task042 正在训练。完整矩阵、5080 分片回传与 composite index 仍未完成，因此仍不能恢复多种子、显著性或论文结论。
 
 2026-07-20 22:23 新加坡时间起，正式运行口径改为双机分层矩阵。两台机器保留独立结果根、各自主机路径相关的 `config_hash`、独立 source-host postflight 与运行时 provenance。最终产物称为 `host-stratified distributed 45`，不再称为“5090 同机完整矩阵”。固定分片不交叉且并集严格覆盖 canonical 45，所有直接比较组保持同机。
 
@@ -81,7 +81,11 @@ v2 随后修复了原始泄露问题，但全面复审又确认了四类影响�
 
 控制部署期间的恶意环境变量探针暴露了 CMD 展开缺陷。Python preflight 安全拒绝该合成 task ID，没有 trainer 启动，但 `queue_status.json` 被短暂改写为 failed 0/27。异常快照已保存到 `state/control_incidents`，SHA-256 为 `bdcb4718859b8dfbaf52d588e2d5af2789dcec42659f8927879807fd120869ab`。随后根据落盘 shutdown state、task040 failed state、cache manifest、canonical manifest、clean Git SHA 和 24 个 `skipped_valid` state 原子恢复 queue。task state 与训练 artifact 从未被改写。
 
-task040 已于 2026-07-26 11:23 新加坡时间通过新 runner 的完整重验并原子提升，未重训且不存在 `attempt_0002`。summary、checkpoint、prediction artifact 与 train log 的 SHA-256 分别保持为 `be9c84f7bd1608d40ad9e0c623854962cf223715695d38351228d20d9557a97d`、`7537f941f7e8972c2768d8fae7f2481d7f0d981b0d4f5b19a8e588925cd70df8`、`34b74015d3e11b504f28ca89f868b497aa2de4956b75ba078d8010cafde50f45` 和 `51aba30d3dd452ba58f28fb53ea8c254ef908654a4d365b1ff5259c88ba5cd63`。task041 已进入 epoch 1，batch 400/2299 时 GPU 使用 6,187 MiB，利用率 87%，温度 56 摄氏度。finalizer 正在等待 27/27 后执行 postflight 与回传。`rtx5080_27` 仍不存在。
+task040 已于 2026-07-26 11:23 新加坡时间通过新 runner 的完整重验并原子提升，未重训且不存在 `attempt_0002`。summary、checkpoint、prediction artifact 与 train log 的 SHA-256 分别保持为 `be9c84f7bd1608d40ad9e0c623854962cf223715695d38351228d20d9557a97d`、`7537f941f7e8972c2768d8fae7f2481d7f0d981b0d4f5b19a8e588925cd70df8`、`34b74015d3e11b504f28ca89f868b497aa2de4956b75ba078d8010cafde50f45` 和 `51aba30d3dd452ba58f28fb53ea8c254ef908654a4d365b1ff5259c88ba5cd63`。
+
+task041 于 2026-07-26 13:40 新加坡时间完成 30 个 epoch 和测试推理后，在写入 summary 临时文件时触发 Windows 传统路径长度限制。正式目标路径长度为 239，旧临时路径长度为 282。checkpoint、prediction artifact 与 train log 均已完整落盘，失败发生在结果写入阶段，不是模型训练、数据协议或数值失败。提交 `e7bf755` 将 summary 临时名缩短，并增加 completed state 幂等保留和 incident-specific repair。Mac 全仓回归为 249 passed 和 1 个既有 warning，真实 5080 dry-run 对 103,270,922 个有效点完成 cache 全量对照，producer MAE 为 11.21213436126709，float64 audit 为 11.212104746452527。
+
+2026-07-26 17:08，新脚本从哈希锁定的 task041 `attempt_0001` 重建 `summary.json` 与 `decomp_mask.json`，两份文件 SHA-256 分别为 `115c0cfba5d6a256a27011a6169797ac48606cb90a914a942919854e399e27ac` 和 `55ae377b62287d5098a895c5608cb8050d79520df2a5936f0754c0a18bef5d5a`。runner 在 staging 与正式目录各完成一次完整验收后原子提升。原 checkpoint、prediction artifact 与 train log 哈希保持不变，没有 `attempt_0002`。incident record SHA-256 为 `630e2d31ca2b8599a0ca9901f5d50e85049ca438a4ca894da744c49eecf4ced4`，completed task state SHA-256 为 `4bb3cb200c77391d24e3b331b64b5787b70ed42163a1db617635b758aecbfe22`。task040 state SHA-256 仍为 `c54ae78dfdd6ec4e8e4b0005f373e2a712f8686a3fd211fd15cb1703fa5f2312`。17:10，runner 以 `KEEP_COMPLETED` 保留 tasks040-041 的审计状态并启动 task042 `attempt_0001`。17:15 的落盘日志显示 task042 为 epoch 1、batch 1500/4598，GPU 使用 10,799 MiB，利用率 97%，温度 63 摄氏度。finalizer 正在等待 27/27 后执行 postflight 与回传。`rtx5080_27` 仍不存在。
 
 ## v2 冻结记录
 
@@ -91,12 +95,11 @@ task040 已于 2026-07-26 11:23 新加坡时间通过新 runner 的完整重验�
 
 ## 下一步顺序
 
-1. 继续监控 task041，完成后由 runner 重算 prediction artifact 并原子提升。
-2. 顺序运行 task042，保持与 tasks040-041 同机比较。
-3. 5080 分片完成 source-host postflight 与严格 allowlist 后，上传 `rtx5080_27` 并执行结果服务器逐文件 SHA-256 复验。
-4. 在结果服务器上生成只读 composite index，验证两分片互斥、并集为 canonical 45，且不改写任何 summary。
-5. 完整矩阵完成后按同机直接比较组执行配对比较、显著性检验和跨种子统计。
-6. 只根据完整的 v3 落盘结果决定论文主张，再评估是否恢复 baseline zoo。
+1. 继续监控并完成 task042，保持与 tasks040-041 同机比较。
+2. 5080 分片完成 source-host postflight 与严格 allowlist 后，上传 `rtx5080_27` 并执行结果服务器逐文件 SHA-256 复验。
+3. 在结果服务器上生成只读 composite index，验证两分片互斥、并集为 canonical 45，且不改写任何 summary。
+4. 完整矩阵完成后按同机直接比较组执行配对比较、显著性检验和跨种子统计。
+5. 只根据完整的 v3 落盘结果决定论文主张，再评估是否恢复 baseline zoo。
 
 ## 最小判别矩阵
 

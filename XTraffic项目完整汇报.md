@@ -1,6 +1,6 @@
 # XTraffic 交通流量预测研究：完整汇报
 
-初版日期：2026-06-17，持续更新，最近更新 2026-07-23
+初版日期：2026-06-17，持续更新，最近更新 2026-07-26
 作者：科研实习项目组
 说明：本文是本项目研究历史、实验数字与出处的唯一权威长报告。原《项目总结报告_2026-06-10》与《去季节化方向_交接_2026-06-26》已并入本文并归档到 docs/archive，不再单独维护。本文中所有数字均来自已落盘的实验文件，包括 test_predictions.npz、summary.json、训练日志与诊断文件，无任何估算或记忆填充。数字来自落盘文件不等于实验协议无误。2026-07-18 数据有效性审计发现旧 XTraffic 管线存在未来信息泄露，因此审计前数字均保留为历史记录，当前是否可用于论文以 `docs/audits/result_validity.csv` 为准。按全局写作规范，正文不使用破折号与括号内插说明。
 
@@ -90,7 +90,7 @@ Windows 5080 与 Linux 5090 的绝对路径和运行时环境不同，因此两�
 
 5080 的 runner 与 finalizer 已在 task040 校验失败后安全退出，GPU 没有训练计算进程。task040 的 staging 仍完整保留，其中 summary 为 7,895 字节，checkpoint 为 1,306,955 字节，prediction artifact 为 483,524,632 字节，train log 为 3,420 字节。关机前写入 `C:\Users\ASUS\protocol_v3_5080_shutdown_state.json`。用户要求关机后，5080 已执行 Windows 正常关机，并于 2026-07-23 13:50 新加坡时间通过 SSH 超时与 ping 不可达确认离线。
 
-重分片控制代码已经过提交 `60405a9`、`e191c27` 和 `30bcb81` 固化。本地全仓回归为 230 项通过和 1 条既有警告，5080 真实 PowerShell AST 解析与退出码冒烟验证均通过。接收完整 `rtx5090_18` 后，结果服务器当前空闲 9,322,172,416 字节。`rtx5080_27` 尚不存在。下一步必须先审查控制层 float32 producer 与 float64 runner 的兼容校验和 staging recovery，不能把 task040 写成正式结果，也不能在未审查恢复路径前盲目重跑。
+重分片控制代码已经过提交 `60405a9`、`e191c27` 和 `30bcb81` 固化。本地全仓回归为 230 项通过和 1 条既有警告，5080 真实 PowerShell AST 解析与退出码冒烟验证均通过。接收完整 `rtx5090_18` 后，结果服务器当前空闲 9,322,172,416 字节。`rtx5080_27` 尚不存在。当时下一步必须先审查控制层 float32 producer 与 float64 runner 的兼容校验和 staging recovery，不能把 task040 写成正式结果，也不能在未审查恢复路径前盲目重跑。
 
 ---
 
@@ -152,7 +152,7 @@ v3 已完成代码修复，schema 为 3，协议名为 `protocol_v3_noleak_dedup
 
 用户要求暂时关闭 5080。确认没有训练、runner、finalizer 或上传进程后，系统写入关机状态记录并执行正常关机。13:50 新加坡时间，SSH 与 ping 均不可达。当前正式进度为 42/45，剩余 tasks040 至 042。结果服务器空闲 9,322,172,416 字节，`rtx5080_27` 尚未上传。
 
-### 最新进展，2026-07-26，task040 无重训恢复，task041 已启动
+### 最新进展，2026-07-26，tasks040-041 已恢复，task042 已启动
 
 task040 的精度契约修复已完成。新 validator 首先保留原 float64 audit。只有 graphwavenet、fourier_dual_net、staeformer 与 staeformer_icsf 的 prediction 和 actual 均为 float32，且原 audit 校验失败时，才从同一 artifact 精确复现 producer 的 float32 `.mean()`。summary 必须与 producer 值相差不超过 2 ULP，producer 与 float64 audit 的差异还必须处于归约误差界内。staeformer_deseason 不进入兼容分支。
 
@@ -162,7 +162,11 @@ staging recovery 采用显式、失败即停止的契约。prior queue、failed 
 
 2026-07-26 11:23 新加坡时间，runner 从 task040 `attempt_0001` 完成可审计 recovery 并原子提升正式目录。没有重训，也没有 `attempt_0002`。summary、checkpoint、prediction artifact 与 train log 的 SHA-256 分别保持为 `be9c84f7bd1608d40ad9e0c623854962cf223715695d38351228d20d9557a97d`、`7537f941f7e8972c2768d8fae7f2481d7f0d981b0d4f5b19a8e588925cd70df8`、`34b74015d3e11b504f28ca89f868b497aa2de4956b75ba078d8010cafde50f45` 和 `51aba30d3dd452ba58f28fb53ea8c254ef908654a4d365b1ff5259c88ba5cd63`。恢复 task state 记录 validator SHA-256 `95a5fc7ed3cfae1fd029e3f7dcae5995ad60c4c3427de1ba327c7c97cf6872a6`。
 
-截至 11:24，新加坡时间，runner 层正式进度为 43/45。5080 队列为 25/27，task041 已进入 epoch 1。batch 400/2299 时 GPU 使用 6,187 MiB，利用率 87%，温度 56 摄氏度。Minecraft 进程继续保留，没有被终止。finalizer 已启动并等待 27/27，之后将执行 source-host postflight、严格 allowlist 与 `rtx5080_27` 回传。task042 尚未启动，`rtx5080_27` 与 composite index 尚不存在。
+task041 于 13:40 新加坡时间完成 30 个 epoch 和测试推理。写入 `summary.json` 时，旧原子写入逻辑生成了 282 字符的临时路径，超过 5080 上未启用长路径支持的传统 Windows 限制。正式 summary 目标路径为 239 字符。checkpoint、prediction artifact 与 train log 均已完整落盘，prediction NPZ 通过 ZIP CRC、schema、dtype、shape、有限性和正式 cache 全量对照。有效点数为 103,270,922，producer float32 MAE 为 11.21213436126709，独立 float64 audit 为 11.212104746452527。该故障发生在结果写入阶段，不是模型训练、数据协议或数值失败。
+
+控制提交 `e7bf755` 将同目录原子临时名缩短为 `.s.<uuid16>.tmp`，并增加 completed state 幂等保留与 task041 专用修复入口。Mac 全仓回归为 249 项通过与 1 条既有 warning，独立复审未发现 P0 或 P1。5080 的最终 dry-run 对全部正式证据完成验收且未写入文件。17:08，修复脚本从哈希锁定的原 `attempt_0001` 重建 `summary.json` 与 `decomp_mask.json`，两份文件 SHA-256 分别为 `115c0cfba5d6a256a27011a6169797ac48606cb90a914a942919854e399e27ac` 和 `55ae377b62287d5098a895c5608cb8050d79520df2a5936f0754c0a18bef5d5a`。runner 在 staging 与正式目录分别完成完整验收后原子提升。原 checkpoint、prediction artifact 与 train log 哈希保持不变，没有 `attempt_0002`。incident record SHA-256 为 `630e2d31ca2b8599a0ca9901f5d50e85049ca438a4ca894da744c49eecf4ced4`，completed task state SHA-256 为 `4bb3cb200c77391d24e3b331b64b5787b70ed42163a1db617635b758aecbfe22`。task040 state SHA-256 也保持为 `c54ae78dfdd6ec4e8e4b0005f373e2a712f8686a3fd211fd15cb1703fa5f2312`。
+
+截至 17:15，新加坡时间，runner 层正式进度为 44/45。5080 队列为 26/27。runner 以 `KEEP_COMPLETED` 保留 tasks040-041 的恢复状态，并于 17:10 启动 task042 `attempt_0001`。落盘日志显示 task042 为 epoch 1、batch 1500/4598，GPU 使用 10,799 MiB，利用率 97%，温度 63 摄氏度。runner、trainer 与 finalizer 各有 1 个进程。Minecraft 进程继续保留，没有被终止。finalizer 已启动并等待 27/27，之后将执行 source-host postflight、严格 allowlist 与 `rtx5080_27` 回传。`rtx5080_27` 与 composite index 尚不存在。
 
 ### 审计前旧管线历史，2026-06-25，旧云 5090 实验
 
@@ -200,12 +204,12 @@ Orange 的 s0a 对 s0c 三种子完成，配对差负 0.114 与负 0.132 与负 
 
 1. v2 缓存与四个 preliminary summary 已冻结为 contaminated，不再续跑。
 2. 三地区 `region_data_v3_noleak_dedup` 已从 clean 提交重建完成，本地两次、5080 一次与 5090 一次严格审计均为 verified。
-3. 最终训练代码 SHA 已锁定。训练 checkout 仍为 clean `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。最新控制层全仓回归为 247 项通过与 1 条既有警告。
-4. runner 层共完成或重新验收 43/45。5090 分片 18/18 已完成、回传并验证，5090 已按计划关机。
-5. 5080 为 25/27。task040 已从原 staging 完成无重训 recovery，并通过正式验收。task041 正在训练，task042 尚未启动。
-6. task040 恢复前后四个 artifact 哈希一致，没有 `attempt_0002`。
+3. 最终训练代码 SHA 已锁定。训练 checkout 仍为 clean `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。最新控制层全仓回归为 249 项通过与 1 条既有警告。
+4. runner 层共完成或重新验收 44/45。5090 分片 18/18 已完成、回传并验证，5090 已按计划关机。
+5. 5080 为 26/27。tasks040-041 均已从原 staging 完成可审计 recovery 并通过正式验收。task042 `attempt_0001` 正在训练。
+6. tasks040-041 恢复均未创建新的 attempt，原有训练 artifact 哈希保持不变。task041 的 writer 长路径修复提交为 `e7bf755`。
 7. 结果服务器已保存 `rtx5090_18`。`rtx5080_27` 尚不存在。
-8. 下一步完成 tasks041 至 042，再运行 source-host postflight 与严格 allowlist。
+8. 下一步完成 task042，再运行 source-host postflight 与严格 allowlist。
 9. `rtx5080_27` 回传后生成只读 composite index，验证 canonical 45 完整并集。
 10. v3 分层矩阵完成后重新判断论文主张，再决定 baseline zoo 与论文写作是否恢复。
 
@@ -245,6 +249,9 @@ Orange 的 s0a 对 s0c 三种子完成，配对差负 0.114 与负 0.132 与负 
 28. 第二十六阶段，2026-07-22：用户授权处理结果服务器容量。仅清理 12.25 GB 未使用 Docker build cache，清理后 build cache 为 0 B，可用空间为 19,434,708,992 字节。4 个业务容器、ready marker 与结果根均保持正常，容量阻塞解除。
 29. 第二十七阶段，2026-07-23：5090 完成新分片 18/18，通过 source-host postflight、严格导出、结果服务器逐文件哈希与原子提升。`rtx5090_18` 状态为 `verified`，包含 97 个源文件、10,071,444,446 字节源数据和 18 个任务目录。5090 随后按契约关机。
 30. 第二十八阶段，2026-07-23：5080 的 task040 完成训练与推理，但因 producer float32 summary 与 runner float64 重算之间的 0.000020346824955552734 差异被 fail closed。queue 为 24/27，task040 未提升。确认 staging 完整且无协议进程后，按用户要求写入关机记录并正常关机，13:50 新加坡时间确认离线。
+31. 第二十九阶段，2026-07-26：完成 task040 的 producer 精度契约修复、float64 独立审计和 fail-closed staging recovery。task040 从原 zero-exit `attempt_0001` 完成无重训原子提升，没有 `attempt_0002`。
+32. 第三十阶段，2026-07-26：task041 完成 30 个 epoch 与测试推理后，因 282 字符 summary 临时路径触发 Windows 传统路径限制。哈希锁定的 incident-specific repair 补齐两份未落盘文件，经 staging 与正式目录双重验收后原子提升，没有 `attempt_0002`。
+33. 第三十一阶段，2026-07-26：runner 以 `KEEP_COMPLETED` 保留 tasks040-041 的审计状态并启动 task042。正式进度达到 44/45，5080 为 26/27，finalizer 等待 27/27 后执行 postflight 与回传。
 
 ---
 
@@ -643,7 +650,7 @@ Orange 区域曾于 2026-06-23 在审计前旧管线的云 5090 上补齐，all 
 
 2026-07-06 时项目曾判断全部实验证据关账。2026-07-18 数据有效性审计推翻了这一状态判断。2026-07-19 对 v2 的后续全面复核又确认，仅修复最初泄露点仍不足以保证样本唯一性、验证选择和全链路结果身份正确。v2 队列已经停止，四个 v2 preliminary summary 继续标记为 contaminated。v3 正式缓存已完成本地两次、5080 一次与 5090 一次严格审计，结果均为 verified。
 
-runner 层现已完成或重新验收 43/45。5090 新分片已完成 18/18，并以 `rtx5090_18` 回传到结果服务器。marker 状态为 `verified`，18 个任务目录均已落盘，5090 随后按计划关机。5080 为 25/27。task040 已从原 zero-exit staging 完成无重训 recovery，四个 artifact 哈希保持不变，并通过 runner 原子提升。task041 正在训练，task042 尚未启动。两个结果根保持独立，最终只通过只读 composite index 验证完整性。最先落盘的六项 seed42 指标仍只能用于方向性观察。审计前最低历史数字 Alameda NDR-Net 11.052 仍不得作为当前有效结果。
+runner 层现已完成或重新验收 44/45。5090 新分片已完成 18/18，并以 `rtx5090_18` 回传到结果服务器。marker 状态为 `verified`，18 个任务目录均已落盘，5090 随后按计划关机。5080 为 26/27。task040 已从原 zero-exit staging 完成无重训 recovery。task041 在训练与推理完成后因 Windows 临时路径过长而退出，随后从哈希锁定的原 staging 重建两份未落盘的小型结果文件，并通过 staging 与正式目录两次 runner 验收。两项均未创建新 attempt，原训练 artifact 哈希保持不变。task042 正在训练。两个结果根保持独立，最终只通过只读 composite index 验证完整性。最先落盘的六项 seed42 指标仍只能用于方向性观察。审计前最低历史数字 Alameda NDR-Net 11.052 仍不得作为当前有效结果。
 
 已经完成的代码与管理事项如下。
 
@@ -683,15 +690,17 @@ runner 层现已完成或重新验收 43/45。5090 新分片已完成 18/18，�
 34. 完成本地 247 项全仓回归、独立代码复审、5080 shadow validation、控制包哈希部署与独立 ops import 复验。
 35. 在 CMD 探针发现环境变量展开缺陷后，将恢复任务改为由 Python 直接读取。保存异常 queue 快照，并从多份落盘证据原子恢复正式 queue。没有 trainer 启动，task state 与 artifact 未改变。
 36. 从 task040 `attempt_0001` 完成无重训 recovery。恢复前后 summary、checkpoint、prediction artifact 与 train log 哈希一致，没有创建 `attempt_0002`。随后启动 task041。
+37. 定位 task041 在训练与推理完成后的 Windows 临时路径长度故障。以 TDD 缩短 summary 临时名，并增加 completed state 幂等保留与哈希锁定的 incident-specific repair。提交为 `e7bf755`，本地全仓回归为 249 项通过与 1 条既有警告。
+38. 在 5080 完成 task041 最终 dry-run。正式 cache 全量对照、prediction artifact、checkpoint、CUDA decomp mask、summary bytes 与 config hash 均通过，dry-run 前后证据哈希不变。
+39. 从 task041 原 `attempt_0001` 原子恢复正式结果。staging 与正式目录均通过 runner 验收，没有创建 `attempt_0002`。runner 随后以 `KEEP_COMPLETED` 保留 tasks040-041 状态并启动 task042。
 
 当前待执行事项按优先级排列。
 
-1. 继续监控并完成 task041，由 runner 重算 prediction artifact 后再原子提升。
-2. 顺序完成 task042，保持 tasks040 至 042 的直接比较组同机。
-3. 完成 `rtx5080_27` 的 source-host postflight、严格 allowlist、回传与结果服务器逐文件 SHA-256 复验。
-4. 生成只读 composite index，验证两个分片互斥、canonical 45 完整覆盖和每项 source-host provenance。
-5. 只统计已原子提升到正式任务目录的结果，保留失败任务、迁移记录与诚实负结果。
-6. 分层 45 项矩阵完成后，按同机直接比较组重新执行配对比较、显著性检验与跨种子统计，再决定论文主张。
+1. 继续监控并完成 task042，保持 tasks040 至 042 的直接比较组同机。
+2. 完成 `rtx5080_27` 的 source-host postflight、严格 allowlist、回传与结果服务器逐文件 SHA-256 复验。
+3. 生成只读 composite index，验证两个分片互斥、canonical 45 完整覆盖和每项 source-host provenance。
+4. 只统计已原子提升到正式任务目录的结果，保留失败任务、迁移记录与诚实负结果。
+5. 分层 45 项矩阵完成后，按同机直接比较组重新执行配对比较、显著性检验与跨种子统计，再决定论文主张。
 
 ---
 
@@ -717,6 +726,7 @@ runner 层现已完成或重新验收 43/45。5090 新分片已完成 18/18，�
 | dist_net/metrics.py 与 graph.py | 全局 masked MAE 聚合与统一图支持矩阵实现 |
 | dist_net/run_integrity.py 与 training_runtime.py | 正式训练的代码、缓存、任务、输出与 summary 身份校验 |
 | scripts/remote/windows/protocol_v3_runner.py | 5080 与 5090 使用的严格远程 runner，按 manifest 串行执行任务，复算 prediction artifact 指标并验收 summary 与运行身份 |
+| scripts/remote/windows/protocol_v3_repair_task041_longpath.py | 哈希锁定的 task041 Windows 长路径 incident 修复入口，仅接受已审计 attempt 并在双重验收后原子提升 |
 | scripts/remote/distributed/protocol_v3_distributed.py | 从 canonical manifest 构建固定 5080 与 5090 分片，并验证互斥、完整覆盖和直接比较组同机 |
 | scripts/remote/distributed/protocol_v3_shard_postflight.py | 在每台源主机复验分片结果身份、指标、运行时 provenance 与严格导出 allowlist |
 | scripts/remote/distributed/protocol_v3_composite_postflight.py | 在结果服务器只读验证两个分片的 canonical 45 完整并集与逐文件 SHA-256 |
@@ -765,4 +775,4 @@ runner 层现已完成或重新验收 43/45。5090 新分片已完成 18/18，�
 
 数据现实，三类协变量的可用性。第一，节假日已在数据内。time_enc 的第五列是 2023 年美国联邦假日标志，构建见 scripts/build_full_county_cache.py 的 US_FEDERAL_HOLIDAYS_2023。但气候态基线 baseline_median 形状为 2 乘 288 乘 N 乘 3，只分工作日与周末两类日型，没有单独建假日类，假日当前错用工作日或周末基线。改进点是把基线粒度扩成三类，或把假日当协变量喂给学习式基线，预期对 all 影响很小，因为假日只占全年约 3%，是正确性修补而非主增益。第二，天气数据集里没有，要用需外接 Meteostat 或 NOAA ISD，按传感器经纬度找最近站取 2023 年逐小时再广播到 5 分钟，属独立数据工程，有站点稀疏与对齐与仅 2023 一年的风险，先不外接，作后续可插拔项。第三，活动不可行，数据里除事故外无其他活动事件，投入产出比太低，放下。
 
-当时已定的下一步顺序是先用 in-data 的 holiday 与自适应把骨架搭通，再做骨干无关性验证。两项后来均已完成，审计前结果见第 4.8 至 4.12 节。天气仍作为后续可插拔项，holiday 感知基线仍是正确性小修补。无泄露 v3 缓存重建、本地和远端严格审计、clean checkout 与正式队列启动现已完成。5090 分片也已完成、回传并验证，随后按计划关机。当前正式进度为 43/45。5080 已从原 staging 无重训恢复并验收 task040，当前为 25/27，正在训练 task041。当前优先级是顺序完成 tasks041 至 042，完成 `rtx5080_27` 回传与只读 composite index。所有判读继续坚持等参数、多种子和显著性，不在单种子结果上收官。方法实现层级始终为 `RADS ⊂ RADS-O ⊂ NDR-Net`。
+当时已定的下一步顺序是先用 in-data 的 holiday 与自适应把骨架搭通，再做骨干无关性验证。两项后来均已完成，审计前结果见第 4.8 至 4.12 节。天气仍作为后续可插拔项，holiday 感知基线仍是正确性小修补。无泄露 v3 缓存重建、本地和远端严格审计、clean checkout 与正式队列启动现已完成。5090 分片也已完成、回传并验证，随后按计划关机。当前正式进度为 44/45。5080 已从原 staging 恢复并验收 tasks040-041，当前为 26/27，正在训练 task042。当前优先级是完成 task042、`rtx5080_27` 回传与只读 composite index。所有判读继续坚持等参数、多种子和显著性，不在单种子结果上收官。方法实现层级始终为 `RADS ⊂ RADS-O ⊂ NDR-Net`。
