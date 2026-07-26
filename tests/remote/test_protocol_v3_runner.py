@@ -7,6 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from scripts.remote.windows.protocol_v3_runner import (
@@ -17,6 +18,7 @@ from scripts.remote.windows.protocol_v3_runner import (
     build_production_invocation,
     derive_config_hash,
     load_manifest,
+    _require_prediction_metric,
     run_queue,
     validate_result,
 )
@@ -37,7 +39,12 @@ def production_manifest():
     return load_manifest(PRODUCTION_MANIFEST, require_production_matrix=True)
 
 
-def mini_manifest(tmp_path: Path):
+def mini_manifest(
+    tmp_path: Path,
+    *,
+    kind: str = "staeformer_deseason",
+    model: str = "staeformer_deseason",
+):
     payload = {
         "manifest_version": 1,
         "protocol_version": "protocol_v3_noleak_dedup",
@@ -49,9 +56,9 @@ def mini_manifest(tmp_path: Path):
         "tasks": [
             {
                 "task_id": "001_event_staeformer_s0a_alameda_seed42",
-                "kind": "staeformer_deseason",
+                "kind": kind,
                 "region": "Alameda",
-                "model": "staeformer_deseason",
+                "model": model,
                 "variant": "s0a",
                 "seed": 42,
                 "sampling_protocol": "event",
@@ -183,6 +190,36 @@ def dummy_builder(mode: str = "success"):
     return build
 
 
+def prepare_recoverable_staging(manifest, run_inputs):
+    task = manifest.tasks[0]
+    assert run_queue(
+        manifest,
+        run_inputs,
+        repo_root=REPO_ROOT,
+        command_builder=dummy_builder("wrong_prediction_metric"),
+        verify_git=False,
+        stdout=io.StringIO(),
+    ) == 4
+    attempt_dir = (
+        run_inputs.results_root
+        / ".staging"
+        / task.task_id
+        / "attempt_0001"
+    )
+    staged_result = attempt_dir / "work" / "result"
+    summary_path = staged_result / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["all"] = 1.25
+    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    state_path = (
+        run_inputs.results_root
+        / "state"
+        / "tasks"
+        / f"{task.task_id}.json"
+    )
+    return task, attempt_dir, staged_result, state_path
+
+
 def test_production_manifest_is_exact_unique_45_task_matrix():
     manifest = production_manifest()
     tasks = manifest.tasks
@@ -272,6 +309,51 @@ def test_every_production_task_requires_predictions_and_model_artifacts(tmp_path
             assert "gate_diag.npz" in required
 
 
+def test_float32_metric_contract_accepts_observed_task040_reduction_delta():
+    _require_prediction_metric(
+        {"all": 11.305081367492676},
+        "all",
+        11.305081367492676,
+        audit_recomputed=11.305101714317631,
+        valid_count=103270922,
+        producer_dtype=np.dtype(np.float32),
+        allow_producer_fallback=True,
+    )
+
+
+def test_float32_metric_contract_rejects_real_metric_mismatch():
+    with pytest.raises(ResultValidationError, match="tolerance="):
+        _require_prediction_metric(
+            {"all": 11.305121367492676},
+            "all",
+            11.305081367492676,
+            audit_recomputed=11.305101714317631,
+            valid_count=103270922,
+            producer_dtype=np.dtype(np.float32),
+            allow_producer_fallback=True,
+        )
+
+
+def test_low_precision_producer_metric_is_validated_through_runner(tmp_path):
+    manifest = mini_manifest(
+        tmp_path,
+        kind="graphwavenet",
+        model="graphwavenet",
+    )
+    run_inputs = inputs(tmp_path)
+
+    rc = run_queue(
+        manifest,
+        run_inputs,
+        repo_root=REPO_ROOT,
+        command_builder=dummy_builder("low_precision_metric"),
+        verify_git=False,
+        stdout=io.StringIO(),
+    )
+
+    assert rc == 0
+
+
 def test_success_runs_in_staging_promotes_and_writes_completed_status(tmp_path):
     manifest = mini_manifest(tmp_path)
     run_inputs = inputs(tmp_path)
@@ -304,6 +386,288 @@ def test_success_runs_in_staging_promotes_and_writes_completed_status(tmp_path):
         (run_inputs.results_root / ".staging" / task.task_id).glob("attempt_*")
     )
     assert [path.name for path in staging_attempts] == ["attempt_0001"]
+
+
+def test_zero_exit_staging_is_recovered_without_retraining(
+    tmp_path,
+    monkeypatch,
+):
+    manifest = mini_manifest(tmp_path)
+    run_inputs = inputs(tmp_path)
+    task = manifest.tasks[0]
+
+    assert run_queue(
+        manifest,
+        run_inputs,
+        repo_root=REPO_ROOT,
+        command_builder=dummy_builder("wrong_prediction_metric"),
+        verify_git=False,
+        stdout=io.StringIO(),
+    ) == 4
+
+    attempt_dir = (
+        run_inputs.results_root
+        / ".staging"
+        / task.task_id
+        / "attempt_0001"
+    )
+    staged_result = attempt_dir / "work" / "result"
+    summary_path = staged_result / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["all"] = 1.25
+    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    artifact_names = (
+        "summary.json",
+        "ckpt_best.pt",
+        "test_predictions.npz",
+    )
+    before_hashes = {
+        name: hashlib.sha256((staged_result / name).read_bytes()).hexdigest()
+        for name in artifact_names
+    }
+    failed_state_path = (
+        run_inputs.results_root
+        / "state"
+        / "tasks"
+        / f"{task.task_id}.json"
+    )
+    failed_state_sha256 = hashlib.sha256(
+        failed_state_path.read_bytes()
+    ).hexdigest()
+
+    def forbid_subprocess(*args, **kwargs):
+        raise AssertionError("staging recovery must not launch a trainer")
+
+    monkeypatch.setattr(subprocess, "Popen", forbid_subprocess)
+    stream = io.StringIO()
+    rc = run_queue(
+        manifest,
+        run_inputs,
+        repo_root=REPO_ROOT,
+        command_builder=dummy_builder(),
+        verify_git=False,
+        stdout=stream,
+        recover_staging_task=task.task_id,
+    )
+
+    final_dir = run_inputs.results_root / task.output_dir
+    after_hashes = {
+        name: hashlib.sha256((final_dir / name).read_bytes()).hexdigest()
+        for name in artifact_names
+    }
+    task_state = json.loads(failed_state_path.read_text(encoding="utf-8"))
+    assert rc == 0
+    assert before_hashes == after_hashes
+    assert task_state["state"] == "completed"
+    assert task_state["attempt"] == 1
+    assert task_state["recovered_from_attempt"] == 1
+    assert (
+        task_state["recovered_failure_state_sha256"]
+        == failed_state_sha256
+    )
+    assert task_state["recovered_artifact_sha256"] == before_hashes
+    assert "RECOVER_STAGING" in stream.getvalue()
+    assert "attempt_0002" not in stream.getvalue()
+    assert not (
+        run_inputs.results_root
+        / ".staging"
+        / task.task_id
+        / "attempt_0002"
+    ).exists()
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("returncode", False),
+        ("returncode", 7),
+        ("attempt", 2),
+        ("state", "completed"),
+        ("task_id", "999_wrong_task"),
+        ("config_hash", "0" * 64),
+    ],
+)
+def test_recovery_rejects_untrusted_failed_state(
+    tmp_path,
+    monkeypatch,
+    field,
+    value,
+):
+    manifest = mini_manifest(tmp_path)
+    run_inputs = inputs(tmp_path)
+    task, _, _, state_path = prepare_recoverable_staging(
+        manifest,
+        run_inputs,
+    )
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state[field] = value
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+
+    def forbid_subprocess(*args, **kwargs):
+        raise AssertionError("failed recovery must not launch a trainer")
+
+    monkeypatch.setattr(subprocess, "Popen", forbid_subprocess)
+    stream = io.StringIO()
+    rc = run_queue(
+        manifest,
+        run_inputs,
+        repo_root=REPO_ROOT,
+        command_builder=dummy_builder(),
+        verify_git=False,
+        stdout=stream,
+        recover_staging_task=task.task_id,
+    )
+
+    assert rc == 4
+    assert "RECOVERY_FAILED" in stream.getvalue()
+    assert not (run_inputs.results_root / task.output_dir).exists()
+    assert not (
+        run_inputs.results_root
+        / ".staging"
+        / task.task_id
+        / "attempt_0002"
+    ).exists()
+
+
+@pytest.mark.parametrize("field", ["staging_dir", "log_path"])
+def test_recovery_rejects_state_path_mismatch(
+    tmp_path,
+    monkeypatch,
+    field,
+):
+    manifest = mini_manifest(tmp_path)
+    run_inputs = inputs(tmp_path)
+    task, attempt_dir, _, state_path = prepare_recoverable_staging(
+        manifest,
+        run_inputs,
+    )
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state[field] = str(attempt_dir.parent / "wrong_path")
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    monkeypatch.setattr(
+        subprocess,
+        "Popen",
+        lambda *args, **kwargs: pytest.fail(
+            "failed recovery must not launch a trainer"
+        ),
+    )
+
+    rc = run_queue(
+        manifest,
+        run_inputs,
+        repo_root=REPO_ROOT,
+        command_builder=dummy_builder(),
+        verify_git=False,
+        stdout=io.StringIO(),
+        recover_staging_task=task.task_id,
+    )
+
+    assert rc == 4
+    assert not (run_inputs.results_root / task.output_dir).exists()
+
+
+def test_recovery_rejects_incomplete_staging_without_retraining(
+    tmp_path,
+    monkeypatch,
+):
+    manifest = mini_manifest(tmp_path)
+    run_inputs = inputs(tmp_path)
+    task, _, staged_result, _ = prepare_recoverable_staging(
+        manifest,
+        run_inputs,
+    )
+    (staged_result / "ckpt_best.pt").unlink()
+    monkeypatch.setattr(
+        subprocess,
+        "Popen",
+        lambda *args, **kwargs: pytest.fail(
+            "failed recovery must not launch a trainer"
+        ),
+    )
+
+    rc = run_queue(
+        manifest,
+        run_inputs,
+        repo_root=REPO_ROOT,
+        command_builder=dummy_builder(),
+        verify_git=False,
+        stdout=io.StringIO(),
+        recover_staging_task=task.task_id,
+    )
+
+    assert rc == 4
+    assert not (run_inputs.results_root / task.output_dir).exists()
+    assert not (
+        run_inputs.results_root
+        / ".staging"
+        / task.task_id
+        / "attempt_0002"
+    ).exists()
+
+
+def test_restart_after_recovery_skips_valid_final_without_overwrite(
+    tmp_path,
+    monkeypatch,
+):
+    manifest = mini_manifest(tmp_path)
+    run_inputs = inputs(tmp_path)
+    task, _, _, _ = prepare_recoverable_staging(manifest, run_inputs)
+    assert run_queue(
+        manifest,
+        run_inputs,
+        repo_root=REPO_ROOT,
+        command_builder=dummy_builder(),
+        verify_git=False,
+        stdout=io.StringIO(),
+        recover_staging_task=task.task_id,
+    ) == 0
+    final_dir = run_inputs.results_root / task.output_dir
+    before = {
+        path.relative_to(final_dir).as_posix(): hashlib.sha256(
+            path.read_bytes()
+        ).hexdigest()
+        for path in final_dir.rglob("*")
+        if path.is_file()
+    }
+    monkeypatch.setattr(
+        subprocess,
+        "Popen",
+        lambda *args, **kwargs: pytest.fail(
+            "a valid recovered result must not relaunch"
+        ),
+    )
+    stream = io.StringIO()
+
+    rc = run_queue(
+        manifest,
+        run_inputs,
+        repo_root=REPO_ROOT,
+        command_builder=dummy_builder("fail"),
+        verify_git=False,
+        stdout=stream,
+        recover_staging_task=task.task_id,
+    )
+
+    after = {
+        path.relative_to(final_dir).as_posix(): hashlib.sha256(
+            path.read_bytes()
+        ).hexdigest()
+        for path in final_dir.rglob("*")
+        if path.is_file()
+    }
+    queue = json.loads(
+        (run_inputs.results_root / "queue_status.json").read_text()
+    )
+    assert rc == 0
+    assert before == after
+    assert queue["skipped_valid_tasks"] == 1
+    assert "SKIP_VALID" in stream.getvalue()
+    assert not (
+        run_inputs.results_root
+        / ".staging"
+        / task.task_id
+        / "attempt_0002"
+    ).exists()
 
 
 def test_valid_final_result_is_skipped_without_new_attempt(tmp_path):
@@ -621,6 +985,55 @@ def test_validate_result_rejects_wrong_config_hash(tmp_path):
             manifest,
             run_inputs,
             expected_config_hash=derive_config_hash(task, manifest, run_inputs),
+            required_artifacts=("summary.json",),
+            required_metrics=("all",),
+        )
+
+
+def test_validate_result_rejects_duplicate_summary_keys(tmp_path):
+    manifest = mini_manifest(tmp_path)
+    run_inputs = inputs(tmp_path)
+    task = manifest.tasks[0]
+    result = tmp_path / "result"
+    result.mkdir()
+    summary = {
+        "task_id": task.task_id,
+        "region": task.region,
+        "model": task.model,
+        "variant": task.variant,
+        "seed": task.seed,
+        "protocol_version": manifest.protocol_version,
+        "sampling_protocol": task.sampling_protocol,
+        "cache_schema_version": manifest.cache_schema_version,
+        "cache_bundle_id": run_inputs.cache_bundle_id,
+        "cache_bundle_digest": run_inputs.cache_bundle_digest,
+        "code_sha": run_inputs.code_sha,
+        "config_hash": derive_config_hash(task, manifest, run_inputs),
+        "all": 1.0,
+        "valid_count": 1,
+    }
+    serialized = json.dumps(summary)
+    serialized = serialized.replace(
+        f'"task_id": "{task.task_id}"',
+        (
+            f'"task_id": "{task.task_id}", '
+            f'"task_id": "{task.task_id}"'
+        ),
+        1,
+    )
+    (result / "summary.json").write_text(serialized, encoding="utf-8")
+
+    with pytest.raises(ResultValidationError, match="duplicate JSON key"):
+        validate_result(
+            result,
+            task,
+            manifest,
+            run_inputs,
+            expected_config_hash=derive_config_hash(
+                task,
+                manifest,
+                run_inputs,
+            ),
             required_artifacts=("summary.json",),
             required_metrics=("all",),
         )

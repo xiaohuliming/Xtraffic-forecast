@@ -288,7 +288,7 @@ function Invoke-Postflight {
     $oldRepoRoot = $env:XTRAFFIC_REPO_ROOT
     $oldPythonPath = $env:PYTHONPATH
     try {
-        $env:XTRAFFIC_REPO_ROOT = $Repo
+        $env:XTRAFFIC_REPO_ROOT = $OpsRoot
         $env:PYTHONPATH = "$OpsRoot;$Repo"
         $arguments = @(
             "-X", "utf8", $Postflight,

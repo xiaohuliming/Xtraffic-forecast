@@ -224,12 +224,14 @@ def test_cli_loads_canonical_manifest_and_delegates_to_runner(
         *,
         repo_root,
         verify_git,
+        recover_staging_task,
     ):
         captured.update(
             manifest=manifest,
             run_inputs=run_inputs,
             repo_root=repo_root,
             verify_git=verify_git,
+            recover_staging_task=recover_staging_task,
         )
         return 17
 
@@ -253,6 +255,8 @@ def test_cli_loads_canonical_manifest_and_delegates_to_runner(
             "b" * 40,
             "--python",
             sys.executable,
+            "--recover-staging-task",
+            "040_fullwindow_graphwavenet_base_contracosta_seed42",
         ]
     )
 
@@ -263,6 +267,10 @@ def test_cli_loads_canonical_manifest_and_delegates_to_runner(
         expected_skips
     )
     assert captured["run_inputs"].results_root == results_root
+    assert (
+        captured["recover_staging_task"]
+        == "040_fullwindow_graphwavenet_base_contracosta_seed42"
+    )
     assert captured["repo_root"] == REPO_ROOT
     assert captured["verify_git"] is True
 

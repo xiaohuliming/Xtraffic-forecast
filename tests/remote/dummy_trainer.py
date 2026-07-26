@@ -24,6 +24,7 @@ def main() -> int:
             "zero_valid",
             "wrong_valid_count",
             "wrong_prediction_metric",
+            "low_precision_metric",
             "bad_prediction_schema",
             "nonfinite_masked_prediction",
             "missing_artifact",
@@ -82,7 +83,8 @@ def main() -> int:
         path.parent.mkdir(parents=True, exist_ok=True)
         if name == "test_predictions.npz":
             n_nodes = 120
-            actual = np.full((1, 1, n_nodes), 10.0, dtype=np.float32)
+            flow_dtype = np.float32
+            actual = np.full((1, 1, n_nodes), 10.0, dtype=flow_dtype)
             predicted = actual.copy()
             predicted[..., :20] += 1.5
             predicted[..., 20:] += 1.2
@@ -112,6 +114,24 @@ def main() -> int:
             }
             if args.mode == "bad_prediction_schema":
                 payload.pop("y_mask_flow")
+            elif args.mode == "low_precision_metric":
+                diff = np.abs(
+                    payload["pred_raw_flow"]
+                    - payload["actual_future_flow"]
+                )
+                valid = payload["y_mask_flow"]
+                affected_3d = payload["affected_mask"][:, None, :]
+                summary["all"] = float(diff[valid].mean())
+                summary["affected"] = float(
+                    diff[valid & affected_3d].mean()
+                )
+                summary["unaffected"] = float(
+                    diff[valid & ~affected_3d].mean()
+                )
+                (args.out / "summary.json").write_text(
+                    json.dumps(summary, indent=2),
+                    encoding="utf-8",
+                )
             elif args.mode == "nonfinite_masked_prediction":
                 payload["pred_raw_flow"][0, 0, -1] = np.nan
                 payload["actual_future_flow"][0, 0, -1] = np.nan

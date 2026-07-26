@@ -35,6 +35,14 @@ REGION_GRAPH_KEYS = {
     "ContraCosta": "contra_costa",
     "Orange": "orange",
 }
+FLOAT32_PRODUCER_METRIC_KINDS = frozenset(
+    {
+        "graphwavenet",
+        "fourier_dual_net",
+        "staeformer",
+        "staeformer_icsf",
+    }
+)
 
 
 class ManifestError(ValueError):
@@ -882,23 +890,81 @@ def _binary_mask(
 def _require_prediction_metric(
     summary: Mapping[str, object],
     name: str,
-    recomputed: float,
+    producer_recomputed: float,
+    *,
+    audit_recomputed: float | None = None,
+    valid_count: int = 1,
+    producer_dtype: np.dtype[object] = np.dtype(np.float64),
+    allow_producer_fallback: bool = False,
 ) -> None:
     reported = _summary_metric(summary, name)
+    audit_value = (
+        producer_recomputed
+        if audit_recomputed is None
+        else audit_recomputed
+    )
+    dtype = np.dtype(producer_dtype)
     if (
         isinstance(reported, bool)
         or not isinstance(reported, (int, float))
         or not math.isfinite(float(reported))
-        or not math.isclose(
-            float(reported),
-            recomputed,
-            rel_tol=1e-6,
-            abs_tol=1e-6,
-        )
+        or not math.isfinite(producer_recomputed)
+        or not math.isfinite(audit_value)
     ):
         raise ResultValidationError(
             f"prediction metric {name!r} mismatch: "
-            f"summary={reported!r}, recomputed={recomputed}"
+            f"summary={reported!r}, "
+            f"producer_recomputed={producer_recomputed}, "
+            f"audit_recomputed={audit_value}, "
+            "tolerance=finite numeric values required"
+        )
+
+    reported_value = float(reported)
+    if math.isclose(
+        reported_value,
+        audit_value,
+        rel_tol=1e-6,
+        abs_tol=1e-6,
+    ):
+        return
+
+    if not allow_producer_fallback or dtype != np.dtype(np.float32):
+        tolerance = max(1e-6, 1e-6 * abs(audit_value))
+        raise ResultValidationError(
+            f"prediction metric {name!r} mismatch: "
+            f"summary={reported!r}, "
+            f"producer_recomputed={producer_recomputed}, "
+            f"audit_recomputed={audit_value}, "
+            f"tolerance={tolerance}"
+        )
+
+    producer_ulp = abs(
+        float(np.spacing(np.asarray(producer_recomputed, dtype=dtype)))
+    )
+    summary_tolerance = 2.0 * producer_ulp
+    epsilon = float(np.finfo(dtype).eps)
+    reduction_levels = math.ceil(math.log2(max(valid_count, 1))) + 1
+    accumulated_error = reduction_levels * epsilon
+    if accumulated_error >= 1.0:
+        audit_tolerance = math.inf
+    else:
+        audit_tolerance = (
+            max(1e-6, 1e-6 * abs(audit_value))
+            + accumulated_error
+            / (1.0 - accumulated_error)
+            * abs(producer_recomputed)
+        )
+    if (
+        abs(reported_value - producer_recomputed) > summary_tolerance
+        or abs(producer_recomputed - audit_value) > audit_tolerance
+    ):
+        raise ResultValidationError(
+            f"prediction metric {name!r} mismatch: "
+            f"summary={reported!r}, "
+            f"producer_recomputed={producer_recomputed}, "
+            f"audit_recomputed={audit_value}, "
+            f"tolerance={summary_tolerance}, "
+            f"audit_tolerance={audit_tolerance}"
         )
 
 
@@ -1056,11 +1122,34 @@ def _validate_prediction_artifact(
             error_sums[name] += float(group_error.sum())
             counts[name] += int(group_error.size)
 
-    _require_prediction_metric(
-        summary,
-        "all",
-        error_sums["all"] / counts["all"],
+    allow_producer_fallback = (
+        task.kind in FLOAT32_PRODUCER_METRIC_KINDS
+        and prediction.dtype == np.dtype(np.float32)
+        and actual.dtype == np.dtype(np.float32)
     )
+    producer_error: np.ndarray | None = None
+    if allow_producer_fallback:
+        with np.errstate(invalid="ignore"):
+            producer_error = np.abs(prediction - actual)
+
+    def require_group_metric(name: str, selected: np.ndarray) -> None:
+        audit_recomputed = error_sums[name] / counts[name]
+        producer_recomputed = audit_recomputed
+        producer_dtype = np.dtype(np.float64)
+        if producer_error is not None:
+            producer_recomputed = float(producer_error[selected].mean())
+            producer_dtype = producer_error.dtype
+        _require_prediction_metric(
+            summary,
+            name,
+            producer_recomputed,
+            audit_recomputed=audit_recomputed,
+            valid_count=counts[name],
+            producer_dtype=producer_dtype,
+            allow_producer_fallback=allow_producer_fallback,
+        )
+
+    require_group_metric("all", valid)
     if task.sampling_protocol == "event":
         for name in ("affected", "unaffected"):
             if name not in required_metrics:
@@ -1069,10 +1158,14 @@ def _validate_prediction_artifact(
                 raise ResultValidationError(
                     f"prediction artifact has no valid {name} observations"
                 )
-            _require_prediction_metric(
-                summary,
+            require_group_metric(
                 name,
-                error_sums[name] / counts[name],
+                valid
+                & (
+                    affected_3d
+                    if name == "affected"
+                    else ~affected_3d
+                ),
             )
 
 
@@ -1090,13 +1183,9 @@ def validate_result(
         raise ResultValidationError(f"result directory is missing: {result_dir}")
     summary_path = result_dir / "summary.json"
     try:
-        summary = json.loads(summary_path.read_text(encoding="utf-8"))
-    except FileNotFoundError as exc:
-        raise ResultValidationError("required artifact missing: summary.json") from exc
-    except (OSError, json.JSONDecodeError) as exc:
+        summary = _read_strict_json_object(summary_path)
+    except ManifestError as exc:
         raise ResultValidationError(f"invalid summary.json: {exc}") from exc
-    if not isinstance(summary, dict):
-        raise ResultValidationError("summary.json must contain a JSON object")
 
     expected = {
         "task_id": task.task_id,
@@ -1243,6 +1332,285 @@ def _next_attempt(results_root: Path, task_id: str) -> int:
     return max(numbers, default=0) + 1
 
 
+def _require_recovery_path(
+    value: object,
+    expected: Path,
+    *,
+    field: str,
+) -> None:
+    if not isinstance(value, str):
+        raise ResultValidationError(
+            f"recovery {field} must be an absolute path string"
+        )
+    candidate = Path(value)
+    if not candidate.is_absolute():
+        raise ResultValidationError(
+            f"recovery {field} must be absolute: {value!r}"
+        )
+    try:
+        candidate_resolved = candidate.resolve(strict=True)
+        expected_resolved = expected.resolve(strict=True)
+    except OSError as exc:
+        raise ResultValidationError(
+            f"recovery {field} cannot be resolved: {exc}"
+        ) from exc
+    if candidate_resolved != expected_resolved:
+        raise ResultValidationError(
+            f"recovery {field} mismatch: "
+            f"expected {expected}, got {candidate}"
+        )
+
+
+def _validate_recovery_queue_state(
+    payload: Mapping[str, object] | None,
+    *,
+    task: Task,
+    task_index: int,
+    manifest: Manifest,
+    run_inputs: ProtocolV3Inputs,
+) -> None:
+    if payload is None:
+        raise ResultValidationError(
+            "staging recovery requires the prior queue_status.json"
+        )
+    expected = {
+        "state": "failed",
+        "protocol_version": manifest.protocol_version,
+        "cache_schema_version": manifest.cache_schema_version,
+        "cache_bundle_id": run_inputs.cache_bundle_id,
+        "cache_bundle_digest": run_inputs.cache_bundle_digest,
+        "code_sha": run_inputs.code_sha,
+        "manifest_digest": manifest.digest,
+        "total_tasks": len(manifest.tasks),
+        "current_task": task.task_id,
+        "completed_tasks": task_index,
+    }
+    for key, value in expected.items():
+        if payload.get(key) != value:
+            raise ResultValidationError(
+                f"prior queue {key} mismatch: "
+                f"expected {value!r}, got {payload.get(key)!r}"
+            )
+    skipped = payload.get("skipped_valid_tasks")
+    if (
+        isinstance(skipped, bool)
+        or not isinstance(skipped, int)
+        or skipped < 0
+        or skipped > task_index
+    ):
+        raise ResultValidationError(
+            "prior queue skipped_valid_tasks is invalid"
+        )
+    error = payload.get("error")
+    if (
+        not isinstance(error, str)
+        or not error.startswith("result validation or promotion failed:")
+    ):
+        raise ResultValidationError(
+            "prior queue error is not a result validation or promotion failure"
+        )
+
+
+def _recover_staged_result(
+    *,
+    results_root: Path,
+    task: Task,
+    manifest: Manifest,
+    run_inputs: ProtocolV3Inputs,
+    invocation_probe: Invocation,
+    config_hash: str,
+    final_dir: Path,
+    task_status_path: Path,
+    command_builder: CommandBuilder,
+) -> dict[str, object]:
+    next_attempt = _next_attempt(results_root, task.task_id)
+    attempt = next_attempt - 1
+    if attempt <= 0:
+        raise ResultValidationError(
+            f"no staging attempt exists for {task.task_id}"
+        )
+    attempt_name = f"attempt_{attempt:04d}"
+    attempt_dir = (
+        results_root / ".staging" / task.task_id / attempt_name
+    )
+    log_path = (
+        results_root
+        / "logs"
+        / task.task_id
+        / f"{attempt_name}.log"
+    )
+    if (
+        attempt_dir.is_symlink()
+        or not attempt_dir.is_dir()
+        or log_path.is_symlink()
+        or not log_path.is_file()
+        or log_path.stat().st_size <= 0
+    ):
+        raise ResultValidationError(
+            "latest recovery attempt or its log is missing, empty, or a link"
+        )
+    try:
+        attempt_dir.resolve(strict=True).relative_to(
+            (results_root / ".staging" / task.task_id).resolve(strict=True)
+        )
+        log_path.resolve(strict=True).relative_to(
+            (results_root / "logs" / task.task_id).resolve(strict=True)
+        )
+    except (OSError, ValueError) as exc:
+        raise ResultValidationError(
+            "latest recovery attempt escapes its canonical task directory"
+        ) from exc
+
+    try:
+        failed_state = _read_strict_json_object(task_status_path)
+    except ManifestError as exc:
+        raise ResultValidationError(
+            f"cannot read failed task state strictly: {exc}"
+        ) from exc
+    failed_state_sha256 = _sha256_file(task_status_path)
+    state_attempt = failed_state.get("attempt")
+    state_returncode = failed_state.get("returncode")
+    if failed_state.get("state") != "failed":
+        raise ResultValidationError("recovery task state is not failed")
+    if failed_state.get("task_id") != task.task_id:
+        raise ResultValidationError("recovery task state task_id mismatch")
+    if (
+        isinstance(state_attempt, bool)
+        or not isinstance(state_attempt, int)
+        or state_attempt != attempt
+    ):
+        raise ResultValidationError(
+            "recovery task state does not identify the latest attempt"
+        )
+    if (
+        isinstance(state_returncode, bool)
+        or not isinstance(state_returncode, int)
+        or state_returncode != 0
+    ):
+        raise ResultValidationError(
+            "recovery requires a strict zero trainer returncode"
+        )
+    state_error = failed_state.get("error")
+    if (
+        not isinstance(state_error, str)
+        or not state_error.startswith(
+            "result validation or promotion failed:"
+        )
+    ):
+        raise ResultValidationError(
+            "recovery task error is not a result validation or promotion failure"
+        )
+    if (
+        "config_hash" in failed_state
+        and failed_state["config_hash"] != config_hash
+    ):
+        raise ResultValidationError(
+            "recovery task state config_hash mismatch"
+        )
+    _require_recovery_path(
+        failed_state.get("staging_dir"),
+        attempt_dir,
+        field="staging_dir",
+    )
+    _require_recovery_path(
+        failed_state.get("log_path"),
+        log_path,
+        field="log_path",
+    )
+
+    invocation = command_builder(
+        task,
+        manifest,
+        run_inputs,
+        attempt_dir,
+    )
+    actual_hash = derive_config_hash(
+        task,
+        manifest,
+        run_inputs,
+        invocation_config=invocation.config,
+    )
+    if (
+        actual_hash != config_hash
+        or invocation.required_artifacts
+        != invocation_probe.required_artifacts
+        or invocation.required_metrics != invocation_probe.required_metrics
+        or invocation.result_relpath != invocation_probe.result_relpath
+    ):
+        raise ResultValidationError(
+            "recovery invocation differs from preflight"
+        )
+
+    staged_result = attempt_dir / invocation.result_relpath
+    try:
+        staged_result.resolve(strict=True).relative_to(
+            attempt_dir.resolve(strict=True)
+        )
+    except (OSError, ValueError) as exc:
+        raise ResultValidationError(
+            "recovery result directory escapes its staging attempt"
+        ) from exc
+    validate_result(
+        staged_result,
+        task,
+        manifest,
+        run_inputs,
+        expected_config_hash=config_hash,
+        required_artifacts=invocation.required_artifacts,
+        required_metrics=invocation.required_metrics,
+    )
+    artifact_sha256 = {
+        relative: _sha256_file(
+            _safe_artifact_path(staged_result, relative)
+        )
+        for relative in invocation.required_artifacts
+    }
+
+    if final_dir.exists():
+        if _directory_nonempty(final_dir):
+            raise ResultValidationError(
+                f"task final directory became nonempty: {final_dir}"
+            )
+        final_dir.rmdir()
+    final_dir.parent.mkdir(parents=True, exist_ok=True)
+    os.replace(staged_result, final_dir)
+    validate_result(
+        final_dir,
+        task,
+        manifest,
+        run_inputs,
+        expected_config_hash=config_hash,
+        required_artifacts=invocation.required_artifacts,
+        required_metrics=invocation.required_metrics,
+    )
+    promoted_sha256 = {
+        relative: _sha256_file(
+            _safe_artifact_path(final_dir, relative)
+        )
+        for relative in invocation.required_artifacts
+    }
+    if promoted_sha256 != artifact_sha256:
+        raise ResultValidationError(
+            "recovered artifacts changed during atomic promotion"
+        )
+    return {
+        "state": "completed",
+        "updated_at": _utc_now(),
+        "task_id": task.task_id,
+        "attempt": attempt,
+        "returncode": 0,
+        "config_hash": config_hash,
+        "final_dir": str(final_dir),
+        "log_path": str(log_path),
+        "recovered_from_attempt": attempt,
+        "recovered_failure_state_sha256": failed_state_sha256,
+        "recovered_artifact_sha256": artifact_sha256,
+        "recovered_control_validator_sha256": _sha256_file(
+            Path(__file__).resolve()
+        ),
+    }
+
+
 def _task_environment(
     task: Task,
     manifest: Manifest,
@@ -1350,12 +1718,27 @@ def run_queue(
     command_builder: CommandBuilder = build_production_invocation,
     verify_git: bool = True,
     stdout: TextIO = sys.stdout,
+    recover_staging_task: str | None = None,
 ) -> int:
     results_root = run_inputs.results_root.resolve()
     results_root.mkdir(parents=True, exist_ok=True)
     queue_status_path = results_root / "queue_status.json"
     completed = 0
     skipped = 0
+    prior_queue: dict[str, object] | None = None
+    recovery_preflight_error: str | None = None
+    if recover_staging_task is not None:
+        task_ids = {task.task_id for task in manifest.tasks}
+        if recover_staging_task not in task_ids:
+            recovery_preflight_error = (
+                "recover_staging_task is not in the active manifest: "
+                f"{recover_staging_task!r}"
+            )
+        elif queue_status_path.exists():
+            try:
+                prior_queue = _read_strict_json_object(queue_status_path)
+            except ManifestError as exc:
+                recovery_preflight_error = str(exc)
 
     def write_queue(
         state: str,
@@ -1377,6 +1760,14 @@ def run_queue(
         )
 
     write_queue("preflight")
+    if recovery_preflight_error is not None:
+        write_queue("failed", error=recovery_preflight_error)
+        print(
+            f"PREFLIGHT_FAILED: {recovery_preflight_error}",
+            file=stdout,
+            flush=True,
+        )
+        return 2
     preflight: dict[str, tuple[Invocation, str, bool]] = {}
     try:
         _validate_run_inputs(run_inputs)
@@ -1426,13 +1817,31 @@ def run_queue(
                 config_hash,
                 should_skip,
             )
+        if recover_staging_task is not None:
+            recovery_index = next(
+                index
+                for index, task in enumerate(manifest.tasks)
+                if task.task_id == recover_staging_task
+            )
+            recovery_should_skip = preflight[recover_staging_task][2]
+            missing_predecessors = [
+                task.task_id
+                for task in manifest.tasks[:recovery_index]
+                if not preflight[task.task_id][2]
+            ]
+            if not recovery_should_skip and missing_predecessors:
+                raise ResultValidationError(
+                    "staging recovery requires every preceding task to "
+                    "already have a valid final result: "
+                    + ", ".join(missing_predecessors)
+                )
     except (ManifestError, ResultValidationError, OSError) as exc:
         write_queue("failed", error=str(exc))
         print(f"PREFLIGHT_FAILED: {exc}", file=stdout, flush=True)
         return 2
 
     write_queue("running")
-    for task in manifest.tasks:
+    for task_index, task in enumerate(manifest.tasks):
         invocation_probe, config_hash, should_skip = preflight[task.task_id]
         task_status_path = (
             results_root / "state" / "tasks" / f"{task.task_id}.json"
@@ -1452,6 +1861,59 @@ def run_queue(
                 },
             )
             print(f"SKIP_VALID {task.task_id}", file=stdout, flush=True)
+            write_queue("running")
+            continue
+
+        if recover_staging_task == task.task_id:
+            print(
+                f"RECOVER_STAGING {task.task_id}",
+                file=stdout,
+                flush=True,
+            )
+            try:
+                _validate_recovery_queue_state(
+                    prior_queue,
+                    task=task,
+                    task_index=task_index,
+                    manifest=manifest,
+                    run_inputs=run_inputs,
+                )
+                recovered_state = _recover_staged_result(
+                    results_root=results_root,
+                    task=task,
+                    manifest=manifest,
+                    run_inputs=run_inputs,
+                    invocation_probe=invocation_probe,
+                    config_hash=config_hash,
+                    final_dir=final_dir,
+                    task_status_path=task_status_path,
+                    command_builder=command_builder,
+                )
+            except (
+                ManifestError,
+                OSError,
+                ValueError,
+                ResultValidationError,
+            ) as exc:
+                error = f"staging recovery failed: {exc}"
+                write_queue(
+                    "failed",
+                    current_task=task.task_id,
+                    error=error,
+                )
+                print(
+                    f"RECOVERY_FAILED {task.task_id}: {exc}",
+                    file=stdout,
+                    flush=True,
+                )
+                return 4
+            completed += 1
+            _atomic_write_json(task_status_path, recovered_state)
+            print(
+                f"TASK_DONE {task.task_id} recovered",
+                file=stdout,
+                flush=True,
+            )
             write_queue("running")
             continue
 
@@ -1690,6 +2152,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--cache-bundle-digest", required=True)
     parser.add_argument("--code-sha", required=True)
     parser.add_argument("--python", dest="python_executable", default=sys.executable)
+    parser.add_argument("--recover-staging-task")
     return parser.parse_args(argv)
 
 
@@ -1721,6 +2184,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         run_inputs,
         repo_root=repo_root,
         verify_git=True,
+        recover_staging_task=args.recover_staging_task,
     )
 
 

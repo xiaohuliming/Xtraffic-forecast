@@ -330,6 +330,7 @@ def parse_args(
         dest="python_executable",
         default=sys.executable,
     )
+    parser.add_argument("--recover-staging-task")
     return parser.parse_args(argv)
 
 
@@ -364,6 +365,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         run_inputs,
         repo_root=repo_root,
         verify_git=True,
+        recover_staging_task=args.recover_staging_task,
     )
 
 

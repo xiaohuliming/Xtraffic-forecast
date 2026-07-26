@@ -29,6 +29,33 @@ def test_5080_repartition_controls_default_to_an_isolated_ops_root():
     assert isolated_ops_root in RUNNER_WRAPPER.read_text(encoding="utf-8")
 
 
+def test_5080_control_plane_imports_validator_from_isolated_ops_root():
+    runner = RUNNER_WRAPPER.read_text(encoding="utf-8")
+    finalizer = read_finalizer()
+
+    assert 'set "OPSROOT=C:\\Users\\ASUS\\ops_27_18"' in runner
+    assert 'set "XTRAFFIC_REPO_ROOT=%OPSROOT%"' in runner
+    assert 'set "PYTHONPATH=%OPSROOT%;%REPO%"' in runner
+    assert 'set "XTRAFFIC_REPO_ROOT=%REPO%"' not in runner
+    assert "$env:XTRAFFIC_REPO_ROOT = $OpsRoot" in finalizer
+    assert "$env:XTRAFFIC_REPO_ROOT = $Repo" not in finalizer
+
+
+def test_5080_launcher_recovery_is_explicit_and_opt_in():
+    runner = RUNNER_WRAPPER.read_text(encoding="utf-8")
+
+    assert "XTRAFFIC_RECOVER_STAGING_TASK" in runner
+    assert "--recover-staging-task" in runner
+    assert "EnableDelayedExpansion" in runner
+    assert "findstr.exe" in runner
+    assert "!XTRAFFIC_RECOVER_STAGING_TASK!" in runner
+    assert "%XTRAFFIC_RECOVER_STAGING_TASK%" not in runner
+    assert (
+        "040_fullwindow_graphwavenet_base_contracosta_seed42"
+        not in runner
+    )
+
+
 def test_finalizer_waits_for_the_exact_completed_5080_shard_contract():
     script = read_finalizer()
 
