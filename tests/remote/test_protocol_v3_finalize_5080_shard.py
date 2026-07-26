@@ -45,11 +45,10 @@ def test_5080_launcher_recovery_is_explicit_and_opt_in():
     runner = RUNNER_WRAPPER.read_text(encoding="utf-8")
 
     assert "XTRAFFIC_RECOVER_STAGING_TASK" in runner
-    assert "--recover-staging-task" in runner
-    assert "EnableDelayedExpansion" in runner
-    assert "findstr.exe" in runner
-    assert "!XTRAFFIC_RECOVER_STAGING_TASK!" in runner
+    assert "consumed directly by Python" in runner
     assert "%XTRAFFIC_RECOVER_STAGING_TASK%" not in runner
+    assert "!XTRAFFIC_RECOVER_STAGING_TASK!" not in runner
+    assert "RECOVERY_ARGS" not in runner
     assert (
         "040_fullwindow_graphwavenet_base_contracosta_seed42"
         not in runner

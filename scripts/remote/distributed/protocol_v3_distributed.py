@@ -337,6 +337,23 @@ def parse_args(
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     try:
+        environment_recovery_task = os.environ.get(
+            "XTRAFFIC_RECOVER_STAGING_TASK"
+        )
+        if environment_recovery_task == "":
+            environment_recovery_task = None
+        if (
+            args.recover_staging_task is not None
+            and environment_recovery_task is not None
+            and args.recover_staging_task != environment_recovery_task
+        ):
+            raise ShardValidationError(
+                "--recover-staging-task conflicts with "
+                "XTRAFFIC_RECOVER_STAGING_TASK"
+            )
+        recover_staging_task = (
+            args.recover_staging_task or environment_recovery_task
+        )
         canonical = runner.load_manifest(
             args.manifest,
             require_production_matrix=True,
@@ -365,7 +382,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         run_inputs,
         repo_root=repo_root,
         verify_git=True,
-        recover_staging_task=args.recover_staging_task,
+        recover_staging_task=recover_staging_task,
     )
 
 

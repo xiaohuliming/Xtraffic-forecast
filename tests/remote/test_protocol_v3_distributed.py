@@ -236,6 +236,10 @@ def test_cli_loads_canonical_manifest_and_delegates_to_runner(
         return 17
 
     monkeypatch.setattr(distributed.runner, "run_queue", fake_run_queue)
+    monkeypatch.setenv(
+        "XTRAFFIC_RECOVER_STAGING_TASK",
+        "040_fullwindow_graphwavenet_base_contracosta_seed42",
+    )
     results_root = tmp_path / f"results-{shard_name}"
     rc = distributed.main(
         [
@@ -255,8 +259,6 @@ def test_cli_loads_canonical_manifest_and_delegates_to_runner(
             "b" * 40,
             "--python",
             sys.executable,
-            "--recover-staging-task",
-            "040_fullwindow_graphwavenet_base_contracosta_seed42",
         ]
     )
 
