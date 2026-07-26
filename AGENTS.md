@@ -18,11 +18,13 @@
 
 5080 的旧 24 项队列已于 2026-07-22 18:13:06 新加坡时间完成 24/24，skipped valid 为 4，runner 退出码为 0。旧 24 项 source-host postflight 与 134 文件 allowlist 已通过。task007 的首个 attempt 因两条遗留诊断 PowerShell 扫描耗尽主机内存而失败，没有 summary 或正式任务目录，第二个 attempt 已完整重跑并验收。这是主机运维故障，不是模型失败。旧 task005 迁移记录不进入正式导出 allowlist。
 
-截至 2026-07-23 13:50 新加坡时间，runner 层正式完成或重验 42/45，剩余 tasks040-042。5090 新队列已完成 18/18，`rtx5090_18` 已回传并通过 marker 复验。source-host postflight 于 2026-07-23T04:40:34Z 验证通过，导出包含 97 个 source files、10,071,444,446 source bytes 和 18 个 task dirs。5090 已按计划关机，SSH 不可达。
+截至 2026-07-26 11:24 新加坡时间，runner 层正式完成或重验 43/45。5090 新队列已完成 18/18，`rtx5090_18` 已回传并通过 marker 复验。5080 为 25/27，task040 已恢复并正式验收，task041 正在训练，task042 尚未启动。完整矩阵、`rtx5080_27` 与 composite index 仍未完成。
 
-5080 task040 已完成 30 epochs 和 inference，但 summary 的 float32 MAE 11.305081367492676 与 runner 使用 float64 重算的 11.305101714317631 相差 2.03468e-5，因此被 runner 拒绝。队列以 failed 24/27 和退出码 4 结束，没有正式 task040 目录，也没有 postflight 或上传。`valid_count` 为 103270922，artifact 身份、mask 与 finite 检查均一致。这是指标精度契约问题，不是数据泄露或模型失败。
+task040 旧失败的根因是 producer float32 `.mean()` 与 runner float64 audit 的精度语义不同。新控制层保留 float64 audit，只对 graphwavenet、fourier_dual_net、staeformer 与 staeformer_icsf 精确复现 producer，summary 必须处于 2 ULP 内。恢复路径只接受 prior queue、failed task state、最新 zero-exit attempt、canonical path、非空日志和完整 artifact 全部通过的候选。修复提交为 `dfb6b7f` 与 `33fae6c`，本地全仓为 247 passed 和 1 个既有 warning，独立复审未发现 P0 或 P1。
 
-正式 task040 尚未产生，不得擅自写成已修复或已验收。完整 staging 包含 summary 7,895 字节、ckpt 1,306,955 字节、test_predictions 483,524,632 字节和 train.log 3,420 字节。确认无协议进程后，已写入 `C:\Users\ASUS\protocol_v3_5080_shutdown_state.json`。5080 于 13:49 按用户要求正常关机，SSH 和 ping 均不可达。结果服务器当前可用空间为 9,322,172,416 字节，`rtx5080_27` 不存在。5080 relay 私钥只保存在工作站用户目录。下一步是审查并修复控制层浮点精度验证与 staging recovery，重新开启 5080 后复用 task040 artifact 并运行 tasks041-042。
+部署探针曾发现 CMD 环境变量展开问题。Python preflight 拒绝了合成 task ID，没有 trainer 启动，但 queue 被短暂改写。异常快照已保存，SHA-256 为 `bdcb4718859b8dfbaf52d588e2d5af2789dcec42659f8927879807fd120869ab`。queue 随后根据多份落盘证据原子恢复，task state 与 artifact 未改变。最终实现由 Python 直接读取环境变量，CMD 不再展开其值。
+
+task040 已于 11:23 新加坡时间从 `attempt_0001` 完成可审计 recovery，正式 task state 为 completed，没有 `attempt_0002`。summary、ckpt、prediction artifact 与 train log 哈希均与恢复前一致。task041 已进入 epoch 1，batch 400/2299 时 GPU 使用 6,187 MiB，利用率 87%，温度 56 摄氏度。finalizer 正在等待队列完成后执行 source-host postflight 与回传。下一步是完成 tasks041-042，再回传 `rtx5080_27` 并生成只读 composite index。
 
 项目方法层级为 `RADS ⊂ RADS-O ⊂ NDR-Net`。完整研究史和数字出处见主报告，当前有效性见审计文件。
 
