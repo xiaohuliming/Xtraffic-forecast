@@ -667,7 +667,7 @@ function Test-RemoteVerifiedTree {
         "cmp `"`$tmp/manifest.files`" `"`$tmp/expected.files`"; " +
         "find . -type f -printf '%P\n' | LC_ALL=C sort > `"`$tmp/actual.files`"; " +
         "cmp `"`$tmp/actual.files`" `"`$tmp/expected.files`"; " +
-        "awk -F/ '{ path=`"`"; for (i=1; i<NF; i++) { path=(path ? path `"/`" : `"`") `$i; print path }}' ../metadata/transfer.files | LC_ALL=C sort -u > `"`$tmp/expected.dirs`"; " +
+        "awk -F/ '{ for (i=1; i<NF; i++) { path=(i == 1 ? `$i : path FS `$i); print path }}' ../metadata/transfer.files | LC_ALL=C sort -u > `"`$tmp/expected.dirs`"; " +
         "find . -mindepth 1 -type d -printf '%P\n' | LC_ALL=C sort > `"`$tmp/actual.dirs`"; " +
         "cmp `"`$tmp/actual.dirs`" `"`$tmp/expected.dirs`"; rm -rf `"`$tmp`""
     $result = Invoke-SshCapture -Command $command -TimeoutSeconds $RemoteVerificationWallClockTimeoutSeconds

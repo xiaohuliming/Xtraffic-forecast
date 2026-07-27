@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import shutil
+import subprocess
 from pathlib import Path
 
 
@@ -20,6 +22,17 @@ RUNNER_WRAPPER = (
 
 def read_finalizer() -> str:
     return FINALIZER.read_text(encoding="utf-8")
+
+
+def read_remote_directory_awk_program() -> str:
+    directory_line = next(
+        line for line in read_finalizer().splitlines() if '"awk -F/' in line
+    )
+    encoded_program = directory_line.split("awk -F/ '", 1)[1].split(
+        "' ../metadata/transfer.files",
+        1,
+    )[0]
+    return encoded_program.replace("`$", "$").replace('`"', '"')
 
 
 def test_5080_repartition_controls_default_to_an_isolated_ops_root():
@@ -215,6 +228,40 @@ def test_each_export_is_hash_checked_resumable_and_remotely_promoted():
     assert "$RemoteIncoming/_TRANSFER_COMPLETE.json.tmp" in script
     assert '-Root $RemoteFinal' in script
     assert '-MarkerName "_TRANSFER_COMPLETE.json"' in script
+
+
+def test_remote_directory_verifier_survives_windows_native_argument_boundary():
+    rendered_program = read_remote_directory_awk_program()
+
+    assert rendered_program == (
+        "{ for (i=1; i<NF; i++) { "
+        "path=(i == 1 ? $i : path FS $i); print path }}"
+    )
+    awk = shutil.which("awk")
+    if awk is None:
+        return
+
+    result = subprocess.run(
+        [awk, "-F/", rendered_program],
+        input=(
+            "tasks/task 001/summary.json\r\n"
+            "tasks/task 001/artifacts/predictions.npz\r\n"
+            "state/tasks/task 001.json\r\n"
+            "queue_status.json\r\n"
+        ),
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert result.stdout.splitlines() == [
+        "tasks",
+        "tasks/task 001",
+        "tasks",
+        "tasks/task 001",
+        "tasks/task 001/artifacts",
+        "state",
+        "state/tasks",
+    ]
 
 
 def test_existing_destination_requires_stable_full_attestation_recheck():
