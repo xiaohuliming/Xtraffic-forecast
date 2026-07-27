@@ -4,7 +4,7 @@
 
 状态更新：2026-07-27
 
-复核状态：v3 代码审查与回归测试完成，正式缓存已在本地两次、5080 一次和 5090 一次通过严格审计。runner 层 45/45 已完成或重新验收，5080 的 27 项分片与 5090 的 18 项分片均已回传并通过结果服务器逐文件复验。只读 composite index 尚未完成，论文分析继续暂停
+复核状态：v3 代码审查与回归测试完成，正式缓存已在本地两次、5080 一次和 5090 一次通过严格审计。runner 层 45/45 已完成或重新验收，5080 的 27 项分片与 5090 的 18 项分片均已回传并通过结果服务器逐文件复验。只读 composite index 已于 2026-07-27 18:28:27 新加坡时间通过复验，最小判别矩阵状态为 `verified_host_stratified_45`。论文分析仍因同机配对、多种子和显著性检验尚未完成而暂停
 
 正式缓存构建代码 SHA：`29159f626494de52c69b36fe5bba9854f13cb56c`
 
@@ -12,7 +12,7 @@
 
 测试结果：Mac、5080 与 5090 均为 143 passed、1 warning
 
-最新控制层本地回归：252 passed、1 warning。finalizer 引号修复提交：`c48f232`。composite 内存修复提交：`5f3113b`。full-window 复验优化提交：`93038ec`
+最新控制层本地回归：252 passed、1 warning。finalizer 引号修复提交：`c48f232`。composite 内存修复提交：`5f3113b`。full-window 复验优化与最终 composite 控制提交：`93038ec`
 协议版本：`protocol_v3_noleak_dedup`
 
 缓存 schema：3
@@ -37,7 +37,11 @@ runner 层 45 个 canonical 任务均已完成或重新验收。最终固定分�
 
 首次 composite 复验显示旧 validator 会为 full-window prediction 额外创建两份全尺寸 float32 error 数组，在结果服务器上形成高内存峰值。提交 `5f3113b` 在 float64 audit 完成后原位复用 prediction 缓冲，并在首次 producer 指标校验前释放 actual。提交 `93038ec` 跳过 full-window 中未使用的 affected 与 unaffected 归约，同时完整保留 `all` 指标、有限性、valid_count、float64 audit 与 float32 producer 契约。随机差分、mask、无效 target NaN、staging 与正式目录双验收及 artifact 哈希不变性均通过。这些控制层修复不改变训练 checkout、summary、任务 `config_hash` 或任何正式结果。
 
-只读 composite index 尚未完成，因此已发布分片仍不能直接恢复多种子结论、显著性结论或论文最终结论。5080 上主动终止的旧 task005、5090 边界切换时未形成 summary 的旧 task007，以及 task007 首次内存故障 attempt 均继续作为历史运行记录保留，不计为正式结果。baseline zoo 继续保持 `pending`。
+控制提交 `93038ec` 的最终 composite 服务于 2026-07-27 18:28:27 新加坡时间以退出码 0 完成。index SHA-256 为 `8cf92dc2e931e3e9c3ca18cafb81a794fe68fbd0556dec3401b8650f827899fe`，`execution_layout` 为 `dual_host_stratified`，包含 2 个分片与 45 个任务。5080 分片包含 27 项，5090 分片包含 18 项，canonical tasks001-045 各出现一次。训练 SHA、cache bundle ID、bundle digest、manifest 规范 JSON SHA-256 `92b65401cd945502bd89cf77d42c11881d847b91b4b86aac3b0d40b2988bdb6c` 与两份 source-host postflight 身份全部一致。服务只生成只读 index，没有改写任何 summary 或 artifact。
+
+首次由提交 `c48f232` 控制的 composite 尝试在结果服务器重启前没有形成输出。该尝试作为独立 incident 保留，incident SHA-256 为 `166923ef9a63b80ecbc065f6e455eb393341e526ef6411c8c5ccd16ebfa2c70a`。重启后两份正式分片哈希保持不变，最终服务没有复用不完整输出。
+
+composite 完成只恢复 canonical 45 矩阵的完整性有效性，不恢复多种子结论、显著性结论或论文最终结论。5080 上主动终止的旧 task005、5090 边界切换时未形成 summary 的旧 task007，以及 task007 首次内存故障 attempt 均继续作为历史运行记录保留，不计为正式结果。同机配对、多种子和显著性分析仍待完成，baseline zoo 继续保持 `pending`。
 
 ## 复核范围
 
@@ -140,7 +144,7 @@ manifest 状态为 `verified`，cache schema 为 3，协议为 `protocol_v3_nole
 
 5090 runner 重新验收并跳过任务 005 和 006，状态为 2/21、skipped valid 为 2，正在训练 `011_event_staeformer_s0a_orange_seed1`。截至同一时间，task 011 已完成 epoch 8，train 为 12.3250，val 为 12.3937，用时 659 秒，并保存当前 best checkpoint。
 
-两个结果根分别执行 source-host postflight。postflight 复验 queue、任务目录、prediction artifact、summary、任务配置哈希、缓存 bundle、Git SHA 和运行时 provenance，并只导出分片被分配的正式任务、状态和日志。旧任务 005 迁移记录、旧 task 007 残留、未完成 staging 与其他主机任务都不进入 allowlist。两份结果回传后，只读 composite postflight 验证 canonical 45 完整并集和逐文件 SHA-256，不复制任务目录，也不改写既有 summary。
+两个结果根分别执行 source-host postflight。postflight 复验 queue、任务目录、prediction artifact、summary、任务配置哈希、缓存 bundle、Git SHA 和运行时 provenance，并只导出分片被分配的正式任务、状态和日志。旧任务 005 迁移记录、旧 task 007 残留、未完成 staging 与其他主机任务都不进入 allowlist。两份结果回传后，只读 composite postflight 已验证 canonical 45 完整并集和逐文件 SHA-256，没有复制任务目录，也没有改写既有 summary。
 
 ### 自动回传与关机契约，2026-07-21 历史快照
 
@@ -287,7 +291,7 @@ runner 在启动前验证 clean Git checkout、精确代码 SHA、缓存审计�
 | v2 其余最小判别矩阵 | stopped | 否 |
 | v3 训练代码 | verified checkout | 是正式训练输入，SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`，5080 与 5090 的远端 worktree 均 clean |
 | v3 正式缓存 | verified | 可作为 v3 训练输入，不能单独产生模型结论 |
-| v3 最小判别矩阵 | shards verified, composite pending | 否，45 项 runner 验收已完成，5080 的 27 项分片与 5090 的 18 项分片均已回传并通过结果服务器复验，但只读 composite index 尚未完成 |
+| v3 最小判别矩阵 | verified_host_stratified_45 | 仅矩阵完整性有效。只读 composite 已验证 5080 的 27 项与 5090 的 18 项互斥且覆盖 canonical 45，但同机配对、多种子和显著性分析尚未完成，不能恢复论文性能结论 |
 | v3 baseline zoo | pending | 否，尚未启动 |
 
 ## 正式启动门槛
@@ -304,4 +308,4 @@ runner 在启动前验证 clean Git checkout、精确代码 SHA、缓存审计�
 5. runner 环境中的代码 SHA、cache bundle ID 与 digest 和本地审计清单一致。
 6. 新结果写入 `outputs/protocol_v3_noleak_dedup` 下的新 attempt，不读取或覆盖 v2 输出。
 
-5080 与 5090 的正式 checkout 均为 Git SHA `3a4952837aaf6fbda1403d50b610b1bf40c6098a`，worktree clean。两台机器的 runner 身份均绑定同一 cache bundle ID、bundle digest 和 schema 3。runner 层已完成或重新验收 45/45，最终分片为 5080 的 27 项与 5090 的 18 项。两份正式分片均已回传结果服务器，通过逐文件 SHA-256 复验并原子提升。两分片保持独立结果身份，最终只通过只读 composite index 验证完整性。正式缓存保持 `verified`，最小判别矩阵状态为 `shards_verified_45_composite_pending`。完成 composite 与统计分析前，不恢复论文性能结论。
+5080 与 5090 的正式 checkout 均为 Git SHA `3a4952837aaf6fbda1403d50b610b1bf40c6098a`，worktree clean。两台机器的 runner 身份均绑定同一 cache bundle ID、bundle digest 和 schema 3。runner 层已完成或重新验收 45/45，最终分片为 5080 的 27 项与 5090 的 18 项。两份正式分片均已回传结果服务器，通过逐文件 SHA-256 复验并原子提升。两分片保持独立结果身份，只通过只读 composite index 验证完整性。正式缓存保持 `verified`，最小判别矩阵状态为 `verified_host_stratified_45`。composite 只恢复矩阵完整性有效性。同机配对、多种子和显著性分析完成前，不恢复论文性能结论。

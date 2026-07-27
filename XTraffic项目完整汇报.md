@@ -168,15 +168,19 @@ task041 于 13:40 新加坡时间完成 30 个 epoch 和测试推理。写入 `s
 
 截至 17:15，新加坡时间，runner 层正式进度为 44/45。5080 队列为 26/27。runner 以 `KEEP_COMPLETED` 保留 tasks040-041 的恢复状态，并于 17:10 启动 task042 `attempt_0001`。落盘日志显示 task042 为 epoch 1、batch 1500/4598，GPU 使用 10,799 MiB，利用率 97%，温度 63 摄氏度。runner、trainer 与 finalizer 各有 1 个进程。Minecraft 进程继续保留，没有被终止。finalizer 已启动并等待 27/27，之后将执行 source-host postflight、严格 allowlist 与 `rtx5080_27` 回传。`rtx5080_27` 与 composite index 尚不存在。
 
-### 最新进展，2026-07-27，runner 45/45 与双分片正式发布
+### 最新进展，2026-07-27，runner 45/45、双分片发布与 composite 验证
 
 task042 于 2026-07-26 23:32:54 新加坡时间完成并通过 runner 验收。all 与 unaffected masked MAE 均为 `10.780716896057129`，affected 为 `null`，best val masked MAE 为 `10.51922192820698`，有效点数为 `103270922`，参数量为 `1536372`。5080 队列由此达到 27/27，runner 层达到 45/45。
 
 5080 finalizer 首次执行结果服务器目录树复验时，PowerShell 传给 Windows native ssh 的嵌套双引号被剥离，导致远端 AWK 表达式损坏。该故障只影响收尾复验，不影响训练结果、source-host postflight 或已上传文件。提交 `c48f232` 将 AWK 改为无嵌套引号的等价实现。本地全仓回归为 250 项通过与 1 条既有警告，PowerShell 5.1 AST、Windows native argv 与真实 incoming 文件树复验均通过。finalizer 复用已上传的 152 个文件，没有重训、重传或改写任务结果。`rtx5080_27` 于 2026-07-27 11:19:49 新加坡时间完成正式原子提升。
 
-结果服务器上的 `rtx5080_27` 包含 27 个任务目录和 152 个文件，共 4,822,525,731 字节。transfer marker 记录 `validated_tasks=27`、`actual_skipped_valid_tasks=24` 与 `status=verified`，marker SHA-256 为 `ddf097ddd206efbd0d487e21e608c688945c7dc2dadd3f307d739e1508221c06`。5090 的 `rtx5090_18` 保持 `verified`。训练与分片发布层已经完成，最终产物仍只能称为 `host-stratified distributed 45`。只读 composite index 尚未完成，论文分析继续暂停。
+结果服务器上的 `rtx5080_27` 包含 27 个任务目录和 152 个文件，共 4,822,525,731 字节。transfer marker 记录 `validated_tasks=27`、`actual_skipped_valid_tasks=24` 与 `status=verified`，marker SHA-256 为 `ddf097ddd206efbd0d487e21e608c688945c7dc2dadd3f307d739e1508221c06`。5090 的 `rtx5090_18` 保持 `verified`，marker SHA-256 为 `fa00a8e202455eb70505bd266ad05c54a5d17068e315e742913481555cd15084`。训练与分片发布层已经完成，最终产物仍只能称为 `host-stratified distributed 45`。
 
 首次 composite 复验暴露了结果服务器内存峰值风险。旧 validator 在完整 prediction 与 actual 之外，还会创建减法临时数组和完整 producer error 数组。提交 `5f3113b` 改为在 float64 audit 完成后原位复用 prediction 缓冲，并在首次 producer 指标校验前释放 actual。提交 `93038ec` 进一步跳过 full-window 中未使用的事件分组归约，同时完整保留 `all` 指标、有限性、valid_count、float64 audit 与 float32 producer 契约。500 组随机 float32、mask 与无效 target NaN 差分均保持逐元素及 masked mean 完全一致。staging 与正式目录双验收、artifact SHA-256 不变性、summary、训练 checkout 与任务 `config_hash` 也保持不变。本地全仓为 252 项通过与 1 条既有警告，独立复审未发现 P0 或 P1。
+
+旧控制包发起的首次 composite 尝试在结果服务器重启前没有生成日志内容或索引。重启后无法从内核日志确认终止原因，因此记录为 unknown，没有归因为模型、数据或确定的 OOM。空日志已独立归档，incident record SHA-256 为 `166923ef9a63b80ecbc065f6e455eb393341e526ef6411c8c5ccd16ebfa2c70a`。重启后的两份 transfer marker、source-host postflight 和任务目录哈希均保持不变。
+
+2026-07-27 18:28:27 新加坡时间，控制提交 `93038ec` 的 composite postflight 以受内存限制的独立 systemd 服务完成，退出码为 0。服务报告 2.1 GiB 内存峰值与 15.1 MiB 交换峰值，结束后主机交换策略恢复原值，4 个业务容器保持运行。最终只读索引的 `status` 为 `verified`，`execution_layout` 为 `dual_host_stratified`，包含 45 个任务和 2 个分片。5080 为 27 项，5090 为 18 项，canonical tasks 001 至 045 各出现一次。训练 SHA、cache bundle、manifest canonical SHA 与两份 source-host postflight 身份全部一致。索引 SHA-256 为 `8cf92dc2e931e3e9c3ca18cafb81a794fe68fbd0556dec3401b8650f827899fe`。composite 没有复制任务目录，也没有改写 summary 或 artifact。最小判别矩阵的完整性状态由此更新为 `verified_host_stratified_45`。该状态只证明双机分层矩阵完整，不等于恢复论文结论，同机配对、多种子与显著性分析仍然暂停。
 
 ### 审计前旧管线历史，2026-06-25，旧云 5090 实验
 
@@ -214,14 +218,14 @@ Orange 的 s0a 对 s0c 三种子完成，配对差负 0.114 与负 0.132 与负 
 
 1. v2 缓存与四个 preliminary summary 已冻结为 contaminated，不再续跑。
 2. 三地区 `region_data_v3_noleak_dedup` 已从 clean 提交重建完成，本地两次、5080 一次与 5090 一次严格审计均为 verified。
-3. 最终训练代码 SHA 已锁定。训练 checkout 仍为 clean `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。最新控制层全仓回归为 249 项通过与 1 条既有警告。
+3. 最终训练代码 SHA 已锁定。训练 checkout 仍为 clean `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。最新控制层全仓回归为 252 项通过与 1 条既有警告。
 4. runner 层 45/45 已完成或重新验收。5090 分片 18/18 与 5080 分片 27/27 均已完成、回传并验证。
 5. task042 已完成并正式验收，tasks040-042 的直接比较组保持在同一台 5080。
 6. tasks040-041 的恢复没有创建新 attempt，task042 为正常完成的 `attempt_0001`。
 7. 结果服务器已保存状态为 `verified` 的 `rtx5090_18` 与 `rtx5080_27`。
-8. finalizer 引号处理修复提交为 `c48f232`，本地全仓为 250 项通过与 1 条既有警告。
-9. 下一步生成并验证只读 composite index。
-10. composite 验证后执行同机配对、多种子与显著性分析，再决定 baseline zoo 与论文写作是否恢复。
+8. finalizer 引号处理修复提交为 `c48f232`，composite 内存修复提交为 `5f3113b` 与 `93038ec`，本地全仓为 252 项通过与 1 条既有警告。
+9. 只读 composite index 已生成并验证。index 的 `status` 为 `verified`，矩阵有效性状态为 `verified_host_stratified_45`，索引 SHA-256 为 `8cf92dc2e931e3e9c3ca18cafb81a794fe68fbd0556dec3401b8650f827899fe`。
+10. 下一步执行同机配对、多种子与显著性分析，再决定 baseline zoo 与论文写作是否恢复。
 
 ---
 
@@ -663,7 +667,7 @@ Orange 区域曾于 2026-06-23 在审计前旧管线的云 5090 上补齐，all 
 
 2026-07-06 时项目曾判断全部实验证据关账。2026-07-18 数据有效性审计推翻了这一状态判断。2026-07-19 对 v2 的后续全面复核又确认，仅修复最初泄露点仍不足以保证样本唯一性、验证选择和全链路结果身份正确。v2 队列已经停止，四个 v2 preliminary summary 继续标记为 contaminated。v3 正式缓存已完成本地两次、5080 一次与 5090 一次严格审计，结果均为 verified。
 
-runner 层现已完成或重新验收 45/45。5090 新分片为 18/18，5080 新分片为 27/27。两者分别以 `rtx5090_18` 与 `rtx5080_27` 回传到结果服务器，marker 状态均为 `verified`。5080 finalizer 的引号传递故障只影响收尾复验，提交 `c48f232` 修复后复用了全部 152 个已上传文件，没有重训、重传或改写任务结果。两个结果根保持独立，最终只通过只读 composite index 验证完整性。composite index 尚未完成，因此论文统计分析继续暂停。最先落盘的六项 seed42 指标仍只能用于方向性观察。审计前最低历史数字 Alameda NDR-Net 11.052 仍不得作为当前有效结果。
+runner 层现已完成或重新验收 45/45。5090 新分片为 18/18，5080 新分片为 27/27。两者分别以 `rtx5090_18` 与 `rtx5080_27` 回传到结果服务器，marker 状态均为 `verified`。5080 finalizer 的引号传递故障只影响收尾复验，提交 `c48f232` 修复后复用了全部 152 个已上传文件，没有重训、重传或改写任务结果。两个结果根保持独立，只读 composite index 已于 2026-07-27 18:28:27 新加坡时间完成验证。索引确认两分片互斥、并集为 canonical 45。index 的 `status` 为 `verified`，矩阵有效性状态为 `verified_host_stratified_45`，索引 SHA-256 为 `8cf92dc2e931e3e9c3ca18cafb81a794fe68fbd0556dec3401b8650f827899fe`。论文统计分析仍然暂停，因为同机配对、多种子和显著性分析尚未完成。最先落盘的六项 seed42 指标仍只能用于方向性观察。审计前最低历史数字 Alameda NDR-Net 11.052 仍不得作为当前有效结果。
 
 已经完成的代码与管理事项如下。
 
@@ -710,12 +714,13 @@ runner 层现已完成或重新验收 45/45。5090 新分片为 18/18，5080 新
 41. 以 TDD 修复 finalizer 从 PowerShell 调用 Windows native ssh 时的引号传递问题。提交 `c48f232` 通过本地 250 项回归与三层真实 Windows 复验。
 42. `rtx5080_27` 在结果服务器完成 152 个文件的逐文件复验与正式原子提升。transfer marker 状态为 `verified`，SHA-256 为 `ddf097ddd206efbd0d487e21e608c688945c7dc2dadd3f307d739e1508221c06`。
 43. 以 TDD 降低 composite 复验内存和无效归约。提交 `5f3113b` 与 `93038ec` 保持 float32 producer 精确语义、2 ULP 契约、full-window 的 `all` 指标校验和全部正式结果身份不变，全仓回归为 252 项通过与 1 条既有警告。
+44. 在结果服务器重启后复验两份正式 transfer marker 与 source-host postflight。旧 composite 尝试未产生输出，终止原因按 unknown 保存到 incident record，没有覆盖或删除旧证据。
+45. 以控制提交 `93038ec` 完成只读 composite postflight。服务退出码为 0，索引验证 canonical tasks 001 至 045 各一次、5080 与 5090 分片互斥、任务并集为 45，以及训练 SHA、cache bundle、manifest 与 source-host postflight 身份一致。index 的 `status` 为 `verified`，矩阵有效性状态为 `verified_host_stratified_45`，索引 SHA-256 为 `8cf92dc2e931e3e9c3ca18cafb81a794fe68fbd0556dec3401b8650f827899fe`。
 
 当前待执行事项按优先级排列。
 
-1. 生成并验证只读 composite index，确认两个分片互斥、canonical 45 完整覆盖和每项 source-host provenance。
-2. composite 验证通过后，按同机直接比较组执行配对比较、显著性检验与跨种子统计。
-3. 根据完整 v3 证据决定论文主张与 baseline zoo 是否恢复，同时继续保留失败任务、迁移记录与诚实负结果。
+1. 按同机直接比较组执行配对比较、显著性检验与跨种子统计。
+2. 根据完整 v3 证据决定论文主张与 baseline zoo 是否恢复，同时继续保留失败任务、迁移记录与诚实负结果。
 
 ---
 
@@ -790,4 +795,4 @@ runner 层现已完成或重新验收 45/45。5090 新分片为 18/18，5080 新
 
 数据现实，三类协变量的可用性。第一，节假日已在数据内。time_enc 的第五列是 2023 年美国联邦假日标志，构建见 scripts/build_full_county_cache.py 的 US_FEDERAL_HOLIDAYS_2023。但气候态基线 baseline_median 形状为 2 乘 288 乘 N 乘 3，只分工作日与周末两类日型，没有单独建假日类，假日当前错用工作日或周末基线。改进点是把基线粒度扩成三类，或把假日当协变量喂给学习式基线，预期对 all 影响很小，因为假日只占全年约 3%，是正确性修补而非主增益。第二，天气数据集里没有，要用需外接 Meteostat 或 NOAA ISD，按传感器经纬度找最近站取 2023 年逐小时再广播到 5 分钟，属独立数据工程，有站点稀疏与对齐与仅 2023 一年的风险，先不外接，作后续可插拔项。第三，活动不可行，数据里除事故外无其他活动事件，投入产出比太低，放下。
 
-当时已定的下一步顺序是先用 in-data 的 holiday 与自适应把骨架搭通，再做骨干无关性验证。两项后来均已完成，审计前结果见第 4.8 至 4.12 节。天气仍作为后续可插拔项，holiday 感知基线仍是正确性小修补。无泄露 v3 缓存重建、本地和远端严格审计、clean checkout、runner 45/45 与两个正式分片回传现已完成。5090 为 18/18，5080 为 27/27。当前优先级是生成并验证只读 composite index，随后执行同机配对、多种子与显著性分析。所有判读继续坚持等参数、多种子和显著性，不在单种子结果上收官。方法实现层级始终为 `RADS ⊂ RADS-O ⊂ NDR-Net`。
+当时已定的下一步顺序是先用 in-data 的 holiday 与自适应把骨架搭通，再做骨干无关性验证。两项后来均已完成，审计前结果见第 4.8 至 4.12 节。天气仍作为后续可插拔项，holiday 感知基线仍是正确性小修补。无泄露 v3 缓存重建、本地和远端严格审计、clean checkout、runner 45/45、两个正式分片回传与只读 composite 验证现已完成。5090 为 18/18，5080 为 27/27，矩阵有效性状态为 `verified_host_stratified_45`。当前优先级是执行同机配对、多种子与显著性分析。所有判读继续坚持等参数、多种子和显著性，不在单种子结果上收官。方法实现层级始终为 `RADS ⊂ RADS-O ⊂ NDR-Net`。

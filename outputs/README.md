@@ -25,12 +25,12 @@
 | `dist_net/region_data_v2_noleak/` | v2 XTraffic H5 缓存 | `contaminated`，只读冻结，Git 忽略 |
 | `protocol_v2_noleak/` | v2 训练结果统一根目录 | 已停止，最先完成的 4 项为 `contaminated preliminary` |
 | `dist_net/region_data_v3_noleak_dedup/` | schema 3 的 v3 XTraffic 缓存 | 已通过本地两次、5080 一次和 5090 一次严格复验，状态为 `verified` |
-| `protocol_v3_noleak_dedup/` | v3 训练结果统一根目录 | 已验收 tasks 001 至 006，5080 与 5090 正在运行互斥的 24 项和 21 项分片 |
+| `protocol_v3_noleak_dedup/` | v3 训练结果统一根目录 | runner 45/45、正式 27/18 分片与只读 composite 均已验证，统计分析待完成 |
 | `paper_artifacts/` | 旧事故双支论文资产 | Legacy，不代表当前论文方向 |
 | `impact_guided_next_stage/` | 大量旧事故增强实验 | Legacy，不再扩展 |
 | `remote_runs/` | 本地远程回传包与队列日志 | Git 忽略 |
 
-v3 正式缓存的 bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。正式缓存构建代码 SHA 为 `29159f626494de52c69b36fe5bba9854f13cb56c`，最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。正式样本数与 train、val、test 切分为 Alameda 45760 和 32001/6954/6805，ContraCosta 23337 和 16414/3472/3451，Orange 60015 和 42372/9098/8545。远端传输归档 SHA-256 为 `6c5d3ccb53af30d6d90c1032453c83cb463711456839dad151ba676e2bb80ea5`。5080 的任务 001 至 004 与 5090 的任务 005 至 006 已通过 runner 验收，但均只有 seed 42。5080 当前为 4/24，task 007 已在主机内存运维故障后用新 attempt 恢复训练。5090 当前为 2/21，正在 task 011。两个分片互斥并完整覆盖 canonical 45，保留独立结果身份，最终只生成只读 composite index。只有原子提升到正式任务目录的结果才可计为已验收，完整矩阵完成前不得恢复论文结论。
+v3 正式缓存的 bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。正式缓存构建代码 SHA 为 `29159f626494de52c69b36fe5bba9854f13cb56c`，最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。正式样本数与 train、val、test 切分为 Alameda 45760 和 32001/6954/6805，ContraCosta 23337 和 16414/3472/3451，Orange 60015 和 42372/9098/8545。远端传输归档 SHA-256 为 `6c5d3ccb53af30d6d90c1032453c83cb463711456839dad151ba676e2bb80ea5`。runner 层已完成或重新验收 45/45。5080 正式分片为 27/27，5090 正式分片为 18/18。只读 composite index 已于 2026-07-27 18:28:27 新加坡时间验证成功。index 的 `status` 为 `verified`，矩阵有效性状态为 `verified_host_stratified_45`，`execution_layout` 为 `dual_host_stratified`，index SHA-256 为 `8cf92dc2e931e3e9c3ca18cafb81a794fe68fbd0556dec3401b8650f827899fe`。控制提交为 `93038ec`。index 共含 45 个任务和 2 个分片，canonical tasks001-045 各出现一次。首次使用 `c48f232` 的无输出尝试已作为 incident 保留，incident SHA-256 为 `166923ef9a63b80ecbc065f6e455eb393341e526ef6411c8c5ccd16ebfa2c70a`。最终服务退出码为 0，内存峰值为 2.1G，swap 峰值为 15.1M，没有改写 summary 或 artifact。当前本地全仓回归为 252 passed 和 1 个既有 warning。composite 完成只证明正式双机分层矩阵的身份与完整性，不恢复论文结论。同机配对、多种子统计与显著性检验仍待完成。
 
 ## 保留与命名规则
 

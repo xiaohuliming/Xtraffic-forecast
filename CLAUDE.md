@@ -49,7 +49,7 @@ v2 随后修复了原始泄露问题，但全面复审又确认了四类影响�
 
 因此 v2 已冻结，5080 队列已停止。队列最先完成的 4 个结果只能标记为 `contaminated preliminary`，不能用于论文、模型选择或恢复旧结论。v2 的三地区样本数、远端测试记录和启动时 GPU 状态保留为历史运维记录，不再视为正式协议验收证据。
 
-当前修复版本为 `protocol_v3_noleak_dedup`，cache schema 为 3。正式缓存构建代码 SHA 为 clean commit `29159f626494de52c69b36fe5bba9854f13cb56c`，它只代表缓存 provenance。最终训练代码 SHA 已锁定为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。纳入 `origin/fu` 的合理修复并补齐 Windows 路径测试后，Mac、5080 与 5090 均为 143 项通过，1 个既有 warning。默认缓存目录为 `outputs/dist_net/region_data_v3_noleak_dedup`，默认结果根目录为 `outputs/protocol_v3_noleak_dedup`。
+当前修复版本为 `protocol_v3_noleak_dedup`，cache schema 为 3。正式缓存构建代码 SHA 为 clean commit `29159f626494de52c69b36fe5bba9854f13cb56c`，它只代表缓存 provenance。最终训练代码 SHA 已锁定为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。训练 checkout 在 Mac、5080 与 5090 均为 143 passed 和 1 个既有 warning，当前本地全仓回归为 252 passed 和 1 个既有 warning。默认缓存目录为 `outputs/dist_net/region_data_v3_noleak_dedup`，默认结果根目录为 `outputs/protocol_v3_noleak_dedup`。
 
 三地区 v3 正式缓存已在 `outputs/dist_net/region_data_v3_noleak_dedup` 落盘，并通过本地两次、5080 一次及 5090 一次严格复验。正式 bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。
 
@@ -63,7 +63,7 @@ v2 随后修复了原始泄露问题，但全面复审又确认了四类影响�
 
 5080 上的 v3 tasks001-004 已完成，并通过 runner 对 prediction artifact、有效点数及 all、affected、unaffected 指标的验收。task005 在迁移到 5090 后被主动终止，runner 如实记录退出码 1。这是计划内迁移，不是模型失败。
 
-最先落盘的 5080 tasks001-004 与 5090 tasks005-006 合计为 6 个 seed42 正式 v3 单项结果。它们与冻结的 4 个 v2 `contaminated preliminary` 结果性质不同，不能混为一谈。截至 2026-07-27 11:19:49 新加坡时间，runner 层 45/45 全部完成或重新验收。5090 分片为 18/18，5080 分片为 27/27，两个分片均已回传并在结果服务器完成逐文件 SHA-256 复验与原子提升。只读 composite index 尚未完成，因此配对比较、多种子统计、显著性检验与论文结论仍保持暂停。
+最先落盘的 5080 tasks001-004 与 5090 tasks005-006 合计为 6 个 seed42 正式 v3 单项结果。它们与冻结的 4 个 v2 `contaminated preliminary` 结果性质不同，不能混为一谈。2026-07-27 11:19:49 新加坡时间的发布层历史快照为：runner 层 45/45 全部完成或重新验收，5090 分片为 18/18，5080 分片为 27/27，两个分片均已回传并在结果服务器完成逐文件 SHA-256 复验与原子提升。该快照时只读 composite index 尚未完成，因此配对比较、多种子统计、显著性检验与论文结论仍保持暂停。
 
 2026-07-20 22:23 新加坡时间起，正式运行口径改为双机分层矩阵。两台机器保留独立结果根、各自主机路径相关的 `config_hash`、独立 source-host postflight 与运行时 provenance。最终产物称为 `host-stratified distributed 45`，不再称为“5090 同机完整矩阵”。固定分片不交叉且并集严格覆盖 canonical 45，所有直接比较组保持同机。
 
@@ -93,6 +93,8 @@ task042 于 2026-07-26 23:32:54 新加坡时间完成并通过 runner 验收。a
 
 首次 composite 复验暴露了结果服务器内存峰值风险。旧 validator 会在完整 prediction 与 actual 之外再创建两份全尺寸 float32 error 数组。提交 `5f3113b` 改为在 float64 audit 完成后原位复用 prediction 缓冲，并在首次 producer 指标校验前释放 actual。提交 `93038ec` 进一步跳过 full-window 中未使用的事件分组归约，同时完整保留 `all` 指标、有限性、valid_count、float64 audit 与 float32 producer 契约。500 组随机 float32、mask 与无效 target NaN 差分均保持逐元素及 masked mean 完全一致，artifact SHA-256、summary、训练 checkout 与任务 `config_hash` 均不变。本地全仓为 252 passed 和 1 个既有 warning，独立复审未发现 P0 或 P1。
 
+只读 composite index 已于 2026-07-27 18:28:27 新加坡时间验证成功。index 的 `status` 为 `verified`，矩阵有效性状态为 `verified_host_stratified_45`，`execution_layout` 为 `dual_host_stratified`，index SHA-256 为 `8cf92dc2e931e3e9c3ca18cafb81a794fe68fbd0556dec3401b8650f827899fe`。控制提交为 `93038ec`。index 共含 45 个任务和 2 个分片，5080 分片为 27 项，5090 分片为 18 项，canonical tasks001-045 各出现一次。首次使用 `c48f232` 的无输出尝试已作为 incident 保留，incident SHA-256 为 `166923ef9a63b80ecbc065f6e455eb393341e526ef6411c8c5ccd16ebfa2c70a`。最终服务退出码为 0，内存峰值为 2.1G，swap 峰值为 15.1M。复验只读取正式分片，没有改写任何 summary 或 artifact。
+
 ## v2 冻结记录
 
 2026-07-19 曾从提交 `bf3045ac` 构建 v2 三地区缓存。事件样本 train、val、test 数分别为 Alameda 43973、9450、9366，ContraCosta 19159、4026、4040，Orange 75395、15727、14368。full-window 三地区曾记录为 73561、10501、21013，远端曾有 28 项测试通过。45 项队列于 00:39 启动，启动判活时 GPU 利用率为 91%，显存使用约 6.0 GiB。
@@ -101,9 +103,8 @@ task042 于 2026-07-26 23:32:54 新加坡时间完成并通过 runner 验收。a
 
 ## 下一步顺序
 
-1. 在结果服务器生成并验证只读 composite index，确认两个分片互斥、并集为 canonical 45，且不改写任何 summary。
-2. composite 验证通过后，按同机直接比较组执行配对比较、显著性检验和跨种子统计。
-3. 只根据完整的 v3 落盘结果决定论文主张，再评估是否恢复 baseline zoo。
+1. 按同机直接比较组执行配对比较、显著性检验和跨种子统计。
+2. 只根据完整的 v3 落盘结果决定论文主张，再评估是否恢复 baseline zoo。
 
 ## 最小判别矩阵
 
@@ -117,7 +118,7 @@ task042 于 2026-07-26 23:32:54 新加坡时间完成并通过 runner 验收。a
 - 所有汇报数字必须来自已落盘文件，严禁估算填充。
 - XTraffic 旧缓存与旧 summary 只读冻结。
 - v2 缓存和最先完成的 4 个 v2 远程结果同样只读冻结，并标记为 `contaminated preliminary`。
-- 当前双机分层矩阵的 runner 与正式分片层已经完成，composite 与统计分析尚未完成。任何已验收单项都不得提前写成完整多种子或论文结论。
+- 当前双机分层矩阵的 runner、正式分片与 composite 已完成，统计分析尚未完成。composite 完成不恢复论文结论，任何已验收单项都不得提前写成完整多种子或论文结论。
 - 不得把 Windows 5080 与 Linux 5090 的 `config_hash`、绝对路径和运行时 provenance 混成同机结果。
 - 新结果必须记录协议、split、normalizer 与 climatology 拟合范围、缓存哈希、Git SHA、dirty 状态和 schema version。
 - 等参数比较优先，多种子约定为 42、1、2。
