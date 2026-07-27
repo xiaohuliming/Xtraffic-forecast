@@ -1,15 +1,18 @@
 from __future__ import annotations
 
+import gc
 import io
 import hashlib
 import json
 import subprocess
 import sys
+import weakref
 from pathlib import Path
 
 import numpy as np
 import pytest
 
+from scripts.remote.windows import protocol_v3_runner as runner_module
 from scripts.remote.windows.protocol_v3_runner import (
     Invocation,
     ManifestError,
@@ -334,13 +337,63 @@ def test_float32_metric_contract_rejects_real_metric_mismatch():
         )
 
 
-def test_low_precision_producer_metric_is_validated_through_runner(tmp_path):
+def test_float32_producer_error_reuses_prediction_buffer_exactly():
+    rng = np.random.default_rng(42)
+    prediction = rng.normal(size=(64, 12, 31)).astype(np.float32)
+    actual = rng.normal(size=prediction.shape).astype(np.float32)
+    prediction[0, 0, 0] = np.nan
+    expected = np.abs(prediction.copy() - actual)
+    selected = rng.random(size=prediction.shape) > 0.2
+    selected[0, 0, 0] = False
+
+    result = runner_module._float32_absolute_error_in_place(
+        prediction,
+        actual,
+    )
+
+    assert result is prediction
+    assert np.shares_memory(result, prediction)
+    assert np.array_equal(result, expected, equal_nan=True)
+    assert float(result[selected].mean()) == float(expected[selected].mean())
+
+
+def test_low_precision_producer_metric_is_validated_through_runner(
+    tmp_path,
+    monkeypatch,
+):
     manifest = mini_manifest(
         tmp_path,
         kind="graphwavenet",
         model="graphwavenet",
     )
     run_inputs = inputs(tmp_path)
+    calls = 0
+    actual_refs = []
+    release_checks = []
+    original = runner_module._float32_absolute_error_in_place
+    original_require = runner_module._require_prediction_metric
+
+    def tracked(prediction, actual):
+        nonlocal calls
+        calls += 1
+        actual_refs.append(weakref.ref(actual))
+        return original(prediction, actual)
+
+    def require_after_actual_release(*args, **kwargs):
+        gc.collect()
+        release_checks.append(actual_refs[-1]() is None)
+        return original_require(*args, **kwargs)
+
+    monkeypatch.setattr(
+        runner_module,
+        "_float32_absolute_error_in_place",
+        tracked,
+    )
+    monkeypatch.setattr(
+        runner_module,
+        "_require_prediction_metric",
+        require_after_actual_release,
+    )
 
     rc = run_queue(
         manifest,
@@ -352,6 +405,9 @@ def test_low_precision_producer_metric_is_validated_through_runner(tmp_path):
     )
 
     assert rc == 0
+    assert calls == 2
+    assert release_checks
+    assert all(release_checks)
 
 
 def test_success_runs_in_staging_promotes_and_writes_completed_status(tmp_path):

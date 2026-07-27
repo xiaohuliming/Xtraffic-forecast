@@ -967,6 +967,16 @@ def _require_prediction_metric(
         )
 
 
+def _float32_absolute_error_in_place(
+    prediction: np.ndarray,
+    actual: np.ndarray,
+) -> np.ndarray:
+    with np.errstate(invalid="ignore"):
+        np.subtract(prediction, actual, out=prediction)
+        np.abs(prediction, out=prediction)
+    return prediction
+
+
 def _validate_prediction_artifact(
     path: Path,
     task: Task,
@@ -1128,8 +1138,13 @@ def _validate_prediction_artifact(
     )
     producer_error: np.ndarray | None = None
     if allow_producer_fallback:
-        with np.errstate(invalid="ignore"):
-            producer_error = np.abs(prediction - actual)
+        producer_error = _float32_absolute_error_in_place(
+            prediction,
+            actual,
+        )
+        del chunk_actual
+        del arrays["actual_future_flow"]
+        del actual
 
     def require_group_metric(name: str, selected: np.ndarray) -> None:
         audit_recomputed = error_sums[name] / counts[name]
