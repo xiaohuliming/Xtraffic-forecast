@@ -30,7 +30,7 @@ v2 已因重复 forecast origin、active event 跨 split、验证累计和训练
 | `train_benchmark.py` | METR-LA、PEMS04 与 PEMS08 标准基准 |
 | `train_baseline_zoo.py` | 统一 baseline zoo，旧 XTraffic 缓存结果暂不汇总为正式结论 |
 
-以上 XTraffic 训练入口默认读取 `outputs/dist_net/region_data_v3_noleak_dedup`，并将新结果写入 `outputs/protocol_v3_noleak_dedup`。正式入口通过 `dist_net/training_runtime.py` 校验 cache bundle、Git SHA、输出隔离和 summary 契约。v3 正式缓存已经通过本地两次、5080 一次和 5090 一次严格复验，状态为 `verified`。截至 2026-07-23 13:50 新加坡时间，正式完成或重验 42/45 项，剩余 tasks040-042。5090 分片已完成 18/18，`rtx5090_18` 已验证回传，含 97 个 source files、10,071,444,446 source bytes 与 18 个正式任务目录。source-host postflight 时间为 `2026-07-23T04:40:34Z`，5090 随后按计划关机。5080 的 task040 已完成训练与推理，但 summary float32 MAE `11.305081367492676` 与 runner float64 重算值 `11.305101714317631` 相差 `2.03468e-5`，被严格精度契约拒绝。队列以 24/27 failed 和退出码 4 停止，task040 没有正式结果目录、postflight 或上传。staging artifacts 完整，根因是指标精度契约，不是数据泄露或模型失败。5080 在无协议进程后按用户要求正常关机，SSH 与 ping 均不可达。两分片保持独立结果根、`config_hash` 与运行时 provenance，完整矩阵和多种子统计尚未完成。旧结果和最先完成的 4 个 v2 远程结果均不可用于恢复论文结论。
+以上 XTraffic 训练入口默认读取 `outputs/dist_net/region_data_v3_noleak_dedup`，并将新结果写入 `outputs/protocol_v3_noleak_dedup`。正式入口通过 `dist_net/training_runtime.py` 校验 cache bundle、Git SHA、输出隔离和 summary 契约。v3 正式缓存已经通过本地两次、5080 一次和 5090 一次严格复验，状态为 `verified`。runner 层 45/45 已完成或重新验收。5090 分片为 18/18，5080 分片为 27/27，`rtx5090_18` 与 `rtx5080_27` 均已验证回传。两分片保持独立结果根、`config_hash` 与运行时 provenance。只读 composite index 与多种子统计尚未完成。旧结果和最先完成的 4 个 v2 远程结果均不可用于恢复论文结论。
 
 ## 事故标签对撞
 
@@ -79,9 +79,9 @@ posthoc
 
 `remote/distributed/protocol_v3_shard_postflight.py` 在源主机复验各自分片并生成严格导出 allowlist。`remote/distributed/protocol_v3_composite_postflight.py` 在两份分片回传后只读验证 canonical 45 完整性。已批准的 27/18 分片把 5080 目标设为 tasks001-004、007-010、013-016、019-030、040-042，共 27 项，并把 5090 目标设为 tasks005-006、011-012、017-018、031-039、043-045，共 18 项。所有直接比较组继续保持同机。
 
-`remote/linux/protocol_v3_start_5090_shard_after_boundary.sh` 已在 task039 通过验收后发布 ready marker 并启动 18 项新队列。`remote/linux/protocol_v3_finalize_5090_shard.sh` 在 18 项验收、上传和远端哈希全部通过后完成关机。`remote/windows/protocol_v3_repartition_5080_27_waiter.cmd` 已严格验证 marker 并启动 27 项 runner 与新 finalizer。旧 runner、finalizer、watcher、transition 与 5080 等待器均按设计退出。5080 新 runner 因 task040 的指标精度契约拒绝以退出码 4 停止，新 finalizer 没有进入 postflight 或上传。确认无协议进程后，5080 按用户要求正常关机。`rtx5090_18` 已验证回传，`rtx5080_27` 尚不存在。
+`remote/linux/protocol_v3_start_5090_shard_after_boundary.sh` 已在 task039 通过验收后发布 ready marker 并启动 18 项新队列。`remote/linux/protocol_v3_finalize_5090_shard.sh` 在 18 项验收、上传和远端哈希全部通过后完成关机。`remote/windows/protocol_v3_repartition_5080_27_waiter.cmd` 已严格验证 marker 并启动 27 项 runner 与新 finalizer。旧 runner、finalizer、watcher、transition 与 5080 等待器均按设计退出。task040 与 task041 已从原 staging 完成可审计恢复，task042 正常完成。5080 达到 27/27，runner 层达到 45/45。`rtx5090_18` 与 `rtx5080_27` 均已验证回传。
 
-27/18 控制面由 Git 提交 `60405a9`、`e191c27` 与 `30bcb81` 记录。最终 Windows 退出码文件方案已在 5080 冒烟通过，本地全仓测试为 230 passed、1 个既有 warning。用户授权后，结果服务器只清理了未使用的 Docker build cache，4 个业务容器未受影响。完成 `rtx5090_18` 回传后，当前可用空间为 9,322,172,416 字节。下一步是审查控制层 precision validator 与 staging recovery，确定安全恢复方案后再开启 5080 并继续 tasks040-042。
+后续控制提交补齐精度契约、staging recovery、Windows 长路径与 finalizer 引号修复。提交 `5f3113b` 降低 composite 复验内存，同时保持 float32 producer 与 2 ULP 契约不变。提交 `93038ec` 跳过 full-window 中未使用的事件分组归约，同时完整保留 `all` 指标校验。全仓回归为 252 passed 和 1 个既有 warning。下一步仅生成并验证只读 composite index，再执行同机配对、多种子与显著性分析。
 
 `cleanup_dead_outputs.sh` 是历史输出清理辅助脚本。执行前必须先使用其 dry-run 模式核对候选，不能把它当成仓库整理的默认步骤。
 

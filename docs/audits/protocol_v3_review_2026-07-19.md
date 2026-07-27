@@ -2,15 +2,17 @@
 
 复核日期：2026-07-19
 
-状态更新：2026-07-21
+状态更新：2026-07-27
 
-复核状态：v3 代码审查与回归测试完成，正式缓存已在本地两次、5080 一次和 5090 一次通过严格审计。v3 最小判别矩阵已有 6 项通过 runner 验收，其余任务正在 5080 与 5090 的固定分片上运行
+复核状态：v3 代码审查与回归测试完成，正式缓存已在本地两次、5080 一次和 5090 一次通过严格审计。runner 层 45/45 已完成或重新验收，5080 的 27 项分片与 5090 的 18 项分片均已回传并通过结果服务器逐文件复验。只读 composite index 尚未完成，论文分析继续暂停
 
 正式缓存构建代码 SHA：`29159f626494de52c69b36fe5bba9854f13cb56c`
 
 最终训练代码 SHA：`3a4952837aaf6fbda1403d50b610b1bf40c6098a`
 
 测试结果：Mac、5080 与 5090 均为 143 passed、1 warning
+
+最新控制层本地回归：252 passed、1 warning。finalizer 引号修复提交：`c48f232`。composite 内存修复提交：`5f3113b`。full-window 复验优化提交：`93038ec`
 协议版本：`protocol_v3_noleak_dedup`
 
 缓存 schema：3
@@ -29,11 +31,13 @@ v2 修复了 2026-07-18 审计发现的主要因果泄露，但后续全面复�
 
 v3 已完成相应代码修复，并为缓存、训练和远程 runner 增加严格身份契约。正式缓存已经落盘，并在 staging 路径和正式路径各执行一次严格审计，两次均为 `verified`。5080 与 5090 又分别完成一次只读严格审计。本报告中的正式样本数、split 数、区域 digest 与 artifact SHA-256 均来自正式路径的 `cache_bundle_manifest.json`。
 
-5080 已完成任务 001 到 004，5090 已完成任务 005 和 006。六项的 prediction artifact 与 summary 均通过 runner 验收。六项都只使用 seed 42，因此只能视为单项有效的 v3 结果，不能据此给出多种子结论、显著性结论或论文最终结论。5080 上的任务 005 曾因迁移到显存更充足的 5090 而被主动终止，runner 记录的退出码为 1。这是人为停止导致的运行状态，不是模型失败。
+runner 层 45 个 canonical 任务均已完成或重新验收。最终固定分片为 5080 的 27 项与 5090 的 18 项，两组互不交叉，并集严格覆盖 canonical 45，所有直接 A/B 比较组保持同机。两台机器保留独立结果根、路径相关 `config_hash`、运行时 provenance 与 source-host postflight。最终产物只能称为 `host-stratified distributed 45`，不得称为 homogeneous 5090 matrix。
 
-5090 使用 clean checkout 的精确训练代码 SHA `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。全套测试结果为 143 passed、1 warning，正式缓存只读严格审计为 `verified`，bundle 身份与本报告一致。旧 41 项队列完成任务 005 和 006 后在任务边界安全停止。边界切换的同一秒，旧 runner 曾为任务 007 写入 running state、零字节日志和未完成 staging，但没有产生 summary 或正式任务目录。该残留不计为结果，并被 source-host postflight 与上传 allowlist 排除。
+`rtx5090_18` 与 `rtx5080_27` 均已回传结果服务器，通过逐文件 SHA-256 复验并正式原子提升。task042 于 2026-07-26 23:32:54 新加坡时间完成，使 5080 达到 27/27。5080 finalizer 的 PowerShell 至 native ssh 引号传递故障只影响收尾复验。提交 `c48f232` 修复后复用了全部 152 个已上传文件，没有重训、重传或改写任务结果。`rtx5080_27` transfer marker SHA-256 为 `ddf097ddd206efbd0d487e21e608c688945c7dc2dadd3f307d739e1508221c06`。
 
-2026-07-20 22:23 新加坡时间起，正式执行口径改为 `host-stratified distributed 45`。5080 固定执行 tasks 001 到 004、007 到 010、013 到 016、019 到 030，共 24 项。5090 固定执行 tasks 005 到 006、011 到 012、017 到 018、031 到 045，共 21 项。两组任务互不交叉，并集严格覆盖 canonical 45，所有直接 A/B 比较组保持在同一台机器。5080 当前为 4/24、skipped valid 为 4，正在 task 007。task 007 的首个 attempt 因主机内存运维故障失败且没有 summary，第二个 attempt 已恢复训练并完成 epoch 7。5090 当前为 2/21、skipped valid 为 2，正在 task 011。截至 2026-07-21 00:02 新加坡时间，task 011 已完成 epoch 8。两台机器保留独立结果根、路径相关 `config_hash`、运行时 provenance 与 source-host postflight，最终只生成只读 composite index。不得把双机结果称为 homogeneous 5090 matrix。缓存通过审计、训练 epoch 完成和六个单种子结果都不能单独恢复论文结论。baseline zoo 继续保持 `pending`。
+首次 composite 复验显示旧 validator 会为 full-window prediction 额外创建两份全尺寸 float32 error 数组，在结果服务器上形成高内存峰值。提交 `5f3113b` 在 float64 audit 完成后原位复用 prediction 缓冲，并在首次 producer 指标校验前释放 actual。提交 `93038ec` 跳过 full-window 中未使用的 affected 与 unaffected 归约，同时完整保留 `all` 指标、有限性、valid_count、float64 audit 与 float32 producer 契约。随机差分、mask、无效 target NaN、staging 与正式目录双验收及 artifact 哈希不变性均通过。这些控制层修复不改变训练 checkout、summary、任务 `config_hash` 或任何正式结果。
+
+只读 composite index 尚未完成，因此已发布分片仍不能直接恢复多种子结论、显著性结论或论文最终结论。5080 上主动终止的旧 task005、5090 边界切换时未形成 summary 的旧 task007，以及 task007 首次内存故障 attempt 均继续作为历史运行记录保留，不计为正式结果。baseline zoo 继续保持 `pending`。
 
 ## 复核范围
 
@@ -102,7 +106,7 @@ manifest 状态为 `verified`，cache schema 为 3，协议为 `protocol_v3_nole
 
 两个原始 manifest 摘要的差异只来自换行字节。两份 manifest 解析后具有相同的 45 个任务、相同任务顺序和相同字段值。任务 `config_hash` 不使用原始 manifest 文件摘要，因此换行差异不改变任务身份或结果身份。审计时仍需同时保留原始文件摘要和规范 JSON 摘要，不能把两个原始文件错误写成字节完全相同。
 
-上述两份文件用于确认 canonical production manifest 身份。当前 24 项和 21 项分片不是另外维护的手写任务表，而是由分片器从这份 canonical manifest 只替换任务子集生成。组合验收还会再次要求分片名称与任务集合精确匹配固定契约。
+上述两份文件用于确认 canonical production manifest 身份。最终 27 项和 18 项分片不是另外维护的手写任务表，而是由分片器从这份 canonical manifest 只替换任务子集生成。组合验收还会再次要求分片名称与任务集合精确匹配固定契约。
 
 两台远端机器的训练运行时如下。正式矩阵保留两个独立分片，不把两套运行时、绝对路径或路径相关 `config_hash` 混成同机结果。所有直接比较组在分片设计中保持同机。
 
@@ -111,7 +115,7 @@ manifest 状态为 `verified`，cache schema 为 3，协议为 `protocol_v3_nole
 | RTX 5080 | 3.13.3 | 2.10.0.dev20251203+cu128 | 12.8 | 2.2.6 | 3.14.0 | 2.3.1 |
 | RTX 5090 | 3.12.3 | 2.8.0+cu128 | 12.8 | 2.3.2 | 3.16.0 | 3.0.3 |
 
-### 已验收的六项 v3 结果
+### 首批已验收的六项 v3 结果，2026-07-20 快照
 
 | 主机 | 任务 | test all masked MAE | test affected masked MAE | test unaffected masked MAE | best val masked MAE |
 |---|---|---:|---:|---:|---:|
@@ -126,7 +130,7 @@ manifest 状态为 `verified`，cache schema 为 3，协议为 `protocol_v3_nole
 
 5080 开始任务 005 后，Orange 配置在该机器上长时间未完成首个 epoch。5090 完成同配置显存预检并正式完成 epoch 1 后，5080 的任务 005 被主动终止以避免重复占用。runner 因子进程退出而记录 code 1。该状态仅表示任务迁移，不表示模型训练失败。任务 001 到 004 的已验收目录保持不变。5080 现已重新投入 24 项正式分片训练。
 
-### 双机固定分片
+### 双机固定分片，2026-07-20 历史快照
 
 分片规则由 `scripts/remote/distributed/protocol_v3_distributed.py` 固定，并从 canonical production manifest 只替换任务子集。分片器验证任务集合互斥、并集为 45，并验证每个直接比较组只属于一台主机。
 
@@ -138,7 +142,9 @@ manifest 状态为 `verified`，cache schema 为 3，协议为 `protocol_v3_nole
 
 两个结果根分别执行 source-host postflight。postflight 复验 queue、任务目录、prediction artifact、summary、任务配置哈希、缓存 bundle、Git SHA 和运行时 provenance，并只导出分片被分配的正式任务、状态和日志。旧任务 005 迁移记录、旧 task 007 残留、未完成 staging 与其他主机任务都不进入 allowlist。两份结果回传后，只读 composite postflight 验证 canonical 45 完整并集和逐文件 SHA-256，不复制任务目录，也不改写既有 summary。
 
-### 自动回传与关机契约
+### 自动回传与关机契约，2026-07-21 历史快照
+
+本节记录最初 24/21 分片的自动收尾契约。该契约后来被 27/18 分片契约替代，不代表当前任务分配或结果目录。
 
 5090 已在 `/root/autodl-tmp/protocol_v3_finalize_5090_shard.sh` 部署分片自动收尾守护进程，当前 PID 为 106466。守护进程只有在以下条件全部满足时才关机：
 
@@ -281,7 +287,7 @@ runner 在启动前验证 clean Git checkout、精确代码 SHA、缓存审计�
 | v2 其余最小判别矩阵 | stopped | 否 |
 | v3 训练代码 | verified checkout | 是正式训练输入，SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`，5080 与 5090 的远端 worktree 均 clean |
 | v3 正式缓存 | verified | 可作为 v3 训练输入，不能单独产生模型结论 |
-| v3 最小判别矩阵 | running distributed partial, 6 validated | 否，任务 001 到 006 已分别验收但均只有 seed 42，5080 的 24 项分片与 5090 的 21 项分片仍在运行 |
+| v3 最小判别矩阵 | shards verified, composite pending | 否，45 项 runner 验收已完成，5080 的 27 项分片与 5090 的 18 项分片均已回传并通过结果服务器复验，但只读 composite index 尚未完成 |
 | v3 baseline zoo | pending | 否，尚未启动 |
 
 ## 正式启动门槛
@@ -298,4 +304,4 @@ runner 在启动前验证 clean Git checkout、精确代码 SHA、缓存审计�
 5. runner 环境中的代码 SHA、cache bundle ID 与 digest 和本地审计清单一致。
 6. 新结果写入 `outputs/protocol_v3_noleak_dedup` 下的新 attempt，不读取或覆盖 v2 输出。
 
-5080 与 5090 的正式 checkout 均为 Git SHA `3a4952837aaf6fbda1403d50b610b1bf40c6098a`，worktree clean。两台机器的 runner 身份均绑定同一 cache bundle ID、bundle digest 和 schema 3。5080 的任务 001 到 004 与 5090 的任务 005 到 006 已完成并通过 runner 验收。5080 上曾主动终止的任务 005 只作为迁移记录保留，code 1 不是模型失败。5080 的 task 007 首个 attempt 因主机内存运维故障失败且没有 summary，第二个 attempt 已恢复训练。正式训练现由 5080 的 24 项分片和 5090 的 21 项分片并行执行，分别为 4/24 和 2/21。两分片保持独立结果身份，最终只通过只读 composite index 验证完整性。正式缓存保持 `verified`，最小判别矩阵状态为 `running_distributed_partial_6_validated`。
+5080 与 5090 的正式 checkout 均为 Git SHA `3a4952837aaf6fbda1403d50b610b1bf40c6098a`，worktree clean。两台机器的 runner 身份均绑定同一 cache bundle ID、bundle digest 和 schema 3。runner 层已完成或重新验收 45/45，最终分片为 5080 的 27 项与 5090 的 18 项。两份正式分片均已回传结果服务器，通过逐文件 SHA-256 复验并原子提升。两分片保持独立结果身份，最终只通过只读 composite index 验证完整性。正式缓存保持 `verified`，最小判别矩阵状态为 `shards_verified_45_composite_pending`。完成 composite 与统计分析前，不恢复论文性能结论。

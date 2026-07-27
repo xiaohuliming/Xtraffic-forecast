@@ -18,7 +18,7 @@
 
 5080 的旧 24 项队列已于 2026-07-22 18:13:06 新加坡时间完成 24/24，skipped valid 为 4，runner 退出码为 0。旧 24 项 source-host postflight 与 134 文件 allowlist 已通过。task007 的首个 attempt 因两条遗留诊断 PowerShell 扫描耗尽主机内存而失败，没有 summary 或正式任务目录，第二个 attempt 已完整重跑并验收。这是主机运维故障，不是模型失败。旧 task005 迁移记录不进入正式导出 allowlist。
 
-截至 2026-07-26 17:15 新加坡时间，runner 层正式完成或重验 44/45。5090 新队列已完成 18/18，`rtx5090_18` 已回传并通过 marker 复验。5080 为 26/27，tasks040-041 已恢复并正式验收，task042 正在训练。完整矩阵、`rtx5080_27` 与 composite index 仍未完成。
+截至 2026-07-27 11:19:49 新加坡时间，runner 层已完成或重新验收 45/45。5090 为 18/18，5080 为 27/27。`rtx5090_18` 与 `rtx5080_27` 均已在结果服务器完成逐文件复验和正式原子提升。只读 composite index 尚未完成，论文分析仍暂停。
 
 task040 旧失败的根因是 producer float32 `.mean()` 与 runner float64 audit 的精度语义不同。新控制层保留 float64 audit，只对 graphwavenet、fourier_dual_net、staeformer 与 staeformer_icsf 精确复现 producer，summary 必须处于 2 ULP 内。恢复路径只接受 prior queue、failed task state、最新 zero-exit attempt、canonical path、非空日志和完整 artifact 全部通过的候选。修复提交为 `dfb6b7f` 与 `33fae6c`，本地全仓为 247 passed 和 1 个既有 warning，独立复审未发现 P0 或 P1。
 
@@ -28,7 +28,15 @@ task040 已于 11:23 新加坡时间从 `attempt_0001` 完成可审计 recovery�
 
 task041 在完成 30 个 epoch 与测试推理后，因旧 summary 临时路径达到 282 字符而触发 Windows 传统路径限制。checkpoint、prediction artifact 与 train log 完整，失败不是模型或数据问题。提交 `e7bf755` 缩短临时名并增加 incident-specific repair 与 completed state 幂等保留，本地全仓为 249 passed 和 1 个既有 warning。5080 dry-run 完成正式 cache 全量对照后，task041 于 17:08 从原 `attempt_0001` 原子恢复，staging 与正式目录均通过 runner 验收，没有 `attempt_0002`。summary 与 decomp mask SHA-256 为 `115c0cfba5d6a256a27011a6169797ac48606cb90a914a942919854e399e27ac` 与 `55ae377b62287d5098a895c5608cb8050d79520df2a5936f0754c0a18bef5d5a`，原三份 artifact 哈希未变。
 
-17:10，runner 以 `KEEP_COMPLETED` 保留 tasks040-041 的恢复状态并启动 task042 `attempt_0001`。17:15 的落盘日志为 epoch 1、batch 1500/4598，GPU 使用 10,799 MiB，利用率 97%，温度 63 摄氏度。runner、trainer 与 finalizer 各有 1 个进程。finalizer 正在等待 27/27 后执行 source-host postflight 与回传。下一步是完成 task042，再回传 `rtx5080_27` 并生成只读 composite index。
+2026-07-26 17:10，runner 以 `KEEP_COMPLETED` 保留 tasks040-041 的恢复状态并启动 task042 `attempt_0001`。17:15 的落盘日志为 epoch 1、batch 1500/4598，GPU 使用 10,799 MiB，利用率 97%，温度 63 摄氏度。runner、trainer 与 finalizer 当时各有 1 个进程。
+
+task042 于 2026-07-26 23:32:54 新加坡时间完成并通过 runner 验收。all 与 unaffected masked MAE 均为 `10.780716896057129`，affected 为 `null`，best val masked MAE 为 `10.51922192820698`，有效点数为 `103270922`，参数量为 `1536372`。5080 队列由此达到 27/27，runner 层达到 45/45。
+
+5080 finalizer 首次执行结果服务器目录树复验时遇到 PowerShell 至 Windows native ssh 的引号传递问题。该故障不影响训练结果、source-host postflight 或已上传文件。提交 `c48f232` 完成修复，本地全仓为 250 passed 和 1 个既有 warning，PowerShell 5.1 AST、Windows native argv 与真实 incoming 文件树复验均通过。finalizer 复用 152 个已上传文件，没有重训、重传或改写任务结果。`rtx5080_27` 于 2026-07-27 11:19:49 新加坡时间正式发布，transfer marker SHA-256 为 `ddf097ddd206efbd0d487e21e608c688945c7dc2dadd3f307d739e1508221c06`。
+
+首次 composite 复验暴露结果服务器内存峰值风险。提交 `5f3113b` 在 float64 audit 后原位复用 prediction 缓冲计算 float32 producer error，并在首次指标校验前释放 actual。提交 `93038ec` 跳过 full-window 中未使用的事件分组归约，同时完整保留 `all` 指标契约。两项修复不改变 artifact、summary、训练 checkout 或任务 `config_hash`。本地全仓为 252 passed 和 1 个既有 warning，独立复审未发现 P0 或 P1。
+
+下一步仅生成并验证只读 composite index，再执行同机配对与多种子统计。不得在 composite 与统计完成前恢复论文结论。
 
 项目方法层级为 `RADS ⊂ RADS-O ⊂ NDR-Net`。完整研究史和数字出处见主报告，当前有效性见审计文件。
 

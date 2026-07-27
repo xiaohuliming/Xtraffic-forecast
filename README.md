@@ -7,7 +7,7 @@
 
 ## 当前状态
 
-> **v2 已冻结。v3 正式缓存已从 cache-build clean commit `29159f626494de52c69b36fe5bba9854f13cb56c` 构建，并通过本地两次、5080 一次和 5090 一次严格复验。最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。截至 2026-07-23 13:50 新加坡时间，正式完成或重验 42/45 项，剩余 tasks040-042。5090 新分片已完成 18/18，并将 `rtx5090_18` 验证回传到结果服务器。该分片包含 97 个 source files、10,071,444,446 source bytes 和 18 个正式任务目录，source-host postflight 时间为 `2026-07-23T04:40:34Z`。5090 随后按计划关机。5080 的 task040 已完成训练与推理，但 summary 中的 float32 MAE `11.305081367492676` 与 runner 用 float64 重算的 `11.305101714317631` 相差 `2.03468e-5`，因此被严格精度契约拒绝。队列以 24/27 failed 和退出码 4 停止，task040 没有正式结果目录、postflight 或上传。这是指标精度契约问题，不是数据泄露或模型失败。staging artifacts 完整保留。5080 在确认无协议进程后按用户要求正常关机，SSH 与 ping 均已确认不可达。完整矩阵和多种子统计尚未完成，论文写作继续暂停。**
+> **v2 已冻结。v3 正式缓存已从 cache-build clean commit `29159f626494de52c69b36fe5bba9854f13cb56c` 构建，并通过本地两次、5080 一次和 5090 一次严格复验。最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。截至 2026-07-27 11:19:49 新加坡时间，runner 层 45/45 已全部完成或重新验收。5090 为 18/18，5080 为 27/27。`rtx5090_18` 与 `rtx5080_27` 均已回传结果服务器，通过逐文件 SHA-256 复验并正式原子提升。task042 于 2026-07-26 23:32:54 新加坡时间完成并通过 runner 验收。5080 finalizer 的引号传递故障只影响收尾复验，提交 `c48f232` 修复后复用了 152 个已上传文件，没有重训、重传或改写任务结果。只读 composite index 尚未完成，因此配对比较、多种子统计、显著性检验与论文结论继续暂停。**
 >
 > 2026-07-18 的审计确认旧版 XTraffic 数据管线存在未来信息泄露和切分边界污染。2026-07-19 的全面复审进一步确认 v2 存在重复 forecast origin、active event 跨 split、验证累计和训练契约问题。此前报告的所有 XTraffic 数值与最先完成的 4 个 v2 远程结果均保留为历史记录，不应作为论文结论或最终基准引用。完整证据见 [v3 协议复审](docs/audits/protocol_v3_review_2026-07-19.md) 和 [数据泄露审计](docs/audits/data_leakage_2026-07-18.md)。
 
@@ -29,9 +29,9 @@
 | ContraCosta | 23337 | 16414 | 3472 | 3451 |
 | Orange | 60015 | 42372 | 9098 | 8545 |
 
-正式生效的新分片把 5080 固定为 tasks001-004、007-010、013-016、019-030、040-042，共 27 项。5090 固定为 tasks005-006、011-012、017-018、031-039、043-045，共 18 项。5090 的 18 项分片已完成并回传验证。5080 的精度契约拒绝使 tasks040-042 仍未形成正式结果，结果服务器上不存在 `rtx5080_27`。两台机器的结果仍按独立结果根、路径相关 `config_hash`、运行时 provenance 与 source-host postflight 管理。待 5080 分片完成后，只读 composite index 再验证互斥并集为 canonical 45。结果只能称为双机分层矩阵，不能称为 5090 同机矩阵。现有已验收单项不能代替完整多种子统计或最终论文结论。
+正式生效的新分片把 5080 固定为 tasks001-004、007-010、013-016、019-030、040-042，共 27 项。5090 固定为 tasks005-006、011-012、017-018、031-039、043-045，共 18 项。两份分片均已完成、回传并验证。两台机器的结果继续按独立结果根、路径相关 `config_hash`、运行时 provenance 与 source-host postflight 管理。只读 composite index 将再次验证两分片互斥、并集为 canonical 45。结果只能称为双机分层矩阵，不能称为 5090 同机矩阵。现有已验收单项不能代替完整多种子统计或最终论文结论。
 
-27/18 控制面由 Git 提交 `60405a9`、`e191c27` 与 `30bcb81` 记录。最终 Windows 退出码文件方案已在 5080 冒烟通过，本地全仓测试为 230 passed、1 个既有 warning。用户授权后，结果服务器只清理了未使用的 Docker build cache，4 个业务容器未受影响。完成 `rtx5090_18` 回传后，服务器当前可用空间为 9,322,172,416 字节，容量不再是当前阻塞。下一步是审查控制层 precision validator 与 staging recovery，确定安全恢复方案后再开启 5080 并继续 tasks040-042。
+27/18 控制面、精度契约、staging recovery、Windows 长路径修复与 finalizer 引号修复均已完成。提交 `5f3113b` 将 composite 的 float32 producer 复验改为数值等价的原位数组计算，并在首次指标校验前释放 target 大数组。提交 `93038ec` 进一步跳过 full-window 中未使用的事件分组归约，同时完整保留 `all` 指标契约。全仓回归为 252 passed 和 1 个既有 warning，独立复审未发现 P0 或 P1。这些控制层修复不改变训练 checkout、正式结果、summary 或任务 `config_hash`。下一步仅生成并验证只读 composite index，再执行同机配对、多种子与显著性分析。
 
 ## 已确认的数据问题
 
@@ -47,7 +47,7 @@
 | P0 | 部分验证 MAE 按 batch 或样本均值累计 | 最佳 checkpoint 可能选择错误 |
 | P1 | 多个训练入口的 mask、图支持和结果恢复契约不一致 | 对比结果不能可靠配对 |
 
-旧缓存、v2 缓存和旧结果没有被覆盖。v3 默认缓存目录为 `outputs/dist_net/region_data_v3_noleak_dedup`，新训练默认写入 `outputs/protocol_v3_noleak_dedup`。三地区正式缓存已经通过本地、5080 与 5090 的严格复验。v3 队列正在独立的新结果目录运行。本地回归测试位于 `tests/data/`、`tests/training/` 和 `tests/remote/`。
+旧缓存、v2 缓存和旧结果没有被覆盖。v3 默认缓存目录为 `outputs/dist_net/region_data_v3_noleak_dedup`，新训练默认写入 `outputs/protocol_v3_noleak_dedup`。三地区正式缓存已经通过本地、5080 与 5090 的严格复验。v3 runner 与两个正式分片已经完成，composite 与统计分析尚未完成。本地回归测试位于 `tests/data/`、`tests/training/` 和 `tests/remote/`。
 
 ## 方法关系
 

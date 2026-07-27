@@ -1,15 +1,15 @@
 # XTraffic 数据泄露审计
 
 审计日期：2026-07-18
-复核日期：2026-07-21
-审计状态：旧问题已确认，v2 复核又发现重复预测时刻、事件跨切分与训练评估实现问题。v3 代码已修复，正式缓存已通过本地两次、5080 一次和 5090 一次严格审计。v3 队列已有 6 项单种子结果通过 runner 验收，其余任务在 5080 与 5090 的固定分片上运行
+复核日期：2026-07-27
+审计状态：旧问题已确认，v2 复核又发现重复预测时刻、事件跨切分与训练评估实现问题。v3 代码已修复，正式缓存已通过本地两次、5080 一次和 5090 一次严格审计。runner 层 45/45 已完成或重新验收，5080 的 27 项分片与 5090 的 18 项分片均已回传并通过结果服务器逐文件复验。只读 composite index 尚未完成
 审计对象：仓库代码与 `outputs/dist_net/region_data/` 中的三个区域缓存
 
 ## 当前修复状态
 
 旧缓存、v2 缓存和旧输出保持只读。v2 最小判别矩阵已经停止。其最先完成的四项只能作为 `contaminated preliminary` 保留，不能恢复论文结论。
 
-v3 代码使用 `protocol_v3_noleak_dedup`，默认缓存目录为 `outputs/dist_net/region_data_v3_noleak_dedup`，默认结果目录为 `outputs/protocol_v3_noleak_dedup`。正式缓存构建代码 SHA 为 `29159f626494de52c69b36fe5bba9854f13cb56c`，最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。当前代码已纳入 `origin/fu` 提交 `625aacf` 中经复核合理的部分。Mac、5080 与 5090 的全套测试结果均为 143 passed、1 warning。正式缓存已在 staging 路径、正式路径、5080 和 5090 各通过一次严格审计，状态为 `verified`。正式 bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，总 digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。v3 队列已有 6 项通过 runner 验收，均为 seed 42。其余任务正在 5080 的 24 项固定分片和 5090 的 21 项固定分片上运行。
+v3 代码使用 `protocol_v3_noleak_dedup`，默认缓存目录为 `outputs/dist_net/region_data_v3_noleak_dedup`，默认结果目录为 `outputs/protocol_v3_noleak_dedup`。正式缓存构建代码 SHA 为 `29159f626494de52c69b36fe5bba9854f13cb56c`，最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。当前代码已纳入 `origin/fu` 提交 `625aacf` 中经复核合理的部分。Mac、5080 与 5090 的训练 checkout 测试结果均为 143 passed、1 warning。正式缓存已在 staging 路径、正式路径、5080 和 5090 各通过一次严格审计，状态为 `verified`。正式 bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，总 digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。runner 层 45/45 已完成或重新验收。最终 5080 分片为 27/27，5090 分片为 18/18，两份正式分片均已回传并通过结果服务器逐文件复验。最新控制层本地回归为 252 passed、1 warning。提交 `5f3113b` 以数值等价的原位计算降低 composite 复验内存，提交 `93038ec` 跳过 full-window 中未使用的事件分组归约。两项修复均不改变正式结果或训练身份。只读 composite index 尚未完成，因此论文分析继续暂停。
 
 完整 v3 复核记录见 [protocol_v3_review_2026-07-19.md](protocol_v3_review_2026-07-19.md)。
 
@@ -38,9 +38,12 @@ v3 代码使用 `protocol_v3_noleak_dedup`，默认缓存目录为 `outputs/dist
 - 5080 的任务 005 因迁移到 5090 而被主动终止。runner 记录 code 1，这不是模型失败。
 - 5090 使用精确代码 SHA `3a4952837aaf6fbda1403d50b610b1bf40c6098a`，全套测试为 143 passed、1 warning，同一 bundle 的只读严格审计为 `verified`。
 - 5090 已完成任务 005 和 006，并通过 runner 验收。旧 41 项队列随后在任务边界安全停止。旧 runner 瞬间为 task 007 创建的零字节日志和未完成 staging 没有 summary，已从正式导出中排除。
-- 2026-07-20 22:23 新加坡时间起，5080 固定执行 24 项，5090 固定执行 21 项。当前快照分别为 4/24 和 2/21，正在 task 007 与 task 011。两分片互斥、并集为 canonical 45，所有直接比较组保持同机。
+- 2026-07-20 22:23 新加坡时间起，5080 固定执行 24 项，5090 固定执行 21 项。当时快照分别为 4/24 和 2/21，正在 task 007 与 task 011。两分片互斥、并集为 canonical 45，所有直接比较组保持同机。
 - 5080 的 task 007 `attempt_0001` 在 epoch 9 数据装载阶段因主机内存耗尽触发 NumPy `ArrayMemoryError`。两条遗留诊断 PowerShell 扫描占用约 48 GB 私有内存。该 attempt 没有 summary 或正式任务目录。停止两条诊断进程后内存恢复，runner 已用 `attempt_0002` 重启 task 007。这是主机运维故障，不是模型、数据协议或训练数值失败。
 - 截至 2026-07-21 00:02 新加坡时间，5080 的 task 007 `attempt_0002` 已完成 epoch 7，train 为 12.0424，val 为 12.6845，用时 359 秒，GPU 利用率为 92%。5090 的 task 011 已完成 epoch 8，train 为 12.3250，val 为 12.3937，用时 659 秒，并保存当前 best checkpoint。
+- 2026-07-22 完成 27/18 原子重分片。5080 固定承担 27 项，5090 固定承担 18 项，所有直接比较组保持同机。
+- 2026-07-26 23:32:54 新加坡时间，task042 完成并通过 runner 验收。runner 层达到 45/45，5080 达到 27/27。
+- 2026-07-27 11:19:49 新加坡时间，`rtx5080_27` 完成结果服务器逐文件复验与正式原子提升。5080 finalizer 引号问题的修复提交为 `c48f232`，该故障没有影响训练结果、source-host postflight 或已上传文件。
 - 因此下文旧结果和 v2 初步结果的 `contaminated` 状态不变。
 
 下文“代码证据”描述审计时的旧实现，可在 Git 历史提交 `c89bcfb` 中复核，不代表当前 v2 文件仍含同一代码。
@@ -63,7 +66,7 @@ v3 代码使用 `protocol_v3_noleak_dedup`，默认缓存目录为 `outputs/dist
 
 这些数量和摘要均来自正式落盘 manifest。缓存验收只确认数据协议和 artifact 身份通过审计，不产生模型性能结论。
 
-## v3 当前训练有效性
+## v3 首批六项训练有效性，2026-07-20 快照
 
 已完成并通过 runner 验收的六项如下：
 
@@ -82,7 +85,7 @@ v3 代码使用 `protocol_v3_noleak_dedup`，默认缓存目录为 `outputs/dist
 
 5080 的正式结果根为 `C:\Users\ASUS\traffic_fourier_v3_final\outputs\protocol_v3_noleak_dedup\remote_runs\minimal_45_5080`。5090 的正式结果根为 `/root/autodl-tmp/protocol_v3_noleak_dedup/remote_runs/minimal_45_5090`。两台机器分别执行 source-host postflight，保留独立 `config_hash`、绝对路径和运行时 provenance。
 
-正式分片为 5080 的 tasks 001 到 004、007 到 010、013 到 016、019 到 030，以及 5090 的 tasks 005 到 006、011 到 012、017 到 018、031 到 045。5080 为 4/24，task 007 的首个 attempt 因主机内存运维故障失败且没有 summary，第二个 attempt 已恢复训练并完成 epoch 7。5090 为 2/21，截至 2026-07-21 00:02 新加坡时间，task 011 已完成 epoch 8。两分片完成并回传后，只读 composite index 验证互斥并集为 canonical 45，不复制任务目录或改写 summary。完成全矩阵和多种子统计前，不恢复论文性能结论。
+最终正式分片为 5080 的 tasks001-004、007-010、013-016、019-030、040-042，以及 5090 的 tasks005-006、011-012、017-018、031-039、043-045。5080 为 27/27，5090 为 18/18，runner 层为 45/45。两份分片均已回传并通过结果服务器逐文件 SHA-256 复验与原子提升。只读 composite index 将验证两分片互斥、并集为 canonical 45，且不复制任务目录或改写 summary。完成 composite 和多种子统计前，不恢复论文性能结论。
 
 ## v2 后续复核发现
 
@@ -354,7 +357,7 @@ NDR-Net 在训练期使用真实 y 构造 oracle 门控蒸馏目标，本身属�
 | v2 最先完成的四项远程结果 | contaminated preliminary | forecast origin 重复计权，active event 跨 split，验证指标与训练实现仍有问题 |
 | v2 其余最小判别矩阵 | stopped | v3 全面复核开始后停止 |
 | v3 正式缓存 | verified | staging、正式路径、5080 与 5090 各通过一次严格审计 |
-| v3 最小判别矩阵 | running distributed partial, 6 validated | 任务 001 到 006 已验收但都只有 seed 42，5080 的 24 项分片与 5090 的 21 项分片仍在运行 |
+| v3 最小判别矩阵 | shards verified, composite pending | 45 项 runner 验收已完成，5080 的 27 项分片与 5090 的 18 项分片均已回传并通过结果服务器复验，但只读 composite index 尚未完成 |
 | XTraffic baseline zoo | pending | 等待 v3 最小判别矩阵 |
 | METR-LA、PEMS04 与 PEMS08 | not affected by this audit | 不经过 XTraffic H5 缓存 |
 

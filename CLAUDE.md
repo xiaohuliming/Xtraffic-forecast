@@ -1,6 +1,6 @@
 # XTraffic 项目导航与协作约定
 
-最近更新：2026-07-26
+最近更新：2026-07-27
 
 ## 新会话先读
 
@@ -63,7 +63,7 @@ v2 随后修复了原始泄露问题，但全面复审又确认了四类影响�
 
 5080 上的 v3 tasks001-004 已完成，并通过 runner 对 prediction artifact、有效点数及 all、affected、unaffected 指标的验收。task005 在迁移到 5090 后被主动终止，runner 如实记录退出码 1。这是计划内迁移，不是模型失败。
 
-最先落盘的 5080 tasks001-004 与 5090 tasks005-006 合计为 6 个 seed42 正式 v3 单项结果。它们与冻结的 4 个 v2 `contaminated preliminary` 结果性质不同，不能混为一谈。截至 2026-07-26 17:15 新加坡时间，runner 层已正式完成或重新验收 44/45。5090 队列已完成 18/18，5080 队列为 26/27，task041 已恢复并正式验收，task042 正在训练。完整矩阵、5080 分片回传与 composite index 仍未完成，因此仍不能恢复多种子、显著性或论文结论。
+最先落盘的 5080 tasks001-004 与 5090 tasks005-006 合计为 6 个 seed42 正式 v3 单项结果。它们与冻结的 4 个 v2 `contaminated preliminary` 结果性质不同，不能混为一谈。截至 2026-07-27 11:19:49 新加坡时间，runner 层 45/45 全部完成或重新验收。5090 分片为 18/18，5080 分片为 27/27，两个分片均已回传并在结果服务器完成逐文件 SHA-256 复验与原子提升。只读 composite index 尚未完成，因此配对比较、多种子统计、显著性检验与论文结论仍保持暂停。
 
 2026-07-20 22:23 新加坡时间起，正式运行口径改为双机分层矩阵。两台机器保留独立结果根、各自主机路径相关的 `config_hash`、独立 source-host postflight 与运行时 provenance。最终产物称为 `host-stratified distributed 45`，不再称为“5090 同机完整矩阵”。固定分片不交叉且并集严格覆盖 canonical 45，所有直接比较组保持同机。
 
@@ -87,6 +87,12 @@ task041 于 2026-07-26 13:40 新加坡时间完成 30 个 epoch 和测试推理�
 
 2026-07-26 17:08，新脚本从哈希锁定的 task041 `attempt_0001` 重建 `summary.json` 与 `decomp_mask.json`，两份文件 SHA-256 分别为 `115c0cfba5d6a256a27011a6169797ac48606cb90a914a942919854e399e27ac` 和 `55ae377b62287d5098a895c5608cb8050d79520df2a5936f0754c0a18bef5d5a`。runner 在 staging 与正式目录各完成一次完整验收后原子提升。原 checkpoint、prediction artifact 与 train log 哈希保持不变，没有 `attempt_0002`。incident record SHA-256 为 `630e2d31ca2b8599a0ca9901f5d50e85049ca438a4ca894da744c49eecf4ced4`，completed task state SHA-256 为 `4bb3cb200c77391d24e3b331b64b5787b70ed42163a1db617635b758aecbfe22`。task040 state SHA-256 仍为 `c54ae78dfdd6ec4e8e4b0005f373e2a712f8686a3fd211fd15cb1703fa5f2312`。17:10，runner 以 `KEEP_COMPLETED` 保留 tasks040-041 的审计状态并启动 task042 `attempt_0001`。17:15 的落盘日志显示 task042 为 epoch 1、batch 1500/4598，GPU 使用 10,799 MiB，利用率 97%，温度 63 摄氏度。finalizer 正在等待 27/27 后执行 postflight 与回传。`rtx5080_27` 仍不存在。
 
+task042 于 2026-07-26 23:32:54 新加坡时间完成并通过 runner 验收。all 与 unaffected masked MAE 均为 `10.780716896057129`，affected 为 `null`，best val masked MAE 为 `10.51922192820698`，有效点数为 `103270922`，参数量为 `1536372`。5080 队列由此达到 27/27，runner 层达到 45/45。
+
+5080 finalizer 首次执行结果服务器目录树复验时，PowerShell 传给 Windows native ssh 的嵌套双引号被剥离，导致远端 AWK 表达式损坏。该故障只影响收尾复验，不影响训练结果、source-host postflight 或已上传文件。提交 `c48f232` 将 AWK 改为无嵌套引号的等价实现。本地全仓回归为 250 passed 和 1 个既有 warning，PowerShell 5.1 AST、Windows native argv 与真实 incoming 文件树复验均通过。finalizer 复用已上传的 152 个文件，没有重训、重传或改写任务结果。`rtx5080_27` 于 2026-07-27 11:19:49 新加坡时间完成正式原子提升，包含 27 个任务目录和 4,822,525,731 字节源数据。transfer marker SHA-256 为 `ddf097ddd206efbd0d487e21e608c688945c7dc2dadd3f307d739e1508221c06`。
+
+首次 composite 复验暴露了结果服务器内存峰值风险。旧 validator 会在完整 prediction 与 actual 之外再创建两份全尺寸 float32 error 数组。提交 `5f3113b` 改为在 float64 audit 完成后原位复用 prediction 缓冲，并在首次 producer 指标校验前释放 actual。提交 `93038ec` 进一步跳过 full-window 中未使用的事件分组归约，同时完整保留 `all` 指标、有限性、valid_count、float64 audit 与 float32 producer 契约。500 组随机 float32、mask 与无效 target NaN 差分均保持逐元素及 masked mean 完全一致，artifact SHA-256、summary、训练 checkout 与任务 `config_hash` 均不变。本地全仓为 252 passed 和 1 个既有 warning，独立复审未发现 P0 或 P1。
+
 ## v2 冻结记录
 
 2026-07-19 曾从提交 `bf3045ac` 构建 v2 三地区缓存。事件样本 train、val、test 数分别为 Alameda 43973、9450、9366，ContraCosta 19159、4026、4040，Orange 75395、15727、14368。full-window 三地区曾记录为 73561、10501、21013，远端曾有 28 项测试通过。45 项队列于 00:39 启动，启动判活时 GPU 利用率为 91%，显存使用约 6.0 GiB。
@@ -95,11 +101,9 @@ task041 于 2026-07-26 13:40 新加坡时间完成 30 个 epoch 和测试推理�
 
 ## 下一步顺序
 
-1. 继续监控并完成 task042，保持与 tasks040-041 同机比较。
-2. 5080 分片完成 source-host postflight 与严格 allowlist 后，上传 `rtx5080_27` 并执行结果服务器逐文件 SHA-256 复验。
-3. 在结果服务器上生成只读 composite index，验证两分片互斥、并集为 canonical 45，且不改写任何 summary。
-4. 完整矩阵完成后按同机直接比较组执行配对比较、显著性检验和跨种子统计。
-5. 只根据完整的 v3 落盘结果决定论文主张，再评估是否恢复 baseline zoo。
+1. 在结果服务器生成并验证只读 composite index，确认两个分片互斥、并集为 canonical 45，且不改写任何 summary。
+2. composite 验证通过后，按同机直接比较组执行配对比较、显著性检验和跨种子统计。
+3. 只根据完整的 v3 落盘结果决定论文主张，再评估是否恢复 baseline zoo。
 
 ## 最小判别矩阵
 
@@ -113,7 +117,7 @@ task041 于 2026-07-26 13:40 新加坡时间完成 30 个 epoch 和测试推理�
 - 所有汇报数字必须来自已落盘文件，严禁估算填充。
 - XTraffic 旧缓存与旧 summary 只读冻结。
 - v2 缓存和最先完成的 4 个 v2 远程结果同样只读冻结，并标记为 `contaminated preliminary`。
-- 当前双机分层矩阵未完成，任何已验收单项都不得提前写成完整多种子或论文结论。
+- 当前双机分层矩阵的 runner 与正式分片层已经完成，composite 与统计分析尚未完成。任何已验收单项都不得提前写成完整多种子或论文结论。
 - 不得把 Windows 5080 与 Linux 5090 的 `config_hash`、绝对路径和运行时 provenance 混成同机结果。
 - 新结果必须记录协议、split、normalizer 与 climatology 拟合范围、缓存哈希、Git SHA、dirty 状态和 schema version。
 - 等参数比较优先，多种子约定为 42、1、2。
