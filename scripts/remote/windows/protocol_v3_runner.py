@@ -1092,10 +1092,12 @@ def _validate_prediction_artifact(
             "prediction artifact contains no valid observations"
         )
 
-    affected_3d = np.broadcast_to(
-        affected[:, None, :],
-        (sample_count, horizon, num_nodes),
-    )
+    affected_3d: np.ndarray | None = None
+    if task.sampling_protocol == "event":
+        affected_3d = np.broadcast_to(
+            affected[:, None, :],
+            (sample_count, horizon, num_nodes),
+        )
     error_sums = {"all": 0.0, "affected": 0.0, "unaffected": 0.0}
     counts = {"all": 0, "affected": 0, "unaffected": 0}
     chunk_size = 64
@@ -1118,18 +1120,19 @@ def _validate_prediction_artifact(
         )
         error_sums["all"] += float(chunk_error.sum())
         counts["all"] += int(chunk_error.size)
-        chunk_affected = affected_3d[start:stop]
-        for name, group in (
-            ("affected", chunk_affected),
-            ("unaffected", ~chunk_affected),
-        ):
-            selected = chunk_valid & group
-            group_error = np.abs(
-                chunk_prediction[selected].astype(np.float64)
-                - chunk_actual[selected].astype(np.float64)
-            )
-            error_sums[name] += float(group_error.sum())
-            counts[name] += int(group_error.size)
+        if affected_3d is not None:
+            chunk_affected = affected_3d[start:stop]
+            for name, group in (
+                ("affected", chunk_affected),
+                ("unaffected", ~chunk_affected),
+            ):
+                selected = chunk_valid & group
+                group_error = np.abs(
+                    chunk_prediction[selected].astype(np.float64)
+                    - chunk_actual[selected].astype(np.float64)
+                )
+                error_sums[name] += float(group_error.sum())
+                counts[name] += int(group_error.size)
 
     allow_producer_fallback = (
         task.kind in FLOAT32_PRODUCER_METRIC_KINDS
@@ -1165,6 +1168,7 @@ def _validate_prediction_artifact(
 
     require_group_metric("all", valid)
     if task.sampling_protocol == "event":
+        assert affected_3d is not None
         for name in ("affected", "unaffected"):
             if name not in required_metrics:
                 continue

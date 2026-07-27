@@ -47,7 +47,11 @@ def mini_manifest(
     *,
     kind: str = "staeformer_deseason",
     model: str = "staeformer_deseason",
+    sampling_protocol: str = "event",
 ):
+    task_id = (
+        f"001_{sampling_protocol}_{model}_s0a_alameda_seed42"
+    )
     payload = {
         "manifest_version": 1,
         "protocol_version": "protocol_v3_noleak_dedup",
@@ -58,14 +62,14 @@ def mini_manifest(
         "training": {"epochs": 30, "patience": 6, "device": "cuda:0"},
         "tasks": [
             {
-                "task_id": "001_event_staeformer_s0a_alameda_seed42",
+                "task_id": task_id,
                 "kind": kind,
                 "region": "Alameda",
                 "model": model,
                 "variant": "s0a",
                 "seed": 42,
-                "sampling_protocol": "event",
-                "output_dir": "tasks/001_event_staeformer_s0a_alameda_seed42",
+                "sampling_protocol": sampling_protocol,
+                "output_dir": f"tasks/{task_id}",
             }
         ],
     }
@@ -167,7 +171,11 @@ def inputs(tmp_path: Path) -> ProtocolV3Inputs:
     )
 
 
-def dummy_builder(mode: str = "success"):
+def dummy_builder(
+    mode: str = "success",
+    *,
+    required_metrics=("all", "affected", "unaffected"),
+):
     def build(task, manifest, run_inputs, attempt_dir):
         result_relpath = Path("work") / "result"
         result_dir = attempt_dir / result_relpath
@@ -186,7 +194,7 @@ def dummy_builder(mode: str = "success"):
             command=command,
             result_relpath=result_relpath,
             required_artifacts=artifacts,
-            required_metrics=("all", "affected", "unaffected"),
+            required_metrics=required_metrics,
             config={"trainer": "dummy"},
         )
 
@@ -408,6 +416,38 @@ def test_low_precision_producer_metric_is_validated_through_runner(
     assert calls == 2
     assert release_checks
     assert all(release_checks)
+
+
+def test_full_window_validation_skips_event_group_reductions(
+    tmp_path,
+    monkeypatch,
+):
+    manifest = mini_manifest(
+        tmp_path,
+        kind="graphwavenet",
+        model="graphwavenet",
+        sampling_protocol="full_window",
+    )
+    run_inputs = inputs(tmp_path)
+
+    def reject_broadcast(*args, **kwargs):
+        raise AssertionError("full-window validation built event groups")
+
+    monkeypatch.setattr(runner_module.np, "broadcast_to", reject_broadcast)
+
+    rc = run_queue(
+        manifest,
+        run_inputs,
+        repo_root=REPO_ROOT,
+        command_builder=dummy_builder(
+            "low_precision_metric",
+            required_metrics=("all",),
+        ),
+        verify_git=False,
+        stdout=io.StringIO(),
+    )
+
+    assert rc == 0
 
 
 def test_success_runs_in_staging_promotes_and_writes_completed_status(tmp_path):
