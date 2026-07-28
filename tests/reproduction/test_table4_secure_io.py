@@ -30,6 +30,52 @@ def test_windows_compatibility_boundary_reads_a_regular_file_without_nofollow(
     )
 
 
+def test_windows_boundary_tolerates_path_and_handle_ctime_precision_difference(
+    tmp_path,
+    monkeypatch,
+):
+    source = tmp_path / "payload.bin"
+    source.write_bytes(b"verified payload")
+    real_lstat = secure_io.os.lstat
+
+    def path_stat_with_different_ctime(path):
+        value = real_lstat(path)
+        attributes = {
+            name: getattr(value, name)
+            for name in (
+                "st_dev",
+                "st_ino",
+                "st_mode",
+                "st_nlink",
+                "st_uid",
+                "st_gid",
+                "st_size",
+                "st_mtime_ns",
+                "st_ctime_ns",
+            )
+        }
+        attributes["st_ctime_ns"] += 1
+        attributes["st_file_attributes"] = getattr(
+            value,
+            "st_file_attributes",
+            0,
+        )
+        return SimpleNamespace(**attributes)
+
+    monkeypatch.delattr(secure_io.os, "O_NOFOLLOW", raising=False)
+    monkeypatch.setattr(secure_io.os, "lstat", path_stat_with_different_ctime)
+
+    assert (
+        secure_io.read_verified_regular_file(
+            source,
+            purpose="test payload",
+            max_bytes=1024,
+            require_nonempty=True,
+        )
+        == b"verified payload"
+    )
+
+
 def test_windows_compatibility_boundary_sets_binary_and_noninherit_flags(
     tmp_path,
     monkeypatch,

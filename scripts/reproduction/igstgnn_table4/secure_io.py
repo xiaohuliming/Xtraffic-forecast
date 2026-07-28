@@ -10,7 +10,7 @@ from typing import BinaryIO
 
 
 POSIX_SECURE_IO_BOUNDARY = "posix_o_nofollow_single_fd_v1"
-WINDOWS_COMPATIBILITY_BOUNDARY = "windows_lstat_open_fstat_lstat_no_reparse_v1"
+WINDOWS_COMPATIBILITY_BOUNDARY = "windows_lstat_open_fstat_lstat_no_reparse_v2"
 
 
 @dataclass(frozen=True)
@@ -31,6 +31,23 @@ def _identity(value: os.stat_result) -> tuple[int, ...]:
         value.st_size,
         value.st_mtime_ns,
         value.st_ctime_ns,
+        getattr(value, "st_file_attributes", 0),
+    )
+
+
+def _windows_cross_interface_identity(
+    value: os.stat_result,
+) -> tuple[int, ...]:
+    # Native Windows lstat and fstat can expose the same NTFS change time
+    # with different precision. All stable file identity, content, link, and
+    # reparse fields remain comparable across the path and descriptor APIs.
+    return (
+        value.st_dev,
+        value.st_ino,
+        value.st_mode,
+        value.st_nlink,
+        value.st_size,
+        value.st_mtime_ns,
         getattr(value, "st_file_attributes", 0),
     )
 
@@ -123,11 +140,11 @@ def open_verified_regular_file(
                 require_nonempty=require_nonempty,
                 max_bytes=max_bytes,
             )
-            if not (
-                _identity(path_before)
-                == _identity(handle_before)
-                == _identity(path_after_open)
-            ):
+            if _identity(path_before) != _identity(
+                path_after_open
+            ) or _windows_cross_interface_identity(
+                path_before
+            ) != _windows_cross_interface_identity(handle_before):
                 raise RuntimeError(
                     f"{purpose} changed across the Windows compatibility "
                     f"boundary: {source}"
@@ -152,7 +169,11 @@ def open_verified_regular_file(
                         require_nonempty=require_nonempty,
                         max_bytes=max_bytes,
                     )
-                    if _identity(path_after_read) != _identity(handle_before):
+                    if _identity(path_after_read) != _identity(
+                        path_before
+                    ) or _windows_cross_interface_identity(
+                        path_after_read
+                    ) != _windows_cross_interface_identity(handle_before):
                         raise RuntimeError(
                             f"{purpose} path changed while being read "
                             "through the Windows compatibility boundary: "

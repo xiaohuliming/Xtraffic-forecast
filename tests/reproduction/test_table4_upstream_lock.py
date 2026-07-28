@@ -90,5 +90,5 @@ def test_pristine_verifier_uses_the_windows_directory_boundary_without_getuid(
 
     assert verification["status"] == "pristine_upstream_verified"
     assert verification["secure_io_boundary"]["active_boundary"] == (
-        "windows_lstat_open_fstat_lstat_no_reparse_v1"
+        "windows_lstat_open_fstat_lstat_no_reparse_v2"
     )

@@ -86,7 +86,7 @@ def test_write_and_validate_completed_task_artifacts(tmp_path):
     provenance = json.loads((target / "provenance.json").read_text(encoding="utf-8"))
     assert (
         provenance["secure_io_boundary"]["windows_compatibility_boundary"]
-        == "windows_lstat_open_fstat_lstat_no_reparse_v1"
+        == "windows_lstat_open_fstat_lstat_no_reparse_v2"
     )
 
     with np.load(target / "predictions.npz", allow_pickle=False) as archive:
@@ -153,7 +153,7 @@ def test_result_chain_uses_the_windows_compatibility_boundary(
 
     assert report["status"] == "completed_task_artifacts_verified"
     assert provenance["secure_io_boundary"]["active_boundary"] == (
-        "windows_lstat_open_fstat_lstat_no_reparse_v1"
+        "windows_lstat_open_fstat_lstat_no_reparse_v2"
     )
 
 
