@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 import torch
 
+from scripts.reproduction.igstgnn_table4 import secure_io
 from scripts.reproduction.igstgnn_table4 import task_runner as runner_module
 from scripts.reproduction.igstgnn_table4.manifest import (
     build_table4_manifest,
@@ -569,6 +570,9 @@ def test_hl_runner_chain_publishes_checkpoint_predictions_log_and_provenance(
         "consumed_samples": 2,
         "dropped_tail_samples": 0,
     }
+    windows_runtime = secure_io.secure_io_provenance()["active_boundary"].startswith(
+        "windows_"
+    )
     assert provenance["compatibility_patches"] == {
         "declared": [
             "incident_object_split_adapter_v1",
@@ -585,10 +589,12 @@ def test_hl_runner_chain_publishes_checkpoint_predictions_log_and_provenance(
         "applied_by_result_pipeline": [
             "isolated_artifact_paths_v1",
         ],
-        "applied_by_runtime_io": [],
-        "not_applicable": [
-            "windows_secure_io_compatibility_v1",
-        ],
+        "applied_by_runtime_io": (
+            ["windows_secure_io_compatibility_v1"] if windows_runtime else []
+        ),
+        "not_applicable": (
+            [] if windows_runtime else ["windows_secure_io_compatibility_v1"]
+        ),
         "unresolved": [],
     }
     assert len(provenance["training_code_sha256"]) == 64
