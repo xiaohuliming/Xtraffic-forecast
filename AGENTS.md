@@ -38,7 +38,9 @@ task042 于 2026-07-26 23:32:54 新加坡时间完成并通过 runner 验收。a
 
 只读 composite index 已于 2026-07-27 18:28:27 新加坡时间验证成功。index 的 `status` 为 `verified`，矩阵有效性状态为 `verified_host_stratified_45`，`execution_layout` 为 `dual_host_stratified`，index SHA-256 为 `8cf92dc2e931e3e9c3ca18cafb81a794fe68fbd0556dec3401b8650f827899fe`。index 由控制提交 `93038ec` 生成，共含 45 个任务和 2 个分片。5080 分片为 27 项，5090 分片为 18 项，canonical tasks001-045 各出现一次。首次使用 `c48f232` 的无输出尝试已作为 incident 保留，incident SHA-256 为 `166923ef9a63b80ecbc065f6e455eb393341e526ef6411c8c5ccd16ebfa2c70a`。最终服务退出码为 0，内存峰值为 2.1G，swap 峰值为 15.1M。整个 composite 过程没有改写 summary 或 artifact。
 
-composite 完成只证明正式双机分层矩阵的身份与完整性，不恢复论文结论。下一步执行同机配对、多种子统计与显著性检验，再据落盘结果决定论文主张。
+composite 完成只证明正式双机分层矩阵的身份与完整性，不恢复论文结论。同机配对、多种子统计与窗口级显著性检验已于 2026-07-27 完成，输入为按 composite index 逐份复验的 45 份 summary 与 45 份 test_predictions.npz，分析脚本为 `scripts/protocol_v3_matrix_analysis.py`、`scripts/remote/distributed/protocol_v3_window_pairs.py` 与 `scripts/protocol_v3_window_pairs_report.py`，产物在 `outputs/protocol_v3_noleak_dedup/analysis/`。窗口级结论：s0c 显著优于 s0a（三区域三种子全部 p<0.01），s0g 小幅优于 s0f（多数显著、幅度小），ICSF 注入效应接近零（Alameda 不显著，ContraCosta 与 Orange 窗口级显著但幅度约 0.02-0.03），full_window 排序为 staeformer < fdn < gwn（全部显著）。论文主张是否恢复仍由用户据落盘结果决定。
+
+IGSTGNN Table 4 复现使用独立协议 `igstgnn_table4_official_v1` 与矩阵 `igstgnn_table4_public_repro_39_v2`，不得与 v3 无泄露矩阵混合。正式 39 项清单 SHA-256 为 `d0c7fb88e24c6026d670a4a6d571357eb5320393417a83d344adb05151023a78`，claim scope 为 `public_material_maximum_fidelity_reproduction`，validity label 为 `official_protocol_with_known_overlap`。5080 上的本轮 Table 4 训练部署基于提交 `5aadfff`，Mac 为 179 项通过与 1 个既有 warning，5080 Windows 训练相关门为 127 项通过与 2 项平台跳过。Alameda HL 与 LSTM 已正式完成并通过五文件验收。HL 的 H3、H6、H12 与 Average MAE 为 15.916486、19.056049、25.661367、19.649600，LSTM 为 12.825795、14.208229、17.033611、14.355326。LSTM prediction SHA-256 为 `8f70ed5a8264c007e2baf5453bf18d0d621ad0502ad29e39ea34f83315b0e769`。task003 Alameda DCRNN 已于 2026-07-28 22:19:57 新加坡时间启动，runner、trainer 与 GPU 均正常。下一步完成 DCRNN 与 IGSTGNN pilot，再续跑同一清单的完整 39 项。
 
 项目方法层级为 `RADS ⊂ RADS-O ⊂ NDR-Net`。完整研究史和数字出处见主报告，当前有效性见审计文件。
 

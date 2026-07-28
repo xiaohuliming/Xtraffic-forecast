@@ -225,7 +225,19 @@ Orange 的 s0a 对 s0c 三种子完成，配对差负 0.114 与负 0.132 与负 
 7. 结果服务器已保存状态为 `verified` 的 `rtx5090_18` 与 `rtx5080_27`。
 8. finalizer 引号处理修复提交为 `c48f232`，composite 内存修复提交为 `5f3113b` 与 `93038ec`，本地全仓为 252 项通过与 1 条既有警告。
 9. 只读 composite index 已生成并验证。index 的 `status` 为 `verified`，矩阵有效性状态为 `verified_host_stratified_45`，索引 SHA-256 为 `8cf92dc2e931e3e9c3ca18cafb81a794fe68fbd0556dec3401b8650f827899fe`。
-10. 下一步执行同机配对、多种子与显著性分析，再决定 baseline zoo 与论文写作是否恢复。
+10. 同机配对、多种子与显著性分析已于 2026-07-27 完成，产物见 `outputs/protocol_v3_noleak_dedup/analysis/`。下一步由用户据落盘结果决定 baseline zoo 与论文写作是否恢复。
+
+### 最新进展，2026-07-28，IGSTGNN Table 4 全基线复现启动
+
+项目新增一条与 v3 无泄露研究矩阵严格隔离的论文复现线，协议为 `igstgnn_table4_official_v1`。目标是按公开材料最大忠实复现 IGSTGNN Table 4 的 Alameda、Contra Costa、Orange 三地区与 13 个方法，共 39 项。该线使用作者 Kaggle 发布数据和官方顺序 70%、15%、15% 切分，不使用项目 v3 缓存。官方发布协议中存在已知重复预测时刻和跨 split 重合，因此有效性标签为 `official_protocol_with_known_overlap`，结果不得被表述为无泄露。
+
+LargeST、BiST 与 IGSTGNN 的上游提交分别锁定为 `b7c6ff5f7f0c10051ed10a319b2cfe58021312f9`、`dd94adf7721fcbb9e3feb5d1b44040305199a4cc`、`64c6e243466f791f1b75e50421d63e39577ec9fa`。正式 v2 矩阵清单 SHA-256 为 `d0c7fb88e24c6026d670a4a6d571357eb5320393417a83d344adb05151023a78`。BiST 的三地区随机 seed 已分别冻结为 676615、683452、150462。正式数据、三个 pristine checkout 和提交 `5aadfff` 的精确归档已部署到 5080 的短路径 `D:\t4`。Mac 复现测试为 179 项通过与 1 条既有 warning，5080 Windows 训练相关测试为 127 项通过、2 项平台跳过。
+
+Alameda HL 已完成并通过 checkpoint、prediction、provenance、summary 与 train log 五文件验收。测试集按 LargeST 源码消费 2,176 条，丢弃不足一个 batch 的尾部 28 条。H3 的 MAE、RMSE、MAPE 为 15.916486、26.710745、18.755560。H6 为 19.056049、31.813951、21.526349。H12 为 25.661367、42.373371、28.095365。Average 为 19.649600、32.688443、22.271724。prediction artifact SHA-256 为 `63482403b21e74577e2c74cd3de198bdfafa8c90e8692843a506adcf2614e6b0`。
+
+Alameda LSTM 已于 2026-07-28 22:02:36 新加坡时间完成，随后通过 runner 复验与独立二次复验。测试集按 LargeST 源码消费 2,176 条。H3 的 MAE、RMSE、MAPE 为 12.825795、22.250841、17.630659。H6 为 14.208229、24.909077、17.839295。H12 为 17.033611、29.907513、20.389889。Average 为 14.355326、25.072953、18.407032。prediction artifact SHA-256 为 `8f70ed5a8264c007e2baf5453bf18d0d621ad0502ad29e39ea34f83315b0e769`。
+
+task003 Alameda DCRNN 已于 22:19:57 新加坡时间启动。启动后正式暂存目录、trainer 与 GPU 均正常，显存使用 11,827 MiB，利用率 78%，温度 54 摄氏度。pilot 顺序为 HL、LSTM、DCRNN、IGSTGNN。四项全部验收后，使用同一不可变清单启动完整 39 项单卡顺序队列，已验收 pilot 只在重新复验通过后跳过。最终交付包括同结构 Table 4、论文值差异表、逐数字追溯索引和公开材料缺口清单。
 
 ---
 
@@ -667,7 +679,7 @@ Orange 区域曾于 2026-06-23 在审计前旧管线的云 5090 上补齐，all 
 
 2026-07-06 时项目曾判断全部实验证据关账。2026-07-18 数据有效性审计推翻了这一状态判断。2026-07-19 对 v2 的后续全面复核又确认，仅修复最初泄露点仍不足以保证样本唯一性、验证选择和全链路结果身份正确。v2 队列已经停止，四个 v2 preliminary summary 继续标记为 contaminated。v3 正式缓存已完成本地两次、5080 一次与 5090 一次严格审计，结果均为 verified。
 
-runner 层现已完成或重新验收 45/45。5090 新分片为 18/18，5080 新分片为 27/27。两者分别以 `rtx5090_18` 与 `rtx5080_27` 回传到结果服务器，marker 状态均为 `verified`。5080 finalizer 的引号传递故障只影响收尾复验，提交 `c48f232` 修复后复用了全部 152 个已上传文件，没有重训、重传或改写任务结果。两个结果根保持独立，只读 composite index 已于 2026-07-27 18:28:27 新加坡时间完成验证。索引确认两分片互斥、并集为 canonical 45。index 的 `status` 为 `verified`，矩阵有效性状态为 `verified_host_stratified_45`，索引 SHA-256 为 `8cf92dc2e931e3e9c3ca18cafb81a794fe68fbd0556dec3401b8650f827899fe`。论文统计分析仍然暂停，因为同机配对、多种子和显著性分析尚未完成。最先落盘的六项 seed42 指标仍只能用于方向性观察。审计前最低历史数字 Alameda NDR-Net 11.052 仍不得作为当前有效结果。
+runner 层现已完成或重新验收 45/45。5090 新分片为 18/18，5080 新分片为 27/27。两者分别以 `rtx5090_18` 与 `rtx5080_27` 回传到结果服务器，marker 状态均为 `verified`。5080 finalizer 的引号传递故障只影响收尾复验，提交 `c48f232` 修复后复用了全部 152 个已上传文件，没有重训、重传或改写任务结果。两个结果根保持独立，只读 composite index 已于 2026-07-27 18:28:27 新加坡时间完成验证。索引确认两分片互斥、并集为 canonical 45。index 的 `status` 为 `verified`，矩阵有效性状态为 `verified_host_stratified_45`，索引 SHA-256 为 `8cf92dc2e931e3e9c3ca18cafb81a794fe68fbd0556dec3401b8650f827899fe`。论文统计分析已于 2026-07-27 完成：同机配对、多种子统计与窗口级显著性检验的输入全部按 composite index 逐份复验，产物见 `outputs/protocol_v3_noleak_dedup/analysis/`。窗口级结论为：s0c 显著优于 s0a（三区域三种子全部 p<0.01），s0g 小幅优于 s0f，ICSF 注入效应接近零（Alameda 不显著，ContraCosta 与 Orange 窗口级显著但幅度约 0.02-0.03），full_window 排序 staeformer < fdn < gwn（全部显著）。这些仍是描述性统计，是否恢复论文主张由用户决定。最先落盘的六项 seed42 指标仍只能用于方向性观察。审计前最低历史数字 Alameda NDR-Net 11.052 仍不得作为当前有效结果。
 
 已经完成的代码与管理事项如下。
 

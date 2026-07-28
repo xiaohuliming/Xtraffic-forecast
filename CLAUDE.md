@@ -1,6 +1,6 @@
 # XTraffic 项目导航与协作约定
 
-最近更新：2026-07-27
+最近更新：2026-07-28
 
 ## 新会话先读
 
@@ -95,6 +95,14 @@ task042 于 2026-07-26 23:32:54 新加坡时间完成并通过 runner 验收。a
 
 只读 composite index 已于 2026-07-27 18:28:27 新加坡时间验证成功。index 的 `status` 为 `verified`，矩阵有效性状态为 `verified_host_stratified_45`，`execution_layout` 为 `dual_host_stratified`，index SHA-256 为 `8cf92dc2e931e3e9c3ca18cafb81a794fe68fbd0556dec3401b8650f827899fe`。控制提交为 `93038ec`。index 共含 45 个任务和 2 个分片，5080 分片为 27 项，5090 分片为 18 项，canonical tasks001-045 各出现一次。首次使用 `c48f232` 的无输出尝试已作为 incident 保留，incident SHA-256 为 `166923ef9a63b80ecbc065f6e455eb393341e526ef6411c8c5ccd16ebfa2c70a`。最终服务退出码为 0，内存峰值为 2.1G，swap 峰值为 15.1M。复验只读取正式分片，没有改写任何 summary 或 artifact。
 
+## IGSTGNN Table 4 复现状态
+
+2026-07-28 启动独立的 `igstgnn_table4_official_v1` 复现线，目标是按公开材料最大忠实复现论文 Table 4 的 13 个方法乘 3 个地区，共 39 项。该复现使用作者发布的 Kaggle 数据与官方 70%、15%、15% 顺序切分，不使用 `protocol_v3_noleak_dedup` 缓存。官方协议保留已知重复与跨 split 重合，因此有效性标签固定为 `official_protocol_with_known_overlap`，不得写成无泄露结果。
+
+正式 v2 矩阵清单位于 `config/reproduction/igstgnn_table4/matrix.public_material_v2.json`，SHA-256 为 `d0c7fb88e24c6026d670a4a6d571357eb5320393417a83d344adb05151023a78`。LargeST、BiST、IGSTGNN 上游提交分别锁定为 `b7c6ff5f7f0c10051ed10a319b2cfe58021312f9`、`dd94adf7721fcbb9e3feb5d1b44040305199a4cc`、`64c6e243466f791f1b75e50421d63e39577ec9fa`。BiST 三地区实际随机 seed 已分别冻结为 676615、683452、150462。5080 上的本轮 Table 4 训练部署基于提交 `5aadfff`。Mac 复现测试为 179 项通过与 1 个既有 warning，5080 的 Windows 训练相关测试为 127 项通过、2 项平台跳过、1 项仅用于模拟不可在原生 Windows 执行的竞态测试被排除。
+
+正式数据与三个 pristine checkout 已部署到 5080 的 `D:\t4`。Alameda HL 与 LSTM 已完成并通过五文件复验，测试均按 LargeST 源码实际消费 2,176 条，丢弃不足一个 batch 的 28 条尾部样本。HL 的 H3、H6、H12 与 Average MAE 分别为 15.916486、19.056049、25.661367、19.649600，prediction SHA-256 为 `63482403b21e74577e2c74cd3de198bdfafa8c90e8692843a506adcf2614e6b0`。LSTM 的对应 MAE 为 12.825795、14.208229、17.033611、14.355326，prediction SHA-256 为 `8f70ed5a8264c007e2baf5453bf18d0d621ad0502ad29e39ea34f83315b0e769`。task003 Alameda DCRNN 已于 22:19:57 新加坡时间启动，正式结果根为 `D:\t4\results\igstgnn_table4_public_repro_39_v2`。
+
 ## v2 冻结记录
 
 2026-07-19 曾从提交 `bf3045ac` 构建 v2 三地区缓存。事件样本 train、val、test 数分别为 Alameda 43973、9450、9366，ContraCosta 19159、4026、4040，Orange 75395、15727、14368。full-window 三地区曾记录为 73561、10501、21013，远端曾有 28 项测试通过。45 项队列于 00:39 启动，启动判活时 GPU 利用率为 91%，显存使用约 6.0 GiB。
@@ -103,8 +111,10 @@ task042 于 2026-07-26 23:32:54 新加坡时间完成并通过 runner 验收。a
 
 ## 下一步顺序
 
-1. 按同机直接比较组执行配对比较、显著性检验和跨种子统计。
-2. 只根据完整的 v3 落盘结果决定论文主张，再评估是否恢复 baseline zoo。
+1. 完成 Alameda 的 DCRNN 与 IGSTGNN 正式 pilot，每项都必须通过五文件复验。
+2. pilot 通过后从同一不可变清单启动完整 39 项单卡顺序队列，已有正式 pilot 仅在重新验收通过后跳过。
+3. 生成与论文同结构的 Table 4、逐单元差值表和数字追溯索引。
+4. 只根据完整的 v3 落盘结果决定原项目论文主张。Table 4 复现结果与 v3 无泄露结论必须分开解释。
 
 ## 最小判别矩阵
 
@@ -118,7 +128,8 @@ task042 于 2026-07-26 23:32:54 新加坡时间完成并通过 runner 验收。a
 - 所有汇报数字必须来自已落盘文件，严禁估算填充。
 - XTraffic 旧缓存与旧 summary 只读冻结。
 - v2 缓存和最先完成的 4 个 v2 远程结果同样只读冻结，并标记为 `contaminated preliminary`。
-- 当前双机分层矩阵的 runner、正式分片与 composite 已完成，统计分析尚未完成。composite 完成不恢复论文结论，任何已验收单项都不得提前写成完整多种子或论文结论。
+- 当前双机分层矩阵的 runner、正式分片、composite 与统计分析均已完成。composite 完成不自动恢复论文结论，是否恢复由用户根据落盘分析决定。
+- IGSTGNN Table 4 复现只能称为按公开材料最大忠实复现。缺少作者未公开的 baseline XTraffic adapter、逐地区配置、checkpoint 与运行日志时，不得声称逐命令完全复现。
 - 不得把 Windows 5080 与 Linux 5090 的 `config_hash`、绝对路径和运行时 provenance 混成同机结果。
 - 新结果必须记录协议、split、normalizer 与 climatology 拟合范围、缓存哈希、Git SHA、dirty 状态和 schema version。
 - 等参数比较优先，多种子约定为 42、1、2。
