@@ -1,0 +1,901 @@
+{
+  "schema_version": 1,
+  "protocol_id": "igstgnn_table4_official_v1",
+  "profile_set_id": "igstgnn_table4_public_material_profiles_v2",
+  "shared": {
+    "split": {
+      "train": 0.7,
+      "val": 0.15,
+      "test": 0.15,
+      "ordered": true,
+      "shuffled_before_split": false,
+      "deduplicated": false,
+      "renormalized": false
+    },
+    "sequence": {
+      "interval_minutes": 5,
+      "input_steps": 12,
+      "output_steps": 12
+    },
+    "stored_features": [
+      "flow",
+      "time_of_day",
+      "day_of_week"
+    ],
+    "target_channel": 0,
+    "evaluation": {
+      "metric_semantics": "upstream_masked_metrics",
+      "mape_scale": 100.0,
+      "reported_horizons": [
+        3,
+        6,
+        12
+      ],
+      "average": "arithmetic_mean_of_12_per_horizon_metrics"
+    },
+    "seed_policy": {
+      "largest": 2023,
+      "bist": "upstream_runtime_random_draw",
+      "igstgnn": 2025,
+      "authority": "upstream_default"
+    },
+    "cuda_deterministic": false
+  },
+  "profiles": {
+    "hl": {
+      "profile_id": "hl_public_material_v2",
+      "source_id": "largest_b7c6ff5",
+      "effective": {
+        "seed": 2023,
+        "batch_size_by_region": {
+          "Alameda": 64,
+          "Contra_Costa": 64,
+          "Orange": 64
+        },
+        "loader_contract": {
+          "training_shuffle": "global_numpy_permutation",
+          "partial_batch": "drop"
+        },
+        "trainable": false,
+        "input_contract": {
+          "input_dim": 1,
+          "target_dim": 1
+        },
+        "model": {
+          "rule": "repeat_last_observed_flow_for_12_horizons"
+        },
+        "adjacency": {
+          "mode": "unused"
+        }
+      },
+      "authority": {
+        "seed": "upstream_default",
+        "batch_size_by_region": "upstream_default",
+        "loader_contract": "upstream_default",
+        "trainable": "upstream_default",
+        "input_contract": "upstream_default",
+        "model": "upstream_default",
+        "adjacency": "upstream_default"
+      },
+      "public_material_gaps": [
+        "table4_hl_adapter_and_exact_evaluation_batch_not_published"
+      ],
+      "compatibility_patches": [
+        "incident_object_split_adapter_v1",
+        "verified_split_loader_source_semantics_v2",
+        "isolated_artifact_paths_v1",
+        "windows_secure_io_compatibility_v1"
+      ]
+    },
+    "lstm": {
+      "profile_id": "lstm_public_material_v2",
+      "source_id": "largest_b7c6ff5",
+      "effective": {
+        "seed": 2023,
+        "batch_size_by_region": {
+          "Alameda": 64,
+          "Contra_Costa": 64,
+          "Orange": 64
+        },
+        "loader_contract": {
+          "training_shuffle": "global_numpy_permutation",
+          "partial_batch": "drop"
+        },
+        "max_epochs": 100,
+        "patience": 30,
+        "optimizer": {
+          "name": "Adam",
+          "learning_rate": 0.001,
+          "weight_decay": 0.0001,
+          "gradient_clip": 5.0,
+          "scheduler": null
+        },
+        "input_contract": {
+          "input_dim": 3,
+          "target_dim": 1
+        },
+        "model": {
+          "init_dim": 32,
+          "hidden_dim": 64,
+          "end_dim": 512,
+          "layers": 2,
+          "dropout": 0.1
+        },
+        "adjacency": {
+          "mode": "unused"
+        }
+      },
+      "authority": {
+        "seed": "upstream_default",
+        "batch_size_by_region": "upstream_default",
+        "loader_contract": "upstream_default",
+        "max_epochs": "upstream_default",
+        "patience": "upstream_default",
+        "optimizer": "upstream_default",
+        "input_contract": "upstream_default",
+        "model": "upstream_default",
+        "adjacency": "upstream_default"
+      },
+      "public_material_gaps": [
+        "table4_region_specific_lstm_configuration_not_published",
+        "table4_lstm_checkpoint_and_run_log_not_published"
+      ],
+      "compatibility_patches": [
+        "incident_object_split_adapter_v1",
+        "verified_split_loader_source_semantics_v2",
+        "isolated_artifact_paths_v1",
+        "windows_secure_io_compatibility_v1"
+      ]
+    },
+    "dcrnn": {
+      "profile_id": "dcrnn_public_material_v2",
+      "source_id": "largest_b7c6ff5",
+      "effective": {
+        "seed": 2023,
+        "batch_size_by_region": {
+          "Alameda": 64,
+          "Contra_Costa": 64,
+          "Orange": 64
+        },
+        "loader_contract": {
+          "training_shuffle": "global_numpy_permutation",
+          "partial_batch": "drop"
+        },
+        "max_epochs": 100,
+        "patience": 30,
+        "optimizer": {
+          "name": "Adam",
+          "learning_rate": 0.01,
+          "weight_decay": 0.0,
+          "gradient_clip": 5.0,
+          "scheduler": {
+            "name": "MultiStepLR",
+            "milestones": [
+              10,
+              50,
+              90
+            ],
+            "gamma": 0.1
+          }
+        },
+        "input_contract": {
+          "input_dim": 3,
+          "target_dim": 1
+        },
+        "model": {
+          "filter_dim": 64,
+          "diffusion_steps": 2,
+          "rnn_layers": 2,
+          "curriculum_decay_steps": 2000
+        },
+        "adjacency": {
+          "mode": "double_transition",
+          "source": "official_region_adjacency"
+        }
+      },
+      "authority": {
+        "seed": "upstream_default",
+        "batch_size_by_region": "upstream_default",
+        "loader_contract": "upstream_default",
+        "max_epochs": "upstream_default",
+        "patience": "upstream_default",
+        "optimizer": "upstream_default",
+        "input_contract": "upstream_default",
+        "model": "upstream_default",
+        "adjacency": "upstream_default"
+      },
+      "public_material_gaps": [
+        "table4_region_specific_dcrnn_configuration_not_published",
+        "table4_dcrnn_checkpoint_and_run_log_not_published"
+      ],
+      "compatibility_patches": [
+        "incident_object_split_adapter_v1",
+        "verified_split_loader_source_semantics_v2",
+        "dcrnn_scheduler_verbose_compatibility_v1",
+        "isolated_artifact_paths_v1",
+        "windows_secure_io_compatibility_v1"
+      ]
+    },
+    "agcrn": {
+      "profile_id": "agcrn_public_material_v2",
+      "source_id": "largest_b7c6ff5",
+      "effective": {
+        "seed": 2023,
+        "batch_size_by_region": {
+          "Alameda": 64,
+          "Contra_Costa": 64,
+          "Orange": 64
+        },
+        "loader_contract": {
+          "training_shuffle": "global_numpy_permutation",
+          "partial_batch": "drop"
+        },
+        "max_epochs": 100,
+        "patience": 30,
+        "optimizer": {
+          "name": "Adam",
+          "learning_rate": 0.001,
+          "weight_decay": 0.0,
+          "gradient_clip": null,
+          "scheduler": null
+        },
+        "input_contract": {
+          "input_dim": 3,
+          "target_dim": 1
+        },
+        "model": {
+          "embedding_dim": 10,
+          "rnn_units": 64,
+          "layers": 2,
+          "chebyshev_order": 2
+        },
+        "adjacency": {
+          "mode": "adaptive_only"
+        }
+      },
+      "authority": {
+        "seed": "upstream_default",
+        "batch_size_by_region": "upstream_default",
+        "loader_contract": "upstream_default",
+        "max_epochs": "upstream_default",
+        "patience": "upstream_default",
+        "optimizer": "upstream_default",
+        "input_contract": "upstream_default",
+        "model": "upstream_default",
+        "adjacency": "upstream_default"
+      },
+      "public_material_gaps": [
+        "table4_region_specific_agcrn_configuration_not_published",
+        "table4_agcrn_checkpoint_and_run_log_not_published"
+      ],
+      "compatibility_patches": [
+        "incident_object_split_adapter_v1",
+        "verified_split_loader_source_semantics_v2",
+        "isolated_artifact_paths_v1",
+        "windows_secure_io_compatibility_v1"
+      ]
+    },
+    "stgcn": {
+      "profile_id": "stgcn_public_material_v2",
+      "source_id": "largest_b7c6ff5",
+      "effective": {
+        "seed": 2023,
+        "batch_size_by_region": {
+          "Alameda": 64,
+          "Contra_Costa": 64,
+          "Orange": 64
+        },
+        "loader_contract": {
+          "training_shuffle": "global_numpy_permutation",
+          "partial_batch": "drop"
+        },
+        "max_epochs": 100,
+        "patience": 30,
+        "optimizer": {
+          "name": "Adam",
+          "learning_rate": 0.001,
+          "weight_decay": 0.0005,
+          "gradient_clip": null,
+          "scheduler": {
+            "name": "StepLR",
+            "step_size": 10,
+            "gamma": 0.95
+          }
+        },
+        "input_contract": {
+          "input_dim": 3,
+          "target_dim": 1
+        },
+        "model": {
+          "temporal_kernel": 3,
+          "spatial_kernel": 3,
+          "blocks": 2,
+          "dropout": 0.5
+        },
+        "adjacency": {
+          "mode": "symmetric_scaled_laplacian_after_identity_removal"
+        }
+      },
+      "authority": {
+        "seed": "upstream_default",
+        "batch_size_by_region": "upstream_default",
+        "loader_contract": "upstream_default",
+        "max_epochs": "upstream_default",
+        "patience": "upstream_default",
+        "optimizer": "upstream_default",
+        "input_contract": "upstream_default",
+        "model": "upstream_default",
+        "adjacency": "upstream_default"
+      },
+      "public_material_gaps": [
+        "table4_region_specific_stgcn_configuration_not_published",
+        "table4_stgcn_checkpoint_and_run_log_not_published"
+      ],
+      "compatibility_patches": [
+        "incident_object_split_adapter_v1",
+        "verified_split_loader_source_semantics_v2",
+        "isolated_artifact_paths_v1",
+        "windows_secure_io_compatibility_v1"
+      ]
+    },
+    "gwnet": {
+      "profile_id": "gwnet_public_material_v2",
+      "source_id": "largest_b7c6ff5",
+      "effective": {
+        "seed": 2023,
+        "batch_size_by_region": {
+          "Alameda": 64,
+          "Contra_Costa": 64,
+          "Orange": 64
+        },
+        "loader_contract": {
+          "training_shuffle": "global_numpy_permutation",
+          "partial_batch": "drop"
+        },
+        "max_epochs": 100,
+        "patience": 30,
+        "optimizer": {
+          "name": "Adam",
+          "learning_rate": 0.001,
+          "weight_decay": 0.0001,
+          "gradient_clip": 5.0,
+          "scheduler": null
+        },
+        "input_contract": {
+          "input_dim": 3,
+          "target_dim": 1
+        },
+        "model": {
+          "init_dim": 32,
+          "skip_dim": 256,
+          "end_dim": 512,
+          "adaptive_adjacency": true,
+          "dropout": 0.3
+        },
+        "adjacency": {
+          "mode": "double_transition_plus_adaptive"
+        }
+      },
+      "authority": {
+        "seed": "upstream_default",
+        "batch_size_by_region": "upstream_default",
+        "loader_contract": "upstream_default",
+        "max_epochs": "upstream_default",
+        "patience": "upstream_default",
+        "optimizer": "upstream_default",
+        "input_contract": "upstream_default",
+        "model": "upstream_default",
+        "adjacency": "upstream_default"
+      },
+      "public_material_gaps": [
+        "table4_region_specific_gwnet_configuration_not_published",
+        "table4_gwnet_checkpoint_and_run_log_not_published"
+      ],
+      "compatibility_patches": [
+        "incident_object_split_adapter_v1",
+        "verified_split_loader_source_semantics_v2",
+        "isolated_artifact_paths_v1",
+        "windows_secure_io_compatibility_v1"
+      ]
+    },
+    "astgcn": {
+      "profile_id": "astgcn_public_material_v2",
+      "source_id": "largest_b7c6ff5",
+      "effective": {
+        "seed": 2023,
+        "batch_size_by_region": {
+          "Alameda": 64,
+          "Contra_Costa": 64,
+          "Orange": 64
+        },
+        "loader_contract": {
+          "training_shuffle": "global_numpy_permutation",
+          "partial_batch": "drop"
+        },
+        "max_epochs": 100,
+        "patience": 30,
+        "optimizer": {
+          "name": "Adam",
+          "learning_rate": 0.001,
+          "weight_decay": 0.0001,
+          "gradient_clip": 5.0,
+          "scheduler": {
+            "name": "CosineAnnealingLR",
+            "t_max": 100,
+            "eta_min": 1e-06
+          }
+        },
+        "input_contract": {
+          "input_dim": 3,
+          "target_dim": 1
+        },
+        "model": {
+          "chebyshev_order": 3,
+          "blocks": 2,
+          "spatial_filters": 64,
+          "temporal_filters": 64,
+          "stride": 1
+        },
+        "adjacency": {
+          "mode": "binary_scaled_laplacian_chebyshev_after_identity_removal"
+        }
+      },
+      "authority": {
+        "seed": "upstream_default",
+        "batch_size_by_region": "upstream_default",
+        "loader_contract": "upstream_default",
+        "max_epochs": "upstream_default",
+        "patience": "upstream_default",
+        "optimizer": "upstream_default",
+        "input_contract": "upstream_default",
+        "model": "upstream_default",
+        "adjacency": "upstream_default"
+      },
+      "public_material_gaps": [
+        "table4_region_specific_astgcn_configuration_not_published",
+        "table4_astgcn_checkpoint_and_run_log_not_published"
+      ],
+      "compatibility_patches": [
+        "incident_object_split_adapter_v1",
+        "verified_split_loader_source_semantics_v2",
+        "isolated_artifact_paths_v1",
+        "windows_secure_io_compatibility_v1"
+      ]
+    },
+    "sttn": {
+      "profile_id": "sttn_public_material_v2",
+      "source_id": "largest_b7c6ff5",
+      "effective": {
+        "seed": 2023,
+        "batch_size_by_region": {
+          "Alameda": 64,
+          "Contra_Costa": 64,
+          "Orange": 64
+        },
+        "loader_contract": {
+          "training_shuffle": "global_numpy_permutation",
+          "partial_batch": "drop"
+        },
+        "max_epochs": 100,
+        "patience": 30,
+        "optimizer": {
+          "name": "Adam",
+          "learning_rate": 0.001,
+          "weight_decay": 0.0001,
+          "gradient_clip": 5.0,
+          "scheduler": null
+        },
+        "input_contract": {
+          "input_dim": 3,
+          "target_dim": 1
+        },
+        "model": {
+          "blocks": 2,
+          "mlp_expansion": 2,
+          "hidden_dim": 32,
+          "end_dim": 512,
+          "dropout": 0.1
+        },
+        "adjacency": {
+          "mode": "double_transition"
+        }
+      },
+      "authority": {
+        "seed": "upstream_default",
+        "batch_size_by_region": "upstream_default",
+        "loader_contract": "upstream_default",
+        "max_epochs": "upstream_default",
+        "patience": "upstream_default",
+        "optimizer": "upstream_default",
+        "input_contract": "upstream_default",
+        "model": "upstream_default",
+        "adjacency": "upstream_default"
+      },
+      "public_material_gaps": [
+        "table4_region_specific_sttn_configuration_not_published",
+        "table4_sttn_checkpoint_and_run_log_not_published"
+      ],
+      "compatibility_patches": [
+        "incident_object_split_adapter_v1",
+        "verified_split_loader_source_semantics_v2",
+        "isolated_artifact_paths_v1",
+        "windows_secure_io_compatibility_v1"
+      ]
+    },
+    "dstagnn": {
+      "profile_id": "dstagnn_public_material_v2",
+      "source_id": "largest_b7c6ff5",
+      "effective": {
+        "seed": 2023,
+        "batch_size_by_region": {
+          "Alameda": 64,
+          "Contra_Costa": 64,
+          "Orange": 64
+        },
+        "loader_contract": {
+          "training_shuffle": "global_numpy_permutation",
+          "partial_batch": "drop"
+        },
+        "max_epochs": 100,
+        "patience": 30,
+        "optimizer": {
+          "name": "Adam",
+          "learning_rate": 0.0001,
+          "weight_decay": 0.0,
+          "gradient_clip": null,
+          "scheduler": null
+        },
+        "input_contract": {
+          "input_dim": 1,
+          "target_dim": 1
+        },
+        "model": {
+          "chebyshev_order": 2,
+          "blocks": 2,
+          "spatial_filters": 32,
+          "temporal_filters": 32,
+          "d_model": 512,
+          "d_k": 32,
+          "heads": 3
+        },
+        "adjacency": {
+          "mode": "binary_scaled_laplacian_after_identity_removal"
+        }
+      },
+      "authority": {
+        "seed": "upstream_default",
+        "batch_size_by_region": "upstream_default",
+        "loader_contract": "upstream_default",
+        "max_epochs": "upstream_default",
+        "patience": "upstream_default",
+        "optimizer": "upstream_default",
+        "input_contract": "upstream_default",
+        "model": "upstream_default",
+        "adjacency": "upstream_default"
+      },
+      "public_material_gaps": [
+        "table4_region_specific_dstagnn_configuration_not_published",
+        "table4_dstagnn_checkpoint_and_run_log_not_published"
+      ],
+      "compatibility_patches": [
+        "incident_object_split_adapter_v1",
+        "verified_split_loader_source_semantics_v2",
+        "isolated_artifact_paths_v1",
+        "windows_secure_io_compatibility_v1"
+      ]
+    },
+    "dgcrn": {
+      "profile_id": "dgcrn_public_material_v2",
+      "source_id": "largest_b7c6ff5",
+      "effective": {
+        "seed": 2023,
+        "batch_size_by_region": {
+          "Alameda": 64,
+          "Contra_Costa": 64,
+          "Orange": 64
+        },
+        "loader_contract": {
+          "training_shuffle": "global_numpy_permutation",
+          "partial_batch": "drop"
+        },
+        "max_epochs": 100,
+        "patience": 30,
+        "optimizer": {
+          "name": "Adam",
+          "learning_rate": 0.001,
+          "weight_decay": 0.0001,
+          "gradient_clip": 5.0,
+          "scheduler": null
+        },
+        "input_contract": {
+          "input_dim": 3,
+          "target_dim": 1,
+          "time_slots_per_day": 288
+        },
+        "model": {
+          "depth": 2,
+          "rnn_units": 64,
+          "hyper_dim": 16,
+          "node_dim": 40,
+          "tanh_alpha": 3.0,
+          "curriculum_step": 2500
+        },
+        "adjacency": {
+          "mode": "double_transition"
+        }
+      },
+      "authority": {
+        "seed": "upstream_default",
+        "batch_size_by_region": "upstream_default",
+        "loader_contract": "upstream_default",
+        "max_epochs": "upstream_default",
+        "patience": "upstream_default",
+        "optimizer": "upstream_default",
+        "input_contract": "public_material_inference",
+        "model": "upstream_default",
+        "adjacency": "upstream_default"
+      },
+      "public_material_gaps": [
+        "table4_region_specific_dgcrn_configuration_not_published",
+        "table4_dgcrn_time_slot_setting_not_published",
+        "table4_dgcrn_checkpoint_and_run_log_not_published"
+      ],
+      "compatibility_patches": [
+        "incident_object_split_adapter_v1",
+        "verified_split_loader_source_semantics_v2",
+        "isolated_artifact_paths_v1",
+        "windows_secure_io_compatibility_v1"
+      ]
+    },
+    "d2stgnn": {
+      "profile_id": "d2stgnn_public_material_v2",
+      "source_id": "largest_b7c6ff5",
+      "effective": {
+        "seed": 2023,
+        "batch_size_by_region": {
+          "Alameda": 64,
+          "Contra_Costa": 64,
+          "Orange": 64
+        },
+        "loader_contract": {
+          "training_shuffle": "global_numpy_permutation",
+          "partial_batch": "drop"
+        },
+        "max_epochs": 100,
+        "patience": 30,
+        "optimizer": {
+          "name": "Adam",
+          "learning_rate": 0.002,
+          "weight_decay": 1e-05,
+          "epsilon": 1e-08,
+          "gradient_clip": 5.0,
+          "scheduler": {
+            "name": "MultiStepLR",
+            "milestones": [
+              1,
+              38,
+              46,
+              54,
+              62,
+              70,
+              80
+            ],
+            "gamma": 0.5
+          }
+        },
+        "input_contract": {
+          "input_dim": 3,
+          "flow_features": 1,
+          "target_dim": 1,
+          "time_slots_per_day": 288
+        },
+        "model": {
+          "hidden_dim": 32,
+          "node_embedding_dim": 12,
+          "time_embedding_dim": 12,
+          "layers": 5,
+          "temporal_kernel": 3,
+          "spatial_kernel": 2,
+          "gap": 3,
+          "warm_epochs": 30,
+          "curriculum_interval": 3
+        },
+        "adjacency": {
+          "mode": "double_transition_dynamic_mask",
+          "predefined_graph_convolution": false
+        }
+      },
+      "authority": {
+        "seed": "upstream_default",
+        "batch_size_by_region": "upstream_default",
+        "loader_contract": "upstream_default",
+        "max_epochs": "upstream_default",
+        "patience": "upstream_default",
+        "optimizer": "upstream_default",
+        "input_contract": "public_material_inference",
+        "model": "upstream_default",
+        "adjacency": "upstream_default"
+      },
+      "public_material_gaps": [
+        "table4_region_specific_d2stgnn_configuration_not_published",
+        "table4_d2stgnn_batch_epoch_patience_and_tpd_not_published",
+        "table4_d2stgnn_checkpoint_and_run_log_not_published"
+      ],
+      "compatibility_patches": [
+        "incident_object_split_adapter_v1",
+        "verified_split_loader_source_semantics_v2",
+        "isolated_artifact_paths_v1",
+        "windows_secure_io_compatibility_v1"
+      ]
+    },
+    "bist": {
+      "profile_id": "bist_public_material_v2",
+      "source_id": "bist_dd94adf",
+      "effective": {
+        "seed": null,
+        "seed_policy": "upstream_runtime_random_draw",
+        "batch_size_by_region": {
+          "Alameda": 64,
+          "Contra_Costa": 64,
+          "Orange": 64
+        },
+        "loader_contract": {
+          "training_shuffle": "global_numpy_permutation",
+          "partial_batch": "drop"
+        },
+        "max_epochs": 500,
+        "patience": 20,
+        "optimizer": {
+          "name": "Adam",
+          "learning_rate": 0.002,
+          "weight_decay": 1e-05,
+          "epsilon": 1e-08,
+          "gradient_clip": 5.0,
+          "scheduler": {
+            "name": "MultiStepLR",
+            "milestones": [
+              30,
+              60,
+              80,
+              100
+            ],
+            "gamma": 0.5
+          }
+        },
+        "input_contract": {
+          "input_dim": 3,
+          "target_dim": 1,
+          "time_slots_per_day": 96
+        },
+        "model": {
+          "core_dim": 128,
+          "kernel_size": 3,
+          "layers": 3,
+          "model_dim": 32,
+          "prompt_dim": 32,
+          "hidden_dim": 256,
+          "residual_propagation_layers": 2,
+          "extra_type": 1,
+          "same": 0
+        },
+        "adjacency": {
+          "predefined": false,
+          "data_driven": false,
+          "adaptive": true
+        }
+      },
+      "authority": {
+        "seed": "upstream_default",
+        "seed_policy": "upstream_default",
+        "batch_size_by_region": "upstream_default",
+        "loader_contract": "upstream_default",
+        "max_epochs": "upstream_default",
+        "patience": "upstream_default",
+        "optimizer": "upstream_default",
+        "input_contract": "public_material_inference",
+        "model": "public_material_inference",
+        "adjacency": "upstream_default"
+      },
+      "public_material_gaps": [
+        "table4_region_specific_bist_configuration_not_published",
+        "bist_public_code_draws_a_runtime_seed_without_a_cli_seed_interface",
+        "bist_table4_adapter_checkpoint_and_run_log_not_published",
+        "bist_repository_has_no_license_file"
+      ],
+      "compatibility_patches": [
+        "incident_object_split_adapter_v1",
+        "verified_split_loader_source_semantics_v2",
+        "bist_get_config_recursion_fix_v1",
+        "bist_manifest_frozen_runtime_seed_v2",
+        "bist_region_registry_and_tod_v1",
+        "isolated_artifact_paths_v1",
+        "windows_secure_io_compatibility_v1"
+      ]
+    },
+    "igstgnn": {
+      "profile_id": "igstgnn_public_material_v2",
+      "source_id": "igstgnn_64c6e24",
+      "effective": {
+        "seed": 2025,
+        "batch_size_by_region": {
+          "Alameda": 48,
+          "Contra_Costa": 48,
+          "Orange": 24
+        },
+        "loader_contract": {
+          "training_shuffle": "global_numpy_permutation",
+          "partial_batch": "retain"
+        },
+        "max_epochs": 100,
+        "patience": 20,
+        "optimizer": {
+          "name": "Adam",
+          "learning_rate": 0.002,
+          "weight_decay": 1e-05,
+          "epsilon": 1e-08,
+          "gradient_clip": 5.0
+        },
+        "scheduler": {
+          "name": "MultiStepLR",
+          "milestones": [
+            1,
+            38,
+            46,
+            54,
+            62,
+            70,
+            80
+          ],
+          "gamma": 0.5
+        },
+        "input_contract": {
+          "input_dim": 3,
+          "flow_features": 1,
+          "target_dim": 1,
+          "time_slots_per_day": 288,
+          "incident_context": true,
+          "sensor_metadata": true
+        },
+        "model": {
+          "hidden_dim": 32,
+          "node_embedding_dim": 12,
+          "time_embedding_dim": 12,
+          "layers": 5,
+          "temporal_kernel": 3,
+          "spatial_kernel": 2,
+          "gap": 3,
+          "dropout": 0.1,
+          "sigma_t": 1.0,
+          "lambda_incident": 1.0,
+          "warm_epochs": 30,
+          "curriculum_interval": 3
+        },
+        "adjacency": {
+          "mode": "double_transition_plus_static_and_dynamic_graphs"
+        }
+      },
+      "authority": {
+        "seed": "upstream_default",
+        "batch_size_by_region": "official_table4",
+        "loader_contract": "upstream_default",
+        "max_epochs": "upstream_default",
+        "patience": "official_table4",
+        "optimizer": "official_table4",
+        "scheduler": "upstream_default",
+        "input_contract": "upstream_default",
+        "model": "upstream_default",
+        "adjacency": "upstream_default"
+      },
+      "public_material_gaps": [
+        "table4_igstgnn_checkpoint_and_run_log_not_published",
+        "contra_costa_and_orange_exact_launch_commands_not_published"
+      ],
+      "compatibility_patches": [
+        "restricted_split_preparation_v1",
+        "verified_split_loader_source_semantics_v2",
+        "isolated_artifact_paths_v1",
+        "windows_secure_io_compatibility_v1"
+      ]
+    }
+  }
+}

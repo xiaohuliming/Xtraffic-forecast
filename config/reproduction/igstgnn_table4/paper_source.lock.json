@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "title": "Incident-Guided Spatiotemporal Traffic Forecasting",
+  "arxiv_id": "2602.02528",
+  "arxiv_version": 2,
+  "arxiv_pdf_url": "https://arxiv.org/pdf/2602.02528v2",
+  "acm_doi": "10.1145/3770854.3780215",
+  "pdf_bytes": 5730640,
+  "pdf_sha256": "e2bf111af6b8fafbb5bb41a320d37e920dbdaca5122feac0600af6cc114414a7",
+  "table_number": 4,
+  "table_pdf_page": 6,
+  "reference_csv": "paper_table4.reference_v1.csv",
+  "reference_csv_bytes": 3553,
+  "reference_csv_sha256": "ffe7b8ee065a18ca94823c4d21f5bd5e66be5580426ed49a694c969360c46c4c"
+}

@@ -42,6 +42,9 @@ outputs/**
 !outputs/paper_artifacts/figures/**
 data/benchmarks/
 
+# Pinned upstream checkouts for the IGSTGNN Table 4 reproduction lane.
+/.third_party/igstgnn_table4/
+
 # Personal credentials and machine-specific settings stay local.
 # Shared lab defaults are intentionally centralized in config/lab_hosts.env.
 .env

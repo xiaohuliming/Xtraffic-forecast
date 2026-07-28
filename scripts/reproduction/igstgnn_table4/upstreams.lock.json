@@ -1,0 +1,36 @@
+{
+  "protocol_id": "igstgnn_table4_official_v1",
+  "schema_version": 1,
+  "sources": [
+    {
+      "archive_sha256": "cb917f67d4fffd6c85383db17486c67641b2baaacb5e289ce2cc0fb183ba9172",
+      "commit": "64c6e243466f791f1b75e50421d63e39577ec9fa",
+      "license_sha256": "17e36691e5750e019b6c30c236759e6067c7279d3441617f51ca1bd8ce24dbef",
+      "license_spdx": "MIT",
+      "repository": "https://github.com/fanlixiang/IGSTGNN.git",
+      "source_id": "igstgnn_64c6e24",
+      "tree": "0fe6aa5bd690e86adbfcd12e671bd76e23c11291",
+      "vendoring_allowed": true
+    },
+    {
+      "archive_sha256": "a2f654db021f3948b742fdc6e21f51b1a820d475fc13797af6a384004bc7e845",
+      "commit": "b7c6ff5f7f0c10051ed10a319b2cfe58021312f9",
+      "license_sha256": "e9fb50ba1cdab72e37fd357b51f3607f83626c73f06456c288f396cfdb406351",
+      "license_spdx": "MIT",
+      "repository": "https://github.com/liuxu77/LargeST.git",
+      "source_id": "largest_b7c6ff5",
+      "tree": "fa63c1808a50467a182388aa12c7b99735768dfa",
+      "vendoring_allowed": true
+    },
+    {
+      "archive_sha256": "2e6e3315961748c66216a75436928a5d468191966b894dd1c1a2a8636d0b75f7",
+      "commit": "dd94adf7721fcbb9e3feb5d1b44040305199a4cc",
+      "license_sha256": null,
+      "license_spdx": null,
+      "repository": "https://github.com/PoorOtterBob/BiST.git",
+      "source_id": "bist_dd94adf",
+      "tree": "1dc3c4de312ec8cb2eaf2aafc7b680aa247d19be",
+      "vendoring_allowed": false
+    }
+  ]
+}
