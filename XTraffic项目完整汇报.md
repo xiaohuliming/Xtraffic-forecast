@@ -231,13 +231,15 @@ Orange 的 s0a 对 s0c 三种子完成，配对差负 0.114 与负 0.132 与负 
 
 项目新增一条与 v3 无泄露研究矩阵严格隔离的论文复现线，协议为 `igstgnn_table4_official_v1`。目标是按公开材料最大忠实复现 IGSTGNN Table 4 的 Alameda、Contra Costa、Orange 三地区与 13 个方法，共 39 项。该线使用作者 Kaggle 发布数据和官方顺序 70%、15%、15% 切分，不使用项目 v3 缓存。官方发布协议中存在已知重复预测时刻和跨 split 重合，因此有效性标签为 `official_protocol_with_known_overlap`，结果不得被表述为无泄露。
 
-LargeST、BiST 与 IGSTGNN 的上游提交分别锁定为 `b7c6ff5f7f0c10051ed10a319b2cfe58021312f9`、`dd94adf7721fcbb9e3feb5d1b44040305199a4cc`、`64c6e243466f791f1b75e50421d63e39577ec9fa`。正式 v2 矩阵清单 SHA-256 为 `d0c7fb88e24c6026d670a4a6d571357eb5320393417a83d344adb05151023a78`。BiST 的三地区随机 seed 已分别冻结为 676615、683452、150462。正式数据、三个 pristine checkout 和提交 `5aadfff` 的精确归档已部署到 5080 的短路径 `D:\t4`。Mac 复现测试为 179 项通过与 1 条既有 warning，5080 Windows 训练相关测试为 127 项通过、2 项平台跳过。
+LargeST、BiST 与 IGSTGNN 的上游提交分别锁定为 `b7c6ff5f7f0c10051ed10a319b2cfe58021312f9`、`dd94adf7721fcbb9e3feb5d1b44040305199a4cc`、`64c6e243466f791f1b75e50421d63e39577ec9fa`。正式 v2 矩阵清单 SHA-256 为 `d0c7fb88e24c6026d670a4a6d571357eb5320393417a83d344adb05151023a78`。BiST 的三地区随机 seed 已分别冻结为 676615、683452、150462。正式数据、三个 pristine checkout 和提交 `5aadfff` 的精确归档已部署到 5080 的短路径 `D:\t4`。Mac 复现测试现为 181 项通过与 1 条既有 warning，5080 Windows 训练相关测试为 127 项通过、2 项平台跳过。
 
 Alameda HL 已完成并通过 checkpoint、prediction、provenance、summary 与 train log 五文件验收。测试集按 LargeST 源码消费 2,176 条，丢弃不足一个 batch 的尾部 28 条。H3 的 MAE、RMSE、MAPE 为 15.916486、26.710745、18.755560。H6 为 19.056049、31.813951、21.526349。H12 为 25.661367、42.373371、28.095365。Average 为 19.649600、32.688443、22.271724。prediction artifact SHA-256 为 `63482403b21e74577e2c74cd3de198bdfafa8c90e8692843a506adcf2614e6b0`。
 
 Alameda LSTM 已于 2026-07-28 22:02:36 新加坡时间完成，随后通过 runner 复验与独立二次复验。测试集按 LargeST 源码消费 2,176 条。H3 的 MAE、RMSE、MAPE 为 12.825795、22.250841、17.630659。H6 为 14.208229、24.909077、17.839295。H12 为 17.033611、29.907513、20.389889。Average 为 14.355326、25.072953、18.407032。prediction artifact SHA-256 为 `8f70ed5a8264c007e2baf5453bf18d0d621ad0502ad29e39ea34f83315b0e769`。
 
-task003 Alameda DCRNN 已于 22:19:57 新加坡时间启动。启动后正式暂存目录、trainer 与 GPU 均正常，显存使用 11,827 MiB，利用率 78%，温度 54 摄氏度。pilot 顺序为 HL、LSTM、DCRNN、IGSTGNN。四项全部验收后，使用同一不可变清单启动完整 39 项单卡顺序队列，已验收 pilot 只在重新复验通过后跳过。最终交付包括同结构 Table 4、论文值差异表、逐数字追溯索引和公开材料缺口清单。
+task003 Alameda DCRNN 首次于 22:19:57 通过 SSH 附着启动。实测单 epoch 训练约 169 秒，验证约 18 秒。为了让数小时至数天的训练不依赖 SSH 会话，该次尝试在完成 3 个 epoch 后于 22:32:25 按计划中断。runner 正确落盘 `interrupted` 和退出码 130，没有发布正式任务目录，不影响 HL 或 LSTM。incident 目录为 `D:\t4\incidents\table4_003_attached_interrupted_20260728T143225Z`，incident SHA-256 为 `24da66f71bac2ecfe8e3654ad1630cf97723f7b1f9c2c4fd64b12db7e666be6b`。
+
+提交 `fa5b458` 新增 fail-closed 持久接力器及 2 项测试，提交 `8ad61bf` 固定 5080 启动命令。整个 Table 4 复现测试集更新为 181 项通过与 1 条既有 warning。接力器远端 SHA-256 为 `3410e9eab5a53c421afc3c93eaeb00f49dbf371dc86165a8d1e15b7bd5054023`。Windows 任务计划 `XTraffic_IGSTGNN_Table4_v2` 于 22:36:39 启动，执行时限为 `PT0S`，开机后可恢复，且忽略重复并发实例。它先运行 task003 与 task013 组成的 pilot 门，两项全部通过后才启动完整 39 项。新 task003 于 22:36:40 从 epoch 0 开始，启动复验时显存使用 11,899 MiB，GPU 利用率 82%，温度 53 摄氏度。最终交付包括同结构 Table 4、论文值差异表、逐数字追溯索引和公开材料缺口清单。
 
 ---
 

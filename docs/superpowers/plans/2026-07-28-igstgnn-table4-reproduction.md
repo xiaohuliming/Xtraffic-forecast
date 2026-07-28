@@ -74,19 +74,20 @@ IGSTGNN 官方仓库没有公开 Table 4 baseline 的 XTraffic adapter、逐地�
 2. LargeST、BiST 和 IGSTGNN 的锁定 checkout 已部署到 5080。远端 HEAD、tree 和 dirty 状态均通过检查。
 3. 深度审计 v2 已区分原始记录与模型实际消费窗口。Alameda 和 Contra Costa 的模型实际消费集合没有重复预测时刻或跨 split 重合。Orange 保留官方协议中的 9 个重复预测时刻，以及 train 对 val 1 个、train 对 test 3 个跨 split 重合，因此有效性标签保持 `official_protocol_with_known_overlap`。
 4. 13 个方法均已通过真实上游前向、checkpoint round trip 和测试输出单元门。12 个学习方法均通过真实上游单 batch 参数更新测试。
-5. macOS 本地当前为 179 项通过，另有 1 个 DCRNN 上游弃用 warning。Windows 原生安全文件读取、reparse point 和 hardlink 防护、独占结果发布、支持文件读取时哈希绑定均已纳入测试。
+5. macOS 本地当前为 181 项通过，另有 1 个 DCRNN 上游弃用 warning。Windows 原生安全文件读取、reparse point 和 hardlink 防护、独占结果发布、支持文件读取时哈希绑定均已纳入测试。
 6. 5080 的 Windows 训练相关门为 127 项通过、2 项平台跳过。正式数据、源码与提交 `5aadfff` 的精确归档已部署到短路径 `D:\t4`。
 7. 正式 v2 矩阵清单已生成，共 39 项。清单 SHA-256 为 `d0c7fb88e24c6026d670a4a6d571357eb5320393417a83d344adb05151023a78`。BiST 在 Alameda、Contra Costa、Orange 的冻结 seed 分别为 676615、683452、150462。
 8. Alameda HL 已完成并通过五文件验收。H3、H6、H12 与 Average MAE 为 15.916486、19.056049、25.661367、19.649600。测试实际消费 2,176 条，按 LargeST 源码丢弃 28 条尾部样本。prediction SHA-256 为 `63482403b21e74577e2c74cd3de198bdfafa8c90e8692843a506adcf2614e6b0`。
 9. Alameda LSTM 已于 22:02:36 新加坡时间完成并通过 runner 与独立二次五文件复验。H3、H6、H12 与 Average MAE 为 12.825795、14.208229、17.033611、14.355326。prediction SHA-256 为 `8f70ed5a8264c007e2baf5453bf18d0d621ad0502ad29e39ea34f83315b0e769`。
-10. task003 Alameda DCRNN 已于 22:19:57 新加坡时间启动。正式暂存目录、trainer 与 GPU 均正常。
+10. task003 首次 SSH 附着运行在完成 3 个 epoch 后于 22:32:25 新加坡时间按计划中断，以迁移到持久控制层。runner 状态为 `interrupted`，退出码 130，没有正式任务目录。incident SHA-256 为 `24da66f71bac2ecfe8e3654ad1630cf97723f7b1f9c2c4fd64b12db7e666be6b`。
+11. 提交 `fa5b458` 与 `8ad61bf` 新增持久接力器、2 项 fail-closed 测试和固定 5080 启动命令。Windows 任务计划 `XTraffic_IGSTGNN_Table4_v2` 于 22:36:39 启动。它先运行 task003 与 task013，全部通过后再启动完整 39 项。新 task003 于 22:36:40 从 epoch 0 开始。
 
 ## 正式启动顺序
 
 1. 已完成：生成并冻结 39 项 v2 矩阵清单，三个地区分别记录 BiST 实际随机 seed。
 2. 已完成：提交并推送清单、配置、训练适配层、断点续跑器和测试。
 3. 已完成：将精确提交快照部署到 5080，复验传输归档、上游 checkout、正式 split 和 Windows 训练路径。
-4. 进行中：依次运行 Alameda 的 HL、LSTM、DCRNN 和 IGSTGNN 四个正式 pilot。HL 与 LSTM 已完成，DCRNN 正在训练。pilot 与全矩阵使用同一不可变清单和结果根，因此通过验收的结果可以直接被完整队列复用。
+4. 进行中：依次运行 Alameda 的 HL、LSTM、DCRNN 和 IGSTGNN 四个正式 pilot。HL 与 LSTM 已完成，DCRNN 已由持久任务重新启动。pilot 与全矩阵使用同一不可变清单和结果根，因此通过验收的结果可以直接被完整队列复用。
 5. 待执行：pilot 通过后启动完整 39 项单卡顺序队列。runner 只跳过完整通过五文件验收的已有任务，任一异常立即停止，不能覆盖损坏或不完整目录。
 
 ## 启动门
