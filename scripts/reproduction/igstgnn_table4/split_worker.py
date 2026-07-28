@@ -4,11 +4,15 @@ import argparse
 import hashlib
 import json
 import os
-import resource
 import stat
 import sys
 import types
 from pathlib import Path
+
+try:
+    import resource
+except ModuleNotFoundError:
+    resource = None
 
 
 _SITE_PACKAGES = (
@@ -67,6 +71,8 @@ def _parse_args() -> argparse.Namespace:
 
 
 def _apply_resource_limits() -> None:
+    if resource is None:
+        raise RuntimeError("POSIX resource limits are required for split preparation")
     os.umask(0o077)
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     resource.setrlimit(resource.RLIMIT_CPU, (7200, 7200))

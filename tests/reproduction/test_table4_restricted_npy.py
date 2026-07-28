@@ -12,6 +12,7 @@ from numpy.lib import format as npy_format
 from scripts.reproduction.igstgnn_table4.restricted_npy import (
     load_restricted_object_npy,
 )
+from scripts.reproduction.igstgnn_table4 import deep_audit_worker, split_worker
 from scripts.reproduction.igstgnn_table4.split_worker import (
     _require_precreated_manifest,
     _write_precreated_manifest,
@@ -45,6 +46,17 @@ class _ForgedDtypeStateReducer:
             ("f4", False, True),
             (3, "<", None, None, None, -1, -1, 1),
         )
+
+
+@pytest.mark.parametrize("worker_module", [split_worker, deep_audit_worker])
+def test_posix_workers_fail_closed_when_resource_limits_are_unavailable(
+    monkeypatch,
+    worker_module,
+):
+    monkeypatch.setattr(worker_module, "resource", None)
+
+    with pytest.raises(RuntimeError, match="POSIX resource limits"):
+        worker_module._apply_resource_limits()
 
 
 def test_restricted_npy_rejects_direct_ndarray_reduce(tmp_path):
