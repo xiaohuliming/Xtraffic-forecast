@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "plan_id": "igstgnn_table4_4090d_9gpu_v1",
+  "protocol_id": "igstgnn_table4_official_v1",
+  "matrix_id": "igstgnn_table4_public_repro_39_v2",
+  "manifest_sha256": "d0c7fb88e24c6026d670a4a6d571357eb5320393417a83d344adb05151023a78",
+  "gpu_sku": "NVIDIA GeForce RTX 4090 D",
+  "execution_layout": "dual_host_gpu_sku_homogeneous",
+  "region_host_assignment": {
+    "table4_4090d5": [
+      "Orange"
+    ],
+    "table4_4090d4": [
+      "Alameda",
+      "Contra_Costa"
+    ]
+  },
+  "hosts": [
+    {
+      "host_id": "table4_4090d5",
+      "gpu_count": 5,
+      "gpu_sku": "NVIDIA GeForce RTX 4090 D"
+    },
+    {
+      "host_id": "table4_4090d4",
+      "gpu_count": 4,
+      "gpu_sku": "NVIDIA GeForce RTX 4090 D"
+    }
+  ],
+  "shards": [
+    {
+      "shard_id": "table4_4090d5_gpu0",
+      "host_id": "table4_4090d5",
+      "gpu_index": 0,
+      "results_root": "shards/table4_4090d5_gpu0",
+      "task_ids": [
+        "027_orange_hl",
+        "029_orange_dcrnn",
+        "031_orange_stgcn",
+        "034_orange_sttn"
+      ]
+    },
+    {
+      "shard_id": "table4_4090d5_gpu1",
+      "host_id": "table4_4090d5",
+      "gpu_index": 1,
+      "results_root": "shards/table4_4090d5_gpu1",
+      "task_ids": [
+        "028_orange_lstm",
+        "030_orange_agcrn",
+        "032_orange_gwnet",
+        "036_orange_dgcrn"
+      ]
+    },
+    {
+      "shard_id": "table4_4090d5_gpu2",
+      "host_id": "table4_4090d5",
+      "gpu_index": 2,
+      "results_root": "shards/table4_4090d5_gpu2",
+      "task_ids": [
+        "033_orange_astgcn",
+        "035_orange_dstagnn",
+        "037_orange_d2stgnn"
+      ]
+    },
+    {
+      "shard_id": "table4_4090d5_gpu3",
+      "host_id": "table4_4090d5",
+      "gpu_index": 3,
+      "results_root": "shards/table4_4090d5_gpu3",
+      "task_ids": [
+        "038_orange_bist"
+      ]
+    },
+    {
+      "shard_id": "table4_4090d5_gpu4",
+      "host_id": "table4_4090d5",
+      "gpu_index": 4,
+      "results_root": "shards/table4_4090d5_gpu4",
+      "task_ids": [
+        "039_orange_igstgnn"
+      ]
+    },
+    {
+      "shard_id": "table4_4090d4_gpu0",
+      "host_id": "table4_4090d4",
+      "gpu_index": 0,
+      "results_root": "shards/table4_4090d4_gpu0",
+      "task_ids": [
+        "001_alameda_hl",
+        "003_alameda_dcrnn",
+        "005_alameda_stgcn",
+        "008_alameda_sttn",
+        "014_contra_costa_hl",
+        "016_contra_costa_dcrnn",
+        "018_contra_costa_stgcn",
+        "021_contra_costa_sttn"
+      ]
+    },
+    {
+      "shard_id": "table4_4090d4_gpu1",
+      "host_id": "table4_4090d4",
+      "gpu_index": 1,
+      "results_root": "shards/table4_4090d4_gpu1",
+      "task_ids": [
+        "002_alameda_lstm",
+        "004_alameda_agcrn",
+        "006_alameda_gwnet",
+        "010_alameda_dgcrn",
+        "015_contra_costa_lstm",
+        "017_contra_costa_agcrn",
+        "019_contra_costa_gwnet",
+        "023_contra_costa_dgcrn"
+      ]
+    },
+    {
+      "shard_id": "table4_4090d4_gpu2",
+      "host_id": "table4_4090d4",
+      "gpu_index": 2,
+      "results_root": "shards/table4_4090d4_gpu2",
+      "task_ids": [
+        "007_alameda_astgcn",
+        "009_alameda_dstagnn",
+        "011_alameda_d2stgnn",
+        "020_contra_costa_astgcn",
+        "022_contra_costa_dstagnn",
+        "024_contra_costa_d2stgnn"
+      ]
+    },
+    {
+      "shard_id": "table4_4090d4_gpu3",
+      "host_id": "table4_4090d4",
+      "gpu_index": 3,
+      "results_root": "shards/table4_4090d4_gpu3",
+      "task_ids": [
+        "012_alameda_bist",
+        "013_alameda_igstgnn",
+        "025_contra_costa_bist",
+        "026_contra_costa_igstgnn"
+      ]
+    }
+  ]
+}
