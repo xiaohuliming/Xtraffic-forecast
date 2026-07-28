@@ -4,11 +4,15 @@ import argparse
 import errno
 import json
 import os
-import resource
 import socket
 import stat
 from pathlib import Path
 from typing import Any, Callable
+
+try:
+    import resource
+except ModuleNotFoundError:
+    resource = None
 
 
 def _parse_args() -> argparse.Namespace:
@@ -21,6 +25,8 @@ def _parse_args() -> argparse.Namespace:
 
 
 def _apply_resource_limits() -> None:
+    if resource is None:
+        raise RuntimeError("POSIX resource limits are required for sandbox probing")
     os.umask(0o077)
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     resource.setrlimit(resource.RLIMIT_CPU, (30, 30))
