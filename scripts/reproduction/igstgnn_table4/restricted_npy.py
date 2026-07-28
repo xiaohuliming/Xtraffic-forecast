@@ -9,13 +9,17 @@ from typing import Any, BinaryIO
 import numpy as np
 from numpy.lib import format as npy_format
 
+try:
+    from numpy._core.multiarray import _reconstruct as _RECONSTRUCT
+    from numpy._core.multiarray import scalar as _SCALAR
+except ModuleNotFoundError:
+    from numpy.core.multiarray import _reconstruct as _RECONSTRUCT
+    from numpy.core.multiarray import scalar as _SCALAR
 
 _MAX_ARRAY_BYTES = 64 * 1024 * 1024
 _MAX_DTYPE_ITEMSIZE = 64
 _MAX_NDIM = 4
 _NUMERIC_DTYPE_KINDS = frozenset("buifcmM")
-_RECONSTRUCT = np._core.multiarray._reconstruct
-_SCALAR = np._core.multiarray.scalar
 _ALLOWED_PICKLE_GLOBALS = {
     ("numpy", "dtype"): np.dtype,
     ("numpy", "ndarray"): np.ndarray,
