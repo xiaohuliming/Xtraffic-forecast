@@ -48,6 +48,100 @@ class IGSTGNNFactoryResult:
     provenance: dict[str, Any]
 
 
+class IGSTGNNDataParallel(torch.nn.DataParallel):
+    @staticmethod
+    def _to_replica_device(value: Any, device: torch.device) -> Any:
+        if torch.is_tensor(value):
+            return value.to(device=device)
+        if isinstance(value, list):
+            moved = [
+                IGSTGNNDataParallel._to_replica_device(item, device)
+                for item in value
+            ]
+            return (
+                moved
+                if any(new is not old for new, old in zip(moved, value, strict=True))
+                else value
+            )
+        if isinstance(value, tuple):
+            moved = tuple(
+                IGSTGNNDataParallel._to_replica_device(item, device)
+                for item in value
+            )
+            return (
+                moved
+                if any(new is not old for new, old in zip(moved, value, strict=True))
+                else value
+            )
+        if isinstance(value, dict):
+            moved = {
+                key: IGSTGNNDataParallel._to_replica_device(item, device)
+                for key, item in value.items()
+            }
+            if all(moved[key] is item for key, item in value.items()):
+                return value
+            copied = value.copy()
+            copied.update(moved)
+            return copied
+        return value
+
+    def replicate(
+        self,
+        module: torch.nn.Module,
+        device_ids: list[int],
+    ) -> list[torch.nn.Module]:
+        replicas = super().replicate(module, device_ids)
+        internal_names = {"_parameters", "_buffers", "_modules"}
+        for replica, device_id in zip(replicas, device_ids, strict=True):
+            device = torch.device("cuda", device_id)
+            for child in replica.modules():
+                for name, value in tuple(vars(child).items()):
+                    if name in internal_names:
+                        continue
+                    moved = self._to_replica_device(value, device)
+                    if moved is not value:
+                        setattr(child, name, moved)
+        return replicas
+
+    @property
+    def horizon(self) -> int:
+        return self.module.horizon
+
+    def param_num(self) -> int:
+        return self.module.param_num()
+
+
+def wrap_igstgnn_data_parallel(
+    model: torch.nn.Module,
+    *,
+    device: torch.device,
+    enabled: bool,
+) -> tuple[torch.nn.Module, dict[str, Any] | None]:
+    if not enabled:
+        return model, None
+    if device.type != "cuda" or device.index not in (None, 0):
+        raise ValueError(
+            "IGSTGNN data parallel execution requires primary device cuda:0"
+        )
+    device_ids = list(range(torch.cuda.device_count()))
+    if len(device_ids) < 2:
+        raise ValueError(
+            "IGSTGNN data parallel execution requires at least two visible GPUs"
+        )
+    wrapped = IGSTGNNDataParallel(
+        model,
+        device_ids=device_ids,
+        output_device=0,
+    )
+    return wrapped, {
+        "type": "torch_data_parallel",
+        "device_ids": device_ids,
+        "full_batch_preserved": True,
+        "unregistered_tensor_policy": "replica_device_copy",
+        "upstream_source_modified": False,
+    }
+
+
 def _load_upstream() -> SimpleNamespace:
     global _UPSTREAM
     with _IMPORT_LOCK:
@@ -204,6 +298,7 @@ def build_igstgnn_factory(
     output_dir: Path | str,
     dataset: str,
     data_path: Path | str,
+    data_parallel: bool = False,
 ) -> IGSTGNNFactoryResult:
     profile_set, effective, dimensions, data_directory = _validate_inputs(
         profile_effective=profile_effective,
@@ -274,6 +369,11 @@ def build_igstgnn_factory(
         data_path=str(data_directory),
         use_sensor_info=True,
     )
+    model, execution_adapter = wrap_igstgnn_data_parallel(
+        model,
+        device=device_value,
+        enabled=data_parallel,
+    )
     optimizer_config = effective["optimizer"]
     optimizer = torch.optim.Adam(
         model.parameters(),
@@ -335,6 +435,8 @@ def build_igstgnn_factory(
         "compatibility_patches_declared": list(profile["compatibility_patches"]),
         "compatibility_patches_applied_by_factory": [],
     }
+    if execution_adapter is not None:
+        provenance["execution_adapter"] = execution_adapter
     return IGSTGNNFactoryResult(
         model=model,
         engine=engine,

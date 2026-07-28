@@ -15,6 +15,7 @@ from scripts.reproduction.igstgnn_table4.execution import (
 from scripts.reproduction.igstgnn_table4.igstgnn_factory import (
     IGSTGNNFactoryResult,
     build_igstgnn_factory,
+    wrap_igstgnn_data_parallel,
 )
 from scripts.reproduction.igstgnn_table4.profiles import load_profile_set
 from scripts.reproduction.igstgnn_table4.upstream_lock import (
@@ -157,6 +158,52 @@ def _factory_arguments(tmp_path):
         "dataset": "Alameda",
         "data_path": data_path,
     }, batch
+
+
+def test_data_parallel_adapter_preserves_full_batch_model_contract(monkeypatch):
+    class Model(torch.nn.Module):
+        horizon = 12
+
+        def param_num(self):
+            return 123
+
+    class FakeDataParallel:
+        def __init__(self, module, *, device_ids, output_device):
+            self.module = module
+            self.device_ids = device_ids
+            self.output_device = output_device
+
+        @property
+        def horizon(self):
+            return self.module.horizon
+
+        def param_num(self):
+            return self.module.param_num()
+
+    monkeypatch.setattr(torch.cuda, "device_count", lambda: 2)
+    monkeypatch.setattr(
+        "scripts.reproduction.igstgnn_table4.igstgnn_factory."
+        "IGSTGNNDataParallel",
+        FakeDataParallel,
+    )
+
+    wrapped, adapter = wrap_igstgnn_data_parallel(
+        Model(),
+        device=torch.device("cuda:0"),
+        enabled=True,
+    )
+
+    assert wrapped.device_ids == [0, 1]
+    assert wrapped.output_device == 0
+    assert wrapped.horizon == 12
+    assert wrapped.param_num() == 123
+    assert adapter == {
+        "type": "torch_data_parallel",
+        "device_ids": [0, 1],
+        "full_batch_preserved": True,
+        "unregistered_tensor_policy": "replica_device_copy",
+        "upstream_source_modified": False,
+    }
 
 
 def test_igstgnn_factory_builds_pinned_incident_sensor_pipeline_and_forecasts(

@@ -307,6 +307,7 @@ def _build_factory(
     device: torch.device,
     logger: _TaskLogger,
     output_dir: Path,
+    igstgnn_data_parallel: bool = False,
 ) -> Any:
     method = spec.task["method"]
     effective = spec.profile["effective"]
@@ -346,6 +347,7 @@ def _build_factory(
             output_dir=output_dir,
             dataset=spec.task["region"],
             data_path=runtime.bundle_dir,
+            data_parallel=igstgnn_data_parallel,
         )
     raise ValueError(f"Unsupported Table 4 method: {method}")
 
@@ -574,12 +576,17 @@ def run_table4_task(
     splits_root: Path | str,
     results_root: Path | str,
     device: str,
+    igstgnn_data_parallel: bool = False,
 ) -> Path:
     spec = load_table4_task_spec(
         manifest_path=manifest_path,
         manifest_sha256=manifest_sha256,
         task_id=task_id,
     )
+    if igstgnn_data_parallel and spec.task["method"] != "igstgnn":
+        raise ValueError(
+            "The IGSTGNN data parallel adapter is valid only for IGSTGNN tasks"
+        )
     root = _prepare_results_root(results_root)
     target = _prepare_result_target(results_root=root, task=spec.task)
     device_value = _resolve_device(device)
@@ -617,6 +624,7 @@ def run_table4_task(
                         device=device_value,
                         logger=logger,
                         output_dir=scratch,
+                        igstgnn_data_parallel=igstgnn_data_parallel,
                     )
                     run_upstream_training(
                         method=spec.task["method"],
@@ -670,6 +678,14 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--splits-root", required=True, type=Path)
     parser.add_argument("--results-root", required=True, type=Path)
     parser.add_argument("--device", required=True)
+    parser.add_argument(
+        "--igstgnn-data-parallel",
+        action="store_true",
+        help=(
+            "Preserve the full IGSTGNN batch while splitting its forward pass "
+            "across all visible CUDA devices."
+        ),
+    )
     return parser
 
 
@@ -682,6 +698,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         splits_root=args.splits_root,
         results_root=args.results_root,
         device=args.device,
+        igstgnn_data_parallel=args.igstgnn_data_parallel,
     )
     print(target)
     return 0

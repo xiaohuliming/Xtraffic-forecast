@@ -139,6 +139,46 @@ def test_cli_requires_the_out_of_band_manifest_sha256(tmp_path, capsys):
     assert "--manifest-sha256" in capsys.readouterr().err
 
 
+def test_cli_forwards_explicit_igstgnn_data_parallel_adapter(
+    tmp_path,
+    monkeypatch,
+):
+    observed = {}
+
+    def fake_run_table4_task(**kwargs):
+        observed.update(kwargs)
+        return tmp_path / "results" / "tasks" / "039_orange_igstgnn"
+
+    monkeypatch.setattr(
+        runner_module,
+        "run_table4_task",
+        fake_run_table4_task,
+    )
+
+    assert (
+        runner_module.main(
+            [
+                "--manifest",
+                str(tmp_path / "matrix.json"),
+                "--manifest-sha256",
+                "a" * 64,
+                "--task-id",
+                "039_orange_igstgnn",
+                "--splits-root",
+                str(tmp_path / "splits"),
+                "--results-root",
+                str(tmp_path / "results"),
+                "--device",
+                "cuda:0",
+                "--igstgnn-data-parallel",
+            ]
+        )
+        == 0
+    )
+
+    assert observed["igstgnn_data_parallel"] is True
+
+
 def test_runner_refuses_to_overwrite_before_loading_training_data(
     tmp_path,
 ):
