@@ -57,6 +57,13 @@ def _completed_host_results(
         shard_root = results_base / shard["results_root"]
         for task_index, task_id in enumerate(shard["task_ids"]):
             task = task_by_id[task_id]
+            training_code_sha256 = (
+                "4" * 64
+                if task["method"] == "bist"
+                else "5" * 64
+                if task["method"] == "igstgnn"
+                else "3" * 64
+            )
             write_completed_task_artifacts(
                 target_dir=shard_root / task["output_dir"],
                 task=task,
@@ -66,7 +73,7 @@ def _completed_host_results(
                 train_log_source=train_log,
                 provenance={
                     "protocol_id": "igstgnn_table4_official_v1",
-                    "training_code_sha256": "3" * 64,
+                    "training_code_sha256": training_code_sha256,
                     "device": {
                         "requested": "cuda:0",
                         "type": "cuda",

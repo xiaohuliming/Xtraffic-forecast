@@ -235,6 +235,11 @@ def build_host_postflight(
     task_reports: list[dict[str, Any]] = []
     queue_reports: list[dict[str, Any]] = []
     runtime_identities: set[tuple[str, ...]] = set()
+    training_code_by_family: dict[str, set[str]] = {
+        "largest": set(),
+        "bist": set(),
+        "igstgnn": set(),
+    }
     for shard in host_shards:
         shard_root = verify_secure_directory(
             base / shard["results_root"],
@@ -293,7 +298,6 @@ def build_host_postflight(
                 runtime.get("python"),
                 runtime.get("torch"),
                 runtime.get("numpy"),
-                provenance.get("training_code_sha256"),
                 device.get("name"),
             )
             if any(not isinstance(item, str) or not item for item in identity_fields):
@@ -301,11 +305,33 @@ def build_host_postflight(
                     f"Invalid runtime host identity for task {task_id}"
                 )
             runtime_identities.add(identity_fields)
+            training_code_sha256 = provenance.get("training_code_sha256")
+            if (
+                not isinstance(training_code_sha256, str)
+                or len(training_code_sha256) != 64
+                or any(
+                    character not in "0123456789abcdef"
+                    for character in training_code_sha256
+                )
+            ):
+                raise ValueError(
+                    f"Invalid training code identity for task {task_id}"
+                )
+            family = (
+                "bist"
+                if task["method"] == "bist"
+                else "igstgnn"
+                if task["method"] == "igstgnn"
+                else "largest"
+            )
+            training_code_by_family[family].add(training_code_sha256)
             task_reports.append(
                 {
                     "task_id": task_id,
                     "shard_id": shard["shard_id"],
                     "status": validation["status"],
+                    "training_code_family": family,
+                    "training_code_sha256": training_code_sha256,
                 }
             )
             for filename in _ARTIFACT_FILENAMES:
@@ -319,6 +345,8 @@ def build_host_postflight(
 
     if len(runtime_identities) != 1:
         raise ValueError("Distributed results contain mixed runtime host identity")
+    if any(len(digests) != 1 for digests in training_code_by_family.values()):
+        raise ValueError("Distributed results contain mixed training code identity")
     actual_paths = _actual_regular_files(base)
     if actual_paths != expected_paths:
         missing = sorted(expected_paths - actual_paths)
@@ -370,13 +398,16 @@ def build_host_postflight(
                     "python",
                     "torch",
                     "numpy",
-                    "training_code_sha256",
                     "gpu_name",
                 ),
                 next(iter(runtime_identities)),
                 strict=True,
             )
         ),
+        "training_code_sha256_by_family": {
+            family: next(iter(digests))
+            for family, digests in training_code_by_family.items()
+        },
         "validated_shards": len(host_shards),
         "validated_tasks": len(task_reports),
         "queues": queue_reports,
