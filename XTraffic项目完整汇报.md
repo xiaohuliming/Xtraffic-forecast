@@ -241,6 +241,14 @@ task003 Alameda DCRNN 首次于 22:19:57 通过 SSH 附着启动。实测单 epo
 
 提交 `fa5b458` 新增 fail-closed 持久接力器及 2 项测试，提交 `8ad61bf` 固定 5080 启动命令。整个 Table 4 复现测试集更新为 181 项通过与 1 条既有 warning。接力器远端 SHA-256 为 `3410e9eab5a53c421afc3c93eaeb00f49dbf371dc86165a8d1e15b7bd5054023`。Windows 任务计划 `XTraffic_IGSTGNN_Table4_v2` 于 22:36:39 启动，执行时限为 `PT0S`，开机后可恢复，且忽略重复并发实例。它先运行 task003 与 task013 组成的 pilot 门，两项全部通过后才启动完整 39 项。新 task003 于 22:36:40 从 epoch 0 开始，启动复验时显存使用 11,899 MiB，GPU 利用率 82%，温度 53 摄氏度。最终交付包括同结构 Table 4、论文值差异表、逐数字追溯索引和公开材料缺口清单。
 
+2026-07-29，正式执行从 5080 单卡 pilot 切换为两台 RTX 4090 D 主机，共 9 张 24 GB GPU。固定计划 `igstgnn_table4_4090d_9gpu_v1` 的 SHA-256 为 `d6eec02c9935a5699cdd814d72be85317575e361fe8f244ff7cb47e4e67fffcc`。五卡机承担 Orange 13 项，四卡机承担 Alameda 与 Contra Costa 26 项，因此三地区各自的全部方法都在同一台主机内完成。正式数据共 27 个文件与 9,051,956,107 字节，两端逐文件 SHA-256 均通过，数据哈希清单 SHA-256 为 `bcf88f2902d900ce9baed5c33b8d064637dce1a3d9498994c7db5eb855d2d831`。
+
+5080 旧 pilot 在完成 epoch 38 后停止，没有 task003 正式目录。任务计划已禁用，相关 Python 进程为 0。incident 清单 SHA-256 为 `29c58bad6635ae3c7d476ec875cd577153ab4a95981d32f2a16baf89248bde4a`。首次九卡启动因 rsync 保留 Mac UID 501 被训练入口的所有权安全门拒绝。9 个 shard 均在 trainer 启动前退出，没有正式结果。两端修正所有权并重新完成全部数据哈希校验后，五卡机与四卡机分别于 00:47:14 和 00:47:32 新加坡时间正式重启。
+
+Orange IGSTGNN 的默认分配器与 `cudaMallocAsync` 两次单卡诊断均在首个 forward 因 24 GB 物理容量不足而 OOM，没有形成正式任务目录。提交 `f43fb58` 增加保留完整 batch 的双卡执行适配，提交 `25b5307` 增加自动恢复控制器。控制器 PID 为 `20105`，等待 Orange BiST 释放 GPU 3 后，使用物理 GPU 4 与 GPU 3 执行 task039。pristine 上游源码、数据、batch、loss、优化器、epoch 与 early stopping 均不修改。该执行差异会保留在 provenance 中，最终不得写成单卡逐命令复现。
+
+两台主机均已布防严格自动收尾。各自固定 shard 完成后先执行 source-host postflight，再按精确 allowlist 上传到结果服务器。结果服务器逐文件计算 SHA-256、核对精确目录树并原子提升。只有正式目标再次完整复验通过后，源主机才调用 `/usr/bin/shutdown -h now`。任一步失败都会保持机器开机。完整记录见 `docs/audits/igstgnn_table4_4090d_launch_2026-07-29.md`。
+
 ---
 
 ## 第二部分：研究目标与演进路径
@@ -283,6 +291,7 @@ task003 Alameda DCRNN 首次于 22:19:57 通过 SSH 附着启动。实测单 epo
 34. 第三十二阶段，2026-07-26：task042 完成并通过 runner 验收。5080 达到 27/27，runner 层达到 45/45。
 35. 第三十三阶段，2026-07-27：修复 finalizer 的 PowerShell 至 native ssh 引号传递问题。提交 `c48f232` 经本地 250 项回归、PowerShell 5.1 AST、Windows native argv 与真实 incoming 文件树复验。`rtx5080_27` 随后完成正式原子提升，未重训、重传或改写任务结果。
 36. 第三十四阶段，2026-07-27：定位 composite 复验的单任务内存峰值，提交 `5f3113b` 以数值等价的原位计算消除两份全尺寸临时数组，并在 producer 指标校验前释放 actual。提交 `93038ec` 跳过 full-window 中未使用的事件分组归约。全仓 252 项通过，独立复审未发现 P0 或 P1。
+37. 第三十五阶段，2026-07-28 到 07-29：启动独立 IGSTGNN Table 4 公开材料最大忠实复现。5080 完成 HL 与 LSTM 后，正式执行切换为两台 RTX 4090 D 主机的 9 卡固定分片。正式计划、数据、上游提交、训练代码家族、自动 postflight、结果服务器复验与成功后关机均完成锁定。Orange IGSTGNN 的 24 GB 单卡 OOM 被归类为硬件容量事件，保留完整 batch 的双卡恢复控制器已启动。
 
 ---
 
@@ -730,11 +739,17 @@ runner 层现已完成或重新验收 45/45。5090 新分片为 18/18，5080 新
 43. 以 TDD 降低 composite 复验内存和无效归约。提交 `5f3113b` 与 `93038ec` 保持 float32 producer 精确语义、2 ULP 契约、full-window 的 `all` 指标校验和全部正式结果身份不变，全仓回归为 252 项通过与 1 条既有警告。
 44. 在结果服务器重启后复验两份正式 transfer marker 与 source-host postflight。旧 composite 尝试未产生输出，终止原因按 unknown 保存到 incident record，没有覆盖或删除旧证据。
 45. 以控制提交 `93038ec` 完成只读 composite postflight。服务退出码为 0，索引验证 canonical tasks 001 至 045 各一次、5080 与 5090 分片互斥、任务并集为 45，以及训练 SHA、cache bundle、manifest 与 source-host postflight 身份一致。index 的 `status` 为 `verified`，矩阵有效性状态为 `verified_host_stratified_45`，索引 SHA-256 为 `8cf92dc2e931e3e9c3ca18cafb81a794fe68fbd0556dec3401b8650f827899fe`。
+46. 建立独立 `igstgnn_table4_official_v1` 复现线，冻结 39 项清单与三个上游提交，完成官方数据 70%、15%、15% 顺序切分和五文件 artifact 契约。
+47. 在 5080 完成 Alameda HL 与 LSTM。旧 DCRNN pilot 在切换时完成 epoch 38，但没有正式目录。计划任务已禁用，状态与 staging 作为 superseded incident 保留。
+48. 完成两台 RTX 4090 D 主机的 9 卡固定分片、Linux host runner、source-host postflight、结果服务器严格回传和成功后关机闭环。分片计划 SHA-256 为 `d6eec02c9935a5699cdd814d72be85317575e361fe8f244ff7cb47e4e67fffcc`。
+49. 两台主机完成 27 个正式数据文件的逐文件 SHA-256 复验。首次所有权安全门拒绝保留为 incident，修正 UID 后重新验收并正式启动。
+50. 识别 Orange IGSTGNN 的 24 GB 单卡容量不足。提交 `f43fb58` 保留完整 batch 并使用双卡 DataParallel，提交 `25b5307` 建立资源等待、task039 恢复、queue 重验、全主机 postflight、回传和关机控制器。本地全仓为 440 passed 和 2 个既有 warning。
 
 当前待执行事项按优先级排列。
 
-1. 按同机直接比较组执行配对比较、显著性检验与跨种子统计。
-2. 根据完整 v3 证据决定论文主张与 baseline zoo 是否恢复，同时继续保留失败任务、迁移记录与诚实负结果。
+1. 验证 Orange IGSTGNN 双卡恢复通过首个真实 batch。
+2. 等待双机 9 卡固定分片完成、回传、结果服务器复验与自动关机。
+3. 建立 Table 4 只读 39 项 composite index，并生成论文同结构表、逐单元差值表和数字追溯索引。
 
 ---
 
@@ -749,6 +764,7 @@ runner 层现已完成或重新验收 45/45。5090 新分片为 18/18，5080 新
 | outputs/README.md | 结果目录状态与保留策略 |
 | docs/audits/data_leakage_2026-07-18.md | 当前数据泄露审计，含代码证据、落盘量化与修复验收条件 |
 | docs/audits/result_validity.csv | 各实验族的机器可读有效性状态 |
+| docs/audits/igstgnn_table4_4090d_launch_2026-07-29.md | Table 4 双机九卡部署、incident、双卡恢复、自动回传与关机状态 |
 | docs/archive/项目总结报告_2026-06-10.md | 已归档，止于 06-10 的全部结果、13 节审计实验、14 节决策、复现命令，详情已并入本文 |
 | docs/archive/去季节化方向_交接_2026-06-26.md | 已归档，去季节化方向的会话交接，核心已并入本文第 4.8 与第十二部分 |
 | dist_net/protocol.py | 无泄露 v3 的因果填充、窗口、切分、事件身份与共享协议 |

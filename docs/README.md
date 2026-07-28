@@ -12,10 +12,13 @@
 | `audits/protocol_v3_review_2026-07-19.md` | v2 冻结原因、v3 修复范围与当前协议状态 |
 | `audits/data_leakage_2026-07-18.md` | 原始数据泄露问题与验收基础 |
 | `audits/result_validity.csv` | 各实验族的机器可读有效性状态 |
+| `audits/igstgnn_table4_4090d_launch_2026-07-29.md` | IGSTGNN Table 4 双机九卡启动、显存恢复、回传和关机状态 |
 
 `XTraffic项目完整汇报.md` 仍是研究历史和数字出处的权威文档，但其中的 XTraffic 数值在 v3 复跑前均属于历史结果。当前是否可用于论文，以 v3 协议复审、数据泄露审计和有效性清单为准。
 
-当前协议为 `protocol_v3_noleak_dedup`，cache schema 为 3。正式缓存构建代码 SHA 为 clean commit `29159f626494de52c69b36fe5bba9854f13cb56c`，最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。训练 checkout 在 Mac、5080 与 5090 均为 143 passed 和 1 个既有 warning，当前本地全仓回归为 252 passed 和 1 个既有 warning。v3 正式缓存已通过本地两次、5080 一次和 5090 一次严格复验。runner 层 45/45 已完成或重新验收，5080 分片为 27/27，5090 分片为 18/18。只读 composite index 已于 2026-07-27 18:28:27 新加坡时间验证成功。index 的 `status` 为 `verified`，矩阵有效性状态为 `verified_host_stratified_45`，`execution_layout` 为 `dual_host_stratified`，index SHA-256 为 `8cf92dc2e931e3e9c3ca18cafb81a794fe68fbd0556dec3401b8650f827899fe`。控制提交为 `93038ec`。index 共含 45 个任务和 2 个分片，canonical tasks001-045 各出现一次。首次使用 `c48f232` 的无输出尝试已作为 incident 保留，incident SHA-256 为 `166923ef9a63b80ecbc065f6e455eb393341e526ef6411c8c5ccd16ebfa2c70a`。最终服务退出码为 0，内存峰值为 2.1G，swap 峰值为 15.1M，没有改写 summary 或 artifact。composite 完成不恢复论文结论，同机配对、多种子统计与显著性检验仍待完成。v2 和最先完成的 4 个 v2 远程结果仍冻结为无效历史记录。
+当前 XTraffic 协议为 `protocol_v3_noleak_dedup`，cache schema 为 3。正式缓存构建代码 SHA 为 clean commit `29159f626494de52c69b36fe5bba9854f13cb56c`，最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。v3 正式缓存已通过本地两次、5080 一次和 5090 一次严格复验。runner 层 45/45 已完成或重新验收，5080 分片为 27/27，5090 分片为 18/18。只读 composite index 已于 2026-07-27 18:28:27 新加坡时间验证成功，矩阵有效性状态为 `verified_host_stratified_45`，index SHA-256 为 `8cf92dc2e931e3e9c3ca18cafb81a794fe68fbd0556dec3401b8650f827899fe`。同机配对、多种子统计与窗口级显著性分析已经完成。是否恢复论文主张仍由用户根据落盘证据决定。
+
+IGSTGNN Table 4 使用独立协议 `igstgnn_table4_official_v1`，不得与 v3 无泄露结果混合。2026-07-29 起，39 项正式矩阵由两台 RTX 4090 D 主机按 9 卡固定分片执行。计划 SHA-256 为 `d6eec02c9935a5699cdd814d72be85317575e361fe8f244ff7cb47e4e67fffcc`。8 个常规 shard 正在运行，Orange IGSTGNN 等待保留完整 batch 的双卡恢复。本地全仓回归为 440 passed 和 2 个既有 warning。当前运维状态以 Table 4 双机九卡启动报告为准。
 
 ## 当前方法说明
 

@@ -44,6 +44,12 @@ IGSTGNN Table 4 复现使用独立协议 `igstgnn_table4_official_v1` 与矩阵 
 
 task003 首次通过 SSH 附着运行，在完成 3 个 epoch 后于 2026-07-28 22:32:25 新加坡时间按计划中断，以迁移到持久控制层。runner 状态为 `interrupted`，退出码为 130，没有正式任务目录或正式结果。incident 位于 `D:\t4\incidents\table4_003_attached_interrupted_20260728T143225Z`，incident SHA-256 为 `24da66f71bac2ecfe8e3654ad1630cf97723f7b1f9c2c4fd64b12db7e666be6b`。提交 `fa5b458` 与 `8ad61bf` 增加 fail-closed 接力器和固定 5080 启动命令。接力器 SHA-256 为 `3410e9eab5a53c421afc3c93eaeb00f49dbf371dc86165a8d1e15b7bd5054023`，Mac 专项测试 2 项通过。Windows 任务计划 `XTraffic_IGSTGNN_Table4_v2` 于 22:36:39 启动，执行时限为 `PT0S`，开机后可恢复。它先运行 tasks003、013 pilot 门，全部通过后再启动完整 39 项。新 task003 于 22:36:40 从 epoch 0 开始，GPU 使用 11,899 MiB，利用率 82%。
 
+2026-07-29，Table 4 正式执行切换为两台 RTX 4090 D 主机的 9 卡固定分片。计划 SHA-256 为 `d6eec02c9935a5699cdd814d72be85317575e361fe8f244ff7cb47e4e67fffcc`。五卡机承担 Orange 13 项，四卡机承担 Alameda 与 Contra Costa 26 项。5080 旧 pilot 在 epoch 38 后停止，没有 task003 正式目录，计划任务已禁用，incident 清单 SHA-256 为 `29c58bad6635ae3c7d476ec875cd577153ab4a95981d32f2a16baf89248bde4a`。
+
+两端 27 个正式数据文件均通过逐文件 SHA-256 复验。首次启动因 Mac UID 501 所有权被安全门拒绝，没有 trainer 或正式结果。修正所有权并重新验哈希后，五卡机与四卡机分别于 00:47:14 和 00:47:32 新加坡时间正式重启。Orange IGSTGNN 的两次单卡诊断证明 24 GB 物理显存不足。提交 `f43fb58` 增加保留完整 batch 的双卡适配，提交 `25b5307` 增加自动恢复控制器。控制器 PID 为 `20105`，等待 Orange BiST 完成后使用 GPU 4 与 GPU 3 执行 task039。本地全仓为 440 passed 和 2 个既有 warning，多卡仓库远端专项门为 15 passed。
+
+双机 finalizer 已设置结果服务器严格回传、逐文件复验、原子提升和成功后自动关机。关机命令显式使用 `/usr/bin/shutdown`。任何训练、postflight、容量、传输或远端复验失败都会保持机器开机。完整启动记录见 `docs/audits/igstgnn_table4_4090d_launch_2026-07-29.md`。
+
 项目方法层级为 `RADS ⊂ RADS-O ⊂ NDR-Net`。完整研究史和数字出处见主报告，当前有效性见审计文件。
 
 所有数字必须来自落盘文件。保留诚实负结果。种子约定为 42、1、2。指标采用 masked MAE。

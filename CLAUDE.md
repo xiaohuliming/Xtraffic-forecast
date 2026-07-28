@@ -105,6 +105,12 @@ task042 于 2026-07-26 23:32:54 新加坡时间完成并通过 runner 验收。a
 
 task003 首次 SSH 附着运行在完成 3 个 epoch 后于 22:32:25 按计划中断，目的是迁移到不依赖 SSH 的持久执行。该尝试退出码为 130，没有正式任务目录，不影响 HL 或 LSTM。incident SHA-256 为 `24da66f71bac2ecfe8e3654ad1630cf97723f7b1f9c2c4fd64b12db7e666be6b`。提交 `fa5b458` 与 `8ad61bf` 增加经过测试的 fail-closed 接力器和固定启动命令。Windows 任务计划 `XTraffic_IGSTGNN_Table4_v2` 于 22:36:39 启动，先执行 tasks003 与 013，二者均通过后才启动完整 39 项。新 task003 已于 22:36:40 从 epoch 0 开始。接力状态位于 `D:\t4\control\scheduled_handoff_status.json`，正式结果根为 `D:\t4\results\igstgnn_table4_public_repro_39_v2`。
 
+2026-07-29，正式执行已切换到两台 RTX 4090 D 主机，共 9 张 24 GB GPU。固定计划 `igstgnn_table4_4090d_9gpu_v1` 的 SHA-256 为 `d6eec02c9935a5699cdd814d72be85317575e361fe8f244ff7cb47e4e67fffcc`。五卡机承担 Orange 13 项，四卡机承担 Alameda 与 Contra Costa 26 项。三地区方法内比较均保持同机。两端 27 个正式数据文件均通过逐文件 SHA-256 复验。5080 旧 pilot 在 epoch 38 后停止，没有 task003 正式目录，计划任务已禁用，incident 清单 SHA-256 为 `29c58bad6635ae3c7d476ec875cd577153ab4a95981d32f2a16baf89248bde4a`。
+
+首次九卡启动因 rsync 保留 Mac UID 501 被所有权安全门拒绝。9 个 shard 均在 trainer 启动前退出，没有正式结果。修正所有权并重新完成数据哈希校验后，五卡机与四卡机分别于 00:47:14 和 00:47:32 新加坡时间正式重启。Orange IGSTGNN 的两次单卡尝试证明 24 GB 物理显存不足。提交 `f43fb58` 与 `25b5307` 增加保留完整 batch 的双卡适配和自动恢复控制器。恢复控制器 PID 为 `20105`，等待 Orange BiST 释放 GPU 3 后，使用 GPU 4 与 GPU 3 运行 task039。完整进度见 `docs/audits/igstgnn_table4_4090d_launch_2026-07-29.md`。
+
+两台主机均已布防自动收尾。只有 source-host postflight、严格 allowlist 上传、结果服务器逐文件 SHA-256、精确目录树和原子提升全部通过后，源主机才调用 `/usr/bin/shutdown -h now`。任一步失败时主机保持开机。本地全仓回归现为 440 passed 和 2 个既有 warning，多卡仓库远端专项门为 15 passed。
+
 ## v2 冻结记录
 
 2026-07-19 曾从提交 `bf3045ac` 构建 v2 三地区缓存。事件样本 train、val、test 数分别为 Alameda 43973、9450、9366，ContraCosta 19159、4026、4040，Orange 75395、15727、14368。full-window 三地区曾记录为 73561、10501、21013，远端曾有 28 项测试通过。45 项队列于 00:39 启动，启动判活时 GPU 利用率为 91%，显存使用约 6.0 GiB。
@@ -113,8 +119,8 @@ task003 首次 SSH 附着运行在完成 3 个 epoch 后于 22:32:25 按计划�
 
 ## 下一步顺序
 
-1. 完成 Alameda 的 DCRNN 与 IGSTGNN 正式 pilot，每项都必须通过五文件复验。
-2. pilot 通过后从同一不可变清单启动完整 39 项单卡顺序队列，已有正式 pilot 仅在重新验收通过后跳过。
+1. 验证 Orange IGSTGNN 双卡恢复通过首个真实 batch。
+2. 等待双机 9 卡固定分片完成 source-host postflight、回传和自动关机。
 3. 生成与论文同结构的 Table 4、逐单元差值表和数字追溯索引。
 4. 只根据完整的 v3 落盘结果决定原项目论文主张。Table 4 复现结果与 v3 无泄露结论必须分开解释。
 
