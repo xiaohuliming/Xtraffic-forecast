@@ -21,6 +21,7 @@ cp "$ROOT_DIR/config/reproduction/igstgnn_table4/ndr_extension_profile_v1.json" 
 cp "$ROOT_DIR/config/reproduction/igstgnn_table4/matrix.public_material_v2.json" \
   "$TMP/root/ndr_repo/config/reproduction/igstgnn_table4/"
 touch "$TMP/root/control/table4_4090d4/defer_shutdown_for_ndr_extension"
+touch "$TMP/root/control/table4_4090d4/relay_ed25519"
 cat > "$TMP/bin/shutdown" <<EOF
 #!/usr/bin/env bash
 touch "$TMP/shutdown.called"

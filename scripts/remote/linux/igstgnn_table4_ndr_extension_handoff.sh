@@ -25,7 +25,7 @@ TRANSFER_MANIFEST=${TRANSFER_MANIFEST:-$CONTROL_DIR/transfer.sha256}
 TRANSFER_MARKER=${TRANSFER_MARKER:-$CONTROL_DIR/transfer_complete.json}
 RELAY=${RELAY:-root@8.134.12.5}
 RELAY_BASE=${RELAY_BASE:-/root/xtraffic_results/igstgnn_table4_official_v1/ndr_extension_9gpu_v1/hosts}
-SSH_IDENTITY_FILE=${SSH_IDENTITY_FILE:-}
+SSH_IDENTITY_FILE=${SSH_IDENTITY_FILE:-$ORIGINAL_CONTROL/relay_ed25519}
 SSH_BIN=${SSH_BIN:-/usr/bin/ssh}
 RSYNC_BIN=${RSYNC_BIN:-/usr/bin/rsync}
 SHUTDOWN_BIN=${SHUTDOWN_BIN:-/usr/bin/shutdown}
@@ -68,6 +68,8 @@ done
   || fail "base manifest hash mismatch"
 [[ -f "$SHUTDOWN_DEFER_FILE" && ! -L "$SHUTDOWN_DEFER_FILE" ]] \
   || fail "shutdown defer sentinel is missing or unsafe"
+[[ -f "$SSH_IDENTITY_FILE" && ! -L "$SSH_IDENTITY_FILE" ]] \
+  || fail "relay identity file is missing or unsafe"
 
 log "NDR_HANDOFF_WAIT_ORIGINAL host=$HOST_ID"
 while true; do
