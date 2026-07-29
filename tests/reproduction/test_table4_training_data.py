@@ -246,6 +246,30 @@ def test_verified_bundle_retain_contract_matches_igstgnn_tail_semantics(
     assert batches[0]["durations"].shape == (5, 12)
 
 
+def test_verified_bundle_can_retain_verified_target_time_features(tmp_path):
+    bundle_dir, manifest_sha256 = _write_verified_bundle(tmp_path)
+
+    bundle = load_verified_split_bundle(
+        bundle_dir,
+        expected_manifest_sha256=manifest_sha256,
+        batch_size=5,
+        input_dim=3,
+        include_incident=False,
+        sensor_info=None,
+        seed=42,
+        loader_contract=RETAIN_LOADER_CONTRACT,
+        target_dim=3,
+    )
+    first = next(bundle.train_loader.get_iterator())
+
+    assert first["y_data"].shape == (5, 12, 3, 3)
+    np.testing.assert_allclose(
+        first["y_data"][0, :, 0, 1],
+        np.arange(60, 72, dtype=np.float32) / 288,
+    )
+    np.testing.assert_allclose(first["y_data"][0, :, 0, 2], 4 / 7)
+
+
 def test_verified_bundle_drop_contract_matches_largest_and_bist_semantics(
     tmp_path,
 ):

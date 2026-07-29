@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "status": "planned_project_method_extension",
+  "protocol_id": "igstgnn_table4_official_v1",
+  "matrix_id": "igstgnn_table4_ndr_extension_9_v1",
+  "base_matrix_id": "igstgnn_table4_public_repro_39_v2",
+  "base_manifest_sha256": "d0c7fb88e24c6026d670a4a6d571357eb5320393417a83d344adb05151023a78",
+  "validity_label": "official_protocol_with_known_overlap",
+  "claim_scope": "same_protocol_project_method_extension",
+  "profile_path": "ndr_extension_profile_v1.json",
+  "profile_sha256": "6ca46be0fb76543a61a8bd32996c7598ac674bbe239b701d1a92481f63be9422",
+  "split_bundle_manifest_sha256": {
+    "Alameda": "d7bb23775ed9b7cab7c869c84f1dd59774d4b2222bc33ec1b44618efd683d129",
+    "Contra_Costa": "0f0fa14f41202288c572d996b8e457010c6ab339f39369e5db71ca04f62e7da1",
+    "Orange": "c37b78f19766fec9ac57d28d6a7becd8a3b334261cef4e7863f29b0bbcc7b019"
+  },
+  "tasks": [
+    {
+      "task_id": "ndr001_alameda_seed42",
+      "method": "ndr_net",
+      "region": "Alameda",
+      "seed": 42,
+      "source_id": "xtraffic_ndr_s0g",
+      "profile_id": "ndr_net_table4_extension_v1",
+      "config_sha256": "6ca46be0fb76543a61a8bd32996c7598ac674bbe239b701d1a92481f63be9422",
+      "split_bundle_manifest_sha256": "d7bb23775ed9b7cab7c869c84f1dd59774d4b2222bc33ec1b44618efd683d129",
+      "output_dir": "tasks/ndr001_alameda_seed42"
+    },
+    {
+      "task_id": "ndr002_alameda_seed1",
+      "method": "ndr_net",
+      "region": "Alameda",
+      "seed": 1,
+      "source_id": "xtraffic_ndr_s0g",
+      "profile_id": "ndr_net_table4_extension_v1",
+      "config_sha256": "6ca46be0fb76543a61a8bd32996c7598ac674bbe239b701d1a92481f63be9422",
+      "split_bundle_manifest_sha256": "d7bb23775ed9b7cab7c869c84f1dd59774d4b2222bc33ec1b44618efd683d129",
+      "output_dir": "tasks/ndr002_alameda_seed1"
+    },
+    {
+      "task_id": "ndr003_alameda_seed2",
+      "method": "ndr_net",
+      "region": "Alameda",
+      "seed": 2,
+      "source_id": "xtraffic_ndr_s0g",
+      "profile_id": "ndr_net_table4_extension_v1",
+      "config_sha256": "6ca46be0fb76543a61a8bd32996c7598ac674bbe239b701d1a92481f63be9422",
+      "split_bundle_manifest_sha256": "d7bb23775ed9b7cab7c869c84f1dd59774d4b2222bc33ec1b44618efd683d129",
+      "output_dir": "tasks/ndr003_alameda_seed2"
+    },
+    {
+      "task_id": "ndr004_contra_costa_seed42",
+      "method": "ndr_net",
+      "region": "Contra_Costa",
+      "seed": 42,
+      "source_id": "xtraffic_ndr_s0g",
+      "profile_id": "ndr_net_table4_extension_v1",
+      "config_sha256": "6ca46be0fb76543a61a8bd32996c7598ac674bbe239b701d1a92481f63be9422",
+      "split_bundle_manifest_sha256": "0f0fa14f41202288c572d996b8e457010c6ab339f39369e5db71ca04f62e7da1",
+      "output_dir": "tasks/ndr004_contra_costa_seed42"
+    },
+    {
+      "task_id": "ndr005_contra_costa_seed1",
+      "method": "ndr_net",
+      "region": "Contra_Costa",
+      "seed": 1,
+      "source_id": "xtraffic_ndr_s0g",
+      "profile_id": "ndr_net_table4_extension_v1",
+      "config_sha256": "6ca46be0fb76543a61a8bd32996c7598ac674bbe239b701d1a92481f63be9422",
+      "split_bundle_manifest_sha256": "0f0fa14f41202288c572d996b8e457010c6ab339f39369e5db71ca04f62e7da1",
+      "output_dir": "tasks/ndr005_contra_costa_seed1"
+    },
+    {
+      "task_id": "ndr006_contra_costa_seed2",
+      "method": "ndr_net",
+      "region": "Contra_Costa",
+      "seed": 2,
+      "source_id": "xtraffic_ndr_s0g",
+      "profile_id": "ndr_net_table4_extension_v1",
+      "config_sha256": "6ca46be0fb76543a61a8bd32996c7598ac674bbe239b701d1a92481f63be9422",
+      "split_bundle_manifest_sha256": "0f0fa14f41202288c572d996b8e457010c6ab339f39369e5db71ca04f62e7da1",
+      "output_dir": "tasks/ndr006_contra_costa_seed2"
+    },
+    {
+      "task_id": "ndr007_orange_seed42",
+      "method": "ndr_net",
+      "region": "Orange",
+      "seed": 42,
+      "source_id": "xtraffic_ndr_s0g",
+      "profile_id": "ndr_net_table4_extension_v1",
+      "config_sha256": "6ca46be0fb76543a61a8bd32996c7598ac674bbe239b701d1a92481f63be9422",
+      "split_bundle_manifest_sha256": "c37b78f19766fec9ac57d28d6a7becd8a3b334261cef4e7863f29b0bbcc7b019",
+      "output_dir": "tasks/ndr007_orange_seed42"
+    },
+    {
+      "task_id": "ndr008_orange_seed1",
+      "method": "ndr_net",
+      "region": "Orange",
+      "seed": 1,
+      "source_id": "xtraffic_ndr_s0g",
+      "profile_id": "ndr_net_table4_extension_v1",
+      "config_sha256": "6ca46be0fb76543a61a8bd32996c7598ac674bbe239b701d1a92481f63be9422",
+      "split_bundle_manifest_sha256": "c37b78f19766fec9ac57d28d6a7becd8a3b334261cef4e7863f29b0bbcc7b019",
+      "output_dir": "tasks/ndr008_orange_seed1"
+    },
+    {
+      "task_id": "ndr009_orange_seed2",
+      "method": "ndr_net",
+      "region": "Orange",
+      "seed": 2,
+      "source_id": "xtraffic_ndr_s0g",
+      "profile_id": "ndr_net_table4_extension_v1",
+      "config_sha256": "6ca46be0fb76543a61a8bd32996c7598ac674bbe239b701d1a92481f63be9422",
+      "split_bundle_manifest_sha256": "c37b78f19766fec9ac57d28d6a7becd8a3b334261cef4e7863f29b0bbcc7b019",
+      "output_dir": "tasks/ndr009_orange_seed2"
+    }
+  ]
+}

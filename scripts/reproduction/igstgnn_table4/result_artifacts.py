@@ -24,6 +24,13 @@ from .secure_io import (
 
 
 _PROTOCOL_ID = "igstgnn_table4_official_v1"
+_DEFAULT_CLAIM_SCOPE = "public_material_maximum_fidelity_reproduction"
+_ALLOWED_CLAIM_SCOPES = frozenset(
+    {
+        _DEFAULT_CLAIM_SCOPE,
+        "same_protocol_project_method_extension",
+    }
+)
 _ALLOWLIST = frozenset(
     {
         "checkpoint.pt",
@@ -240,8 +247,11 @@ def write_completed_task_artifacts(
     checkpoint_source: Path | str,
     train_log_source: Path | str,
     provenance: Mapping[str, Any],
+    claim_scope: str = _DEFAULT_CLAIM_SCOPE,
 ) -> Path:
     target = Path(target_dir)
+    if claim_scope not in _ALLOWED_CLAIM_SCOPES:
+        raise ValueError("Unsupported Table 4 result claim scope")
     task_value = _validated_task(task)
     provenance_value = _validate_provenance(provenance)
     prediction_array, label_array, valid_mask = _prepare_arrays(
@@ -289,7 +299,7 @@ def write_completed_task_artifacts(
             "status": "completed",
             "protocol_id": _PROTOCOL_ID,
             "validity_label": "official_protocol_with_known_overlap",
-            "claim_scope": "public_material_maximum_fidelity_reproduction",
+            "claim_scope": claim_scope,
             "task": task_value,
             "prediction_shape": list(prediction_array.shape),
             "prediction_dtype": "float32",
@@ -303,6 +313,7 @@ def write_completed_task_artifacts(
         validate_completed_task_artifacts(
             staging,
             expected_task=task_value,
+            expected_claim_scope=claim_scope,
         )
         _publish_directory_exclusive(staging, target)
         staging = Path()
@@ -350,7 +361,10 @@ def validate_completed_task_artifacts(
     task_dir: Path | str,
     *,
     expected_task: Mapping[str, Any],
+    expected_claim_scope: str = _DEFAULT_CLAIM_SCOPE,
 ) -> dict[str, Any]:
+    if expected_claim_scope not in _ALLOWED_CLAIM_SCOPES:
+        raise ValueError("Unsupported Table 4 result claim scope")
     directory = verify_secure_directory(
         task_dir,
         purpose="Task artifact path",
@@ -369,7 +383,7 @@ def validate_completed_task_artifacts(
         or summary.get("status") != "completed"
         or summary.get("protocol_id") != _PROTOCOL_ID
         or summary.get("validity_label") != "official_protocol_with_known_overlap"
-        or summary.get("claim_scope") != "public_material_maximum_fidelity_reproduction"
+        or summary.get("claim_scope") != expected_claim_scope
         or summary.get("task") != task_value
         or summary.get("artifact_allowlist") != sorted(_ALLOWLIST)
         or summary.get("prediction_dtype") != "float32"

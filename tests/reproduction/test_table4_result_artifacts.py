@@ -99,6 +99,38 @@ def test_write_and_validate_completed_task_artifacts(tmp_path):
         )
 
 
+def test_result_artifacts_bind_the_project_method_extension_claim_scope(tmp_path):
+    predictions, labels = _arrays()
+    checkpoint, train_log = _source_files(tmp_path)
+    target = tmp_path / "tasks" / TASK["task_id"]
+    claim_scope = "same_protocol_project_method_extension"
+
+    write_completed_task_artifacts(
+        target_dir=target,
+        task=TASK,
+        predictions=predictions,
+        labels=labels,
+        checkpoint_source=checkpoint,
+        train_log_source=train_log,
+        provenance={
+            "protocol_id": "igstgnn_table4_official_v1",
+            "training_code_sha256": "3" * 64,
+        },
+        claim_scope=claim_scope,
+    )
+
+    report = validate_completed_task_artifacts(
+        target,
+        expected_task=TASK,
+        expected_claim_scope=claim_scope,
+    )
+    summary = json.loads((target / "summary.json").read_text(encoding="utf-8"))
+    assert report["status"] == "completed_task_artifacts_verified"
+    assert summary["claim_scope"] == claim_scope
+    with pytest.raises(ValueError):
+        validate_completed_task_artifacts(target, expected_task=TASK)
+
+
 def test_writer_refuses_to_replace_an_existing_task_directory(tmp_path):
     predictions, labels = _arrays()
     checkpoint, train_log = _source_files(tmp_path)

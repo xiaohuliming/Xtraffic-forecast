@@ -585,6 +585,7 @@ class VerifiedSplitLoader:
         split: str,
         batch_size: int,
         input_dim: int,
+        target_dim: int,
         include_incident: bool,
         sensor_info: dict[str, np.ndarray] | None,
         seed: int,
@@ -594,6 +595,7 @@ class VerifiedSplitLoader:
         self._split = split
         self._batch_size = batch_size
         self._input_dim = input_dim
+        self._target_dim = target_dim
         self._include_incident = include_incident
         self._sensor_info = sensor_info
         self._seed = seed
@@ -626,7 +628,9 @@ class VerifiedSplitLoader:
             ),
             "y_data": np.stack(
                 [
-                    np.asarray(record["y_data"], dtype=np.float32)[..., :1]
+                    np.asarray(record["y_data"], dtype=np.float32)[
+                        ..., : self._target_dim
+                    ]
                     for record in records
                 ],
                 axis=0,
@@ -728,6 +732,7 @@ def load_verified_split_bundle(
     sensor_info: Mapping[str, Any] | None,
     seed: int,
     loader_contract: Mapping[str, str],
+    target_dim: int = 1,
 ) -> VerifiedSplitBundle:
     expected_manifest_sha256 = _validate_sha256(
         expected_manifest_sha256,
@@ -737,6 +742,8 @@ def load_verified_split_bundle(
         raise ValueError("batch_size must be a positive integer")
     if input_dim not in {1, 3}:
         raise ValueError("Table 4 incident input_dim must be 1 or 3")
+    if target_dim not in {1, 3}:
+        raise ValueError("Table 4 incident target_dim must be 1 or 3")
     if type(include_incident) is not bool:
         raise ValueError("include_incident must be a boolean")
     if type(seed) is not int or seed < 0:
@@ -836,6 +843,7 @@ def load_verified_split_bundle(
             split=split,
             batch_size=batch_size,
             input_dim=input_dim,
+            target_dim=target_dim,
             include_incident=include_incident,
             sensor_info=prepared_sensor_info,
             seed=seed,
