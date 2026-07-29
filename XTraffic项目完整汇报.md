@@ -758,11 +758,15 @@ runner 层现已完成或重新验收 45/45。5090 新分片为 18/18，5080 新
 62. 四卡机完成原矩阵 26/26 和 134 文件 source-host postflight。首次 finalizer 因没有 BatchMode 回传身份在传输前停止，任务和结果未改写。部署主机专用 Ed25519 身份后，四卡机于 17:19 完成结果服务器逐文件复验与原子提升。关机由 NDR 哨兵延期。提交 `ce7a8c2` 把同一身份设为双机原 finalizer 的默认值。
 63. 四卡机 NDR 首次真实 CUDA 探针发现旧训练入口顶层导入了扩展不需要的 `h5py`。该次探针没有建立 trainer 或正式结果。提交 `77d8815` 收窄导入边界并新增无 `h5py` 回归，本地全仓为 456 passed 和 2 个既有 warning，双机真实导入门通过。
 64. 四卡机 NDR 重启探针通过，Contra Costa shape 为 `16×496×12`，loss 为 `37.95976257`，CUDA 峰值为 8,128,185,856 bytes。17:24，PID `456092` 启动 4 个正式 shard runner，承担 Alameda 与 Contra Costa 6 项。17:25 四张卡利用率为 93% 到 97%，显存为 8,644 MiB 到 9,416 MiB。原矩阵总进度为 36/39，五卡机为 10/13，正在执行 task037 Orange D2STGNN，NDR 控制器 PID `422803` 继续等待。
+65. 四卡机完成 Alameda 与 Contra Costa 的六项 NDR 后关机。用户重新开机并批准由四卡机接管 Orange 三种子。重分配计划 `igstgnn_table4_ndr_extension_4gpu_rebalance_v2` 的 SHA-256 为 `56a71fe2a3b8101ae282dc6f9b9efab07874108a40922276285206e99cbf2612`。旧六项保持原 shard 路径，只读复验后跳过。Orange seeds 42、1、2 分别固定到 GPU 0、1、2。
+66. Orange 原 batch 16 单卡 backward 探针因 24 GB 显存不足而 fail closed，没有正式结果。提交 `87526d1` 使用两次 max microbatch 8 前向，以全批分母计算 loss，只做一次梯度裁剪、一次 optimizer step 与一次 scheduler step，有效 batch 仍为 16。梯度等价回归通过。真实 CUDA 探针 loss 为 `42.45340157`，峰值分配显存为 12,632,052,224 bytes。
+67. 四卡机正式 NDR 控制器 PID `3677` 于 2026-07-30 00:08:27 新加坡时间启动。00:18 三项均完成 epoch 1，validation MAE 为 13.19330061、13.06060743、12.91147725。完成控制器 PID `5614` 会先证明旧六项 30 个 artifact 哈希未改变，再执行完整 9 项 postflight、独立回传、结果服务器复验、原子提升与关机。
+68. 五卡机旧 NDR 等待器 PID `422803` 已定向停止，原矩阵未受影响。incident 清单摘要为 `556c4289e2b4ec41b35b40d1f9a72190e1ad1c3c5a55edf1986843a70aa6e8a1`。新关机等待器 PID `201649` 只在原矩阵回传和结果服务器正式树复验通过后关机。00:18 原矩阵为 37/39，task039 Orange IGSTGNN 已完成 44/100 epoch，之后只余 task034 Orange STTN。控制提交为 `dd2d087` 与 `b5d9751`。
 
 当前待执行事项按优先级排列。
 
-1. 等待原 39 项在五卡机上的剩余 3 项及该主机正式回传完成。
-2. 等待四卡机 6 项和五卡机 3 项 NDR-Net 完成、独立回传与自动关机。
+1. 等待原 39 项在五卡机上的 task039 与 task034，以及该主机正式回传和自动关机。
+2. 等待四卡机 Orange 三项完成，使 NDR-Net 扩展达到 9/9，再完成旧六项哈希复验、独立回传与自动关机。
 3. 分别建立原 39 项与 NDR-Net 9 项只读索引，再生成论文同结构表、三种子补充行、逐单元差值表和数字追溯索引。
 
 ---

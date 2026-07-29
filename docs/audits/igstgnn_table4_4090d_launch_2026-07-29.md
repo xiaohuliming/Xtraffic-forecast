@@ -120,10 +120,24 @@ Orange D2STGNN 无法把 batch 64 一次分给五张 24 GB 卡，因为至少四
 
 同一时刻，原矩阵总进度为 36/39。五卡机为 10/13，task036 Orange DGCRN 已完整落盘，task037 Orange D2STGNN 正在执行。task037 首个落盘 epoch 的训练 loss 为 27.5222，验证 MAE 为 21.0824。后续仍需 task039 Orange IGSTGNN 与 task034 Orange STTN。五卡机 NDR 控制器 PID `422803` 继续等待原分片完成、source-host postflight 和结果服务器正式复验。
 
+## 00:18 四卡机接管 Orange NDR
+
+2026-07-30 00:08 新加坡时间起，NDR 扩展从双机 6/3 分片切换为四卡机单主机 9 项重分配。新计划 ID 为 `igstgnn_table4_ndr_extension_4gpu_rebalance_v2`，SHA-256 为 `56a71fe2a3b8101ae282dc6f9b9efab07874108a40922276285206e99cbf2612`。它仍引用不可变 9 项清单 `2442f1f29b6e3dcef1d3f6999c0ce9dbf474e43644f98cd6f2aec765908db5b4`。六项 Alameda 与 Contra Costa 正式 artifact 保持在原四个 shard 中，runner 先逐项验收并跳过。GPU 0、1、2 随后分别执行 ndr007、ndr008、ndr009，GPU 3 在完成旧结果复验后退出。
+
+首次 Orange 单卡探针使用原 batch 16，在 backward 尝试额外分配 2.80 GiB 时 OOM。探针没有创建正式任务目录、summary 或 prediction。提交 `87526d1` 增加精确有效 batch 适配。每个 batch 仍为 16，训练拆成两次 max microbatch 8 前向，loss 的有效点数、gate confidence、gate target 均按全批分母归一化，只执行一次梯度裁剪、一次 optimizer step 和一次 scheduler step。小模型差分测试确认 full batch 与两微批的总 loss 及全部参数梯度一致。
+
+修复后的 Orange 真实 CUDA 探针输出 `NDR_EXTENSION_SMOKE_OK`，shape 为 `16×990×12`，loss 为 `42.45340157`，microbatches 为 2，峰值分配显存为 12,632,052,224 bytes。计划与适配提交为 `b67f30f` 与 `87526d1`。Mac 全仓回归为 458 passed 和 2 个既有 warning。正式 host controller PID 为 `3677`，启动时间为 00:08:27。00:18 的三张训练卡利用率为 98% 到 99%，显存为 18,686 MiB。三项均完成 epoch 1，validation MAE 依次为 13.19330061、13.06060743、12.91147725。
+
+四卡机完成控制器 PID `5614` 正在等待 host status。它要求旧六项锁定清单的 30 个 artifact 逐文件哈希保持不变，然后重新运行完整 9 项 postflight。正式回传使用独立结果根 `ndr_extension_4gpu_rebalance_v2/hosts`，结果服务器必须通过逐文件 SHA-256、精确目录树和原子提升。全部通过后才移除四卡机的新关机 guard 并调用 `/usr/bin/shutdown -h now`。
+
+五卡机旧 NDR handoff PID `422803` 在没有 Orange trainer 的等待态被定向停止。原矩阵进程未受影响，关机延期哨兵保持。incident 位于 `incidents/ndr_extension_waiter_rebalanced_20260729T161049Z`，清单摘要为 `556c4289e2b4ec41b35b40d1f9a72190e1ad1c3c5a55edf1986843a70aa6e8a1`。新关机等待器 PID `201649` 只等待五卡机原矩阵的 transfer marker 与 `FINALIZE_SUCCESS shutdown_deferred`，随后使用绑定密钥重新复验结果服务器正式树，成功后才移除哨兵并关机。控制提交为 `dd2d087` 与 `b5d9751`。
+
+00:18 时原矩阵总进度为 37/39。五卡机已完成 11/13，task039 Orange IGSTGNN 已完成 44/100 epoch，之后只余 task034 Orange STTN。五卡机原矩阵未完成回传，最终 Table 4 仍不得生成。
+
 ## 下一步
 
-1. 等待五卡机原矩阵剩余 3 项完成，并通过 source-host postflight 与结果服务器复验。
-2. 等待四卡机 6 项 NDR-Net 完成，等待五卡机完成 CUDA 探针并启动 Orange 3 项。
-3. 等待扩展 source-host postflight、独立回传、结果服务器复验与自动关机。
+1. 等待五卡机原矩阵 task039 与 task034 完成，并通过 source-host postflight、结果服务器复验与自动关机。
+2. 等待四卡机 Orange 3 项完成，使 NDR 扩展达到 9/9，并复验旧六项 artifact 哈希不变。
+3. 等待 NDR 扩展 postflight、独立回传、结果服务器复验与自动关机。
 4. 建立原 39 项只读 composite index，并建立独立的 9 项扩展索引。
 5. 从逐份复验的 summary 与 predictions 生成论文同结构的原表、NDR-Net 三种子补充行、逐单元差值表和数字追溯索引。

@@ -64,9 +64,11 @@ NDR-Net 补充对比保持原 39 项清单不变，使用独立矩阵 `igstgnn_t
 
 扩展部署在两台主机的独立 `/root/autodl-tmp/table4/ndr_repo`，没有改写原矩阵 checkout。原 finalizer 的关机由安全哨兵延期。第一次扩展控制器因正常的 Python 符号链接被过严安全门拒绝，没有训练、结果或关机动作。修复后的四卡机与五卡机延期控制器 PID 为 `447869` 与 `410737`，均在等待原矩阵回传成功。每台主机启动扩展正式分片前会先做最大地区的真实 CUDA 前向反向探针。扩展只有在独立 postflight、结果服务器逐文件复验和原子提升全部通过后才移除延期哨兵并调用 `/usr/bin/shutdown -h now`。
 
-截至 2026-07-29 17:25 新加坡时间，原矩阵 runner 已验收 36/39。四卡机为 26/26，134 文件 postflight digest 为 `a43a4023cb7460fcd2ad2d2cece0adc01c7394588df206461744e67ec94550dd`，结果服务器逐文件复验和原子提升已于 17:19 通过，关机由 NDR 哨兵延期。首次 finalizer 因缺少 BatchMode 回传密钥在传输前停止，没有结果损失。提交 `ce7a8c2` 绑定专用 Ed25519 默认身份。五卡机为 10/13，正在执行 task037 Orange D2STGNN，之后仍需 task039 与 task034。
+截至 2026-07-30 00:18 新加坡时间，原矩阵 runner 已验收 37/39。四卡机为 26/26，134 文件 postflight digest 为 `a43a4023cb7460fcd2ad2d2cece0adc01c7394588df206461744e67ec94550dd`，结果服务器逐文件复验和原子提升已于 17:19 通过。五卡机为 11/13，task039 Orange IGSTGNN 已完成 44/100 epoch，之后只余 task034 Orange STTN。原矩阵完整回传前不得生成最终 39 项表。
 
-四卡机 NDR 首次真实 CUDA 探针因旧训练入口顶层导入不需要的 `h5py` 而失败，没有 trainer 或正式结果。提交 `77d8815` 把旧入口专用数据依赖移入 `main()`，Mac 全仓为 456 passed 和 2 个既有 warning，双机导入门通过。重启后的 Contra Costa 探针 loss 为 `37.95976257`，CUDA 峰值为 8,128,185,856 bytes。四卡机 NDR 控制器 PID 为 `456092`，17:24 已启动 4 个正式 shard runner，共承担 6 项。17:25 四张卡利用率为 93% 到 97%，显存为 8,644 MiB 到 9,416 MiB。五卡机 NDR 控制器 PID `422803` 仍在等待原 Orange 分片完成与正式回传。
+四卡机原有的六项 NDR 已完成并保持只读。2026-07-30，用户开机后批准把 Orange 三种子从五卡机转移到四卡机并行训练。重分配计划为 `igstgnn_table4_ndr_extension_4gpu_rebalance_v2`，SHA-256 为 `56a71fe2a3b8101ae282dc6f9b9efab07874108a40922276285206e99cbf2612`。原 batch 16 的单卡 Orange backward 探针 OOM，没有正式结果。提交 `87526d1` 用两次 max microbatch 8 前向、全批 loss 分母和一次优化器更新保持有效 batch 16。真实探针 loss 为 `42.45340157`，CUDA 峰值为 12,632,052,224 bytes。
+
+四卡机正式 NDR 控制器 PID 为 `3677`，GPU 0、1、2 分别执行 Orange seeds 42、1、2。00:18 三项均完成 epoch 1，validation MAE 为 13.19330061、13.06060743、12.91147725。完成控制器 PID `5614` 会复验旧六项的 30 个 artifact 哈希，再执行 9 项 postflight、结果服务器逐文件复验、原子提升和关机。五卡机旧 NDR 等待器 PID `422803` 已停止，incident 清单摘要为 `556c4289e2b4ec41b35b40d1f9a72190e1ad1c3c5a55edf1986843a70aa6e8a1`。五卡机新关机等待器 PID `201649` 只负责在原 39 项回传复验后关机。控制脚本提交为 `dd2d087` 与 `b5d9751`。任何失败都会保留对应主机开机。
 
 项目方法层级为 `RADS ⊂ RADS-O ⊂ NDR-Net`。完整研究史和数字出处见主报告，当前有效性见审计文件。
 

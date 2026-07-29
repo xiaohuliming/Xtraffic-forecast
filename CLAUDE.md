@@ -1,6 +1,6 @@
 # XTraffic 项目导航与协作约定
 
-最近更新：2026-07-28
+最近更新：2026-07-30
 
 ## 新会话先读
 
@@ -131,6 +131,12 @@ NDR-Net Table 4 扩展使用独立矩阵 `igstgnn_table4_ndr_extension_9_v1`。�
 
 四卡机的 NDR 首次真实 CUDA 探针暴露 `scripts/train_staeformer_deseason.py` 顶层导入了 NDR 不需要的 `h5py`。该次探针在 trainer 和正式目录建立前失败。提交 `77d8815` 把只服务旧入口的数据依赖移到 `main()` 内，并新增无 `h5py` 导入回归。本地全仓为 456 passed 和 2 个既有 warning，双机真实导入门均通过。四卡机重启后的 Contra Costa 探针输出为 `16×496×12`，loss 为 `37.95976257`，CUDA 峰值为 8,128,185,856 bytes。17:24 探针通过，PID `456092` 启动四个正式 shard runner。17:25 四张卡利用率为 93% 到 97%，显存为 8,644 MiB 到 9,416 MiB，ndr004 已落盘 epoch 1，验证 MAE 为 12.62008389。五卡机 NDR 控制器 PID `422803` 继续等待原 Orange 分片完成和正式回传。
 
+2026-07-30 00:08 新加坡时间起，NDR 扩展改为四卡机单主机重分配。六项 Alameda 与 Contra Costa 结果已完成并保持只读，Orange 三种子转移到同一四卡机的 GPU 0、1、2 并行训练。固定计划为 `igstgnn_table4_ndr_extension_4gpu_rebalance_v2`，SHA-256 为 `56a71fe2a3b8101ae282dc6f9b9efab07874108a40922276285206e99cbf2612`。该计划仍对应同一个 9 项扩展矩阵，不修改原 39 项矩阵，也不改变 claim scope 与 validity label。
+
+Orange 原始 batch 16 的首次单卡真实探针在 backward 因 24 GB 显存不足而 fail closed，没有 trainer 或正式结果。提交 `87526d1` 实现两次 max microbatch 8 前向、全批 loss 分母、一次梯度裁剪、一次 optimizer step 和一次 scheduler step，保持有效 batch 16。梯度等价回归已通过。修复后的 Orange 探针 loss 为 `42.45340157`，峰值显存为 12,632,052,224 bytes。正式控制器 PID 为 `3677`。00:18 的落盘进度为三个任务均完成 epoch 1，validation MAE 分别为 13.19330061、13.06060743、12.91147725，三张卡利用率为 98% 到 99%。
+
+四卡机完成控制器 PID `5614` 会等待 9 项完整后先复验旧六项 30 个 artifact 的锁定哈希，再运行 9 项 postflight、独立回传、结果服务器逐文件复验和原子提升，最后关机。五卡机旧 NDR 等待器 PID `422803` 已安全停止，incident 清单摘要为 `556c4289e2b4ec41b35b40d1f9a72190e1ad1c3c5a55edf1986843a70aa6e8a1`。五卡机只继续原矩阵。00:18 时原矩阵为 37/39，task039 Orange IGSTGNN 已完成 44/100 epoch，之后只余 task034 Orange STTN。新关机等待器 PID `201649` 只在五卡机原结果完成回传并在结果服务器重新复验后移除延期哨兵和关机。控制脚本提交为 `dd2d087` 与 `b5d9751`。任一训练、哈希、postflight、传输或结果服务器复验失败时，对应主机保持开机。
+
 ## v2 冻结记录
 
 2026-07-19 曾从提交 `bf3045ac` 构建 v2 三地区缓存。事件样本 train、val、test 数分别为 Alameda 43973、9450、9366，ContraCosta 19159、4026、4040，Orange 75395、15727、14368。full-window 三地区曾记录为 73561、10501、21013，远端曾有 28 项测试通过。45 项队列于 00:39 启动，启动判活时 GPU 利用率为 91%，显存使用约 6.0 GiB。
@@ -139,9 +145,9 @@ NDR-Net Table 4 扩展使用独立矩阵 `igstgnn_table4_ndr_extension_9_v1`。�
 
 ## 下一步顺序
 
-1. 等待双机正式恢复任务和后续固定分片完成。
-2. 完成 source-host postflight、严格回传、结果服务器原子提升和自动关机。
-3. 生成与论文同结构的 Table 4、逐单元差值表和数字追溯索引。
+1. 等待五卡机完成 task039 与 task034，并完成原 39 项 source-host postflight、严格回传、结果服务器原子提升和自动关机。
+2. 等待四卡机完成 Orange 三种子，使 NDR 扩展达到 9/9，再完成旧六项哈希不变复验、独立回传和自动关机。
+3. 分别建立原 39 项与 NDR 9 项只读索引，生成与论文同结构的 Table 4、三种子补充行、逐单元差值表和数字追溯索引。
 4. 只根据完整的 v3 落盘结果决定原项目论文主张。Table 4 复现结果与 v3 无泄露结论必须分开解释。
 
 ## 最小判别矩阵
