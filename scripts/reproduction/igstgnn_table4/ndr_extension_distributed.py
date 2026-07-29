@@ -33,6 +33,22 @@ _HOST_REGIONS = {
     "table4_4090d4": ("Alameda", "Contra_Costa"),
     "table4_4090d5": ("Orange",),
 }
+_PLAN_SPECS = {
+    "igstgnn_table4_ndr_extension_9gpu_v1": {
+        "execution_layout": "dual_host_gpu_sku_homogeneous",
+        "host_ids": ("table4_4090d4", "table4_4090d5"),
+        "host_regions": _HOST_REGIONS,
+        "shard_count": 7,
+    },
+    "igstgnn_table4_ndr_extension_4gpu_rebalance_v2": {
+        "execution_layout": "single_host_gpu_sku_homogeneous_restart",
+        "host_ids": ("table4_4090d4",),
+        "host_regions": {
+            "table4_4090d4": ("Alameda", "Contra_Costa", "Orange"),
+        },
+        "shard_count": 4,
+    },
+}
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _MATRIX_RUNNER_MODULE = (
     "scripts.reproduction.igstgnn_table4.ndr_extension_matrix_runner"
@@ -99,23 +115,27 @@ def load_ndr_extension_plan(
         base_manifest_path=base_manifest_path,
         expected_base_manifest_sha256=expected_base_manifest_sha256,
     )
+    plan_id = plan.get("plan_id")
+    plan_spec = _PLAN_SPECS.get(plan_id)
+    if plan_spec is None:
+        raise ValueError("Unexpected NDR extension plan field: plan_id")
     exact = {
         "schema_version": 1,
-        "plan_id": "igstgnn_table4_ndr_extension_9gpu_v1",
         "protocol_id": "igstgnn_table4_official_v1",
         "matrix_id": "igstgnn_table4_ndr_extension_9_v1",
         "manifest_sha256": expected_manifest_sha256,
         "base_manifest_sha256": expected_base_manifest_sha256,
         "gpu_sku": "NVIDIA GeForce RTX 4090 D",
-        "execution_layout": "dual_host_gpu_sku_homogeneous",
+        "execution_layout": plan_spec["execution_layout"],
     }
     for key, expected in exact.items():
         if plan.get(key) != expected:
             raise ValueError(f"Unexpected NDR extension plan field: {key}")
     hosts = plan.get("hosts")
-    if not isinstance(hosts, list) or len(hosts) != 2:
-        raise ValueError("NDR extension plan must contain two hosts")
-    if [host.get("host_id") for host in hosts] != list(_HOST_IDS):
+    expected_host_ids = plan_spec["host_ids"]
+    if not isinstance(hosts, list) or len(hosts) != len(expected_host_ids):
+        raise ValueError("NDR extension plan has an invalid host count")
+    if [host.get("host_id") for host in hosts] != list(expected_host_ids):
         raise ValueError("NDR extension host order is invalid")
     for host in hosts:
         host_id = host["host_id"]
@@ -123,7 +143,8 @@ def load_ndr_extension_plan(
             raise ValueError("NDR extension host schema is invalid")
         if (
             host["gpu_count"] != _HOST_GPU_COUNTS[host_id]
-            or host["regions"] != list(_HOST_REGIONS[host_id])
+            or host["regions"]
+            != list(plan_spec["host_regions"][host_id])
         ):
             raise ValueError("NDR extension host capacity or region binding is invalid")
 
@@ -131,8 +152,11 @@ def load_ndr_extension_plan(
         task["task_id"]: task for task in manifest["tasks"]
     }
     shards = plan.get("shards")
-    if not isinstance(shards, list) or len(shards) != 7:
-        raise ValueError("NDR extension plan must contain seven GPU shards")
+    if (
+        not isinstance(shards, list)
+        or len(shards) != plan_spec["shard_count"]
+    ):
+        raise ValueError("NDR extension plan has an invalid GPU shard count")
     observed_task_ids = []
     shard_ids = set()
     result_roots = set()
@@ -155,7 +179,7 @@ def load_ndr_extension_plan(
             not isinstance(shard_id, str)
             or not shard_id
             or shard_id in shard_ids
-            or host_id not in _HOST_IDS
+            or host_id not in expected_host_ids
             or type(gpu_index) is not int
             or not 0 <= gpu_index < _HOST_GPU_COUNTS[host_id]
             or (host_id, gpu_index) in host_gpu_pairs
@@ -170,7 +194,10 @@ def load_ndr_extension_plan(
             raise ValueError("NDR extension shard identity is invalid")
         for task_id in task_ids:
             task = manifest_tasks.get(task_id)
-            if task is None or task["region"] not in _HOST_REGIONS[host_id]:
+            if (
+                task is None
+                or task["region"] not in plan_spec["host_regions"][host_id]
+            ):
                 raise ValueError("NDR extension task is assigned to the wrong host")
         shard_ids.add(shard_id)
         result_roots.add(result_root)
@@ -204,7 +231,10 @@ def build_ndr_host_launch_specs(
         base_manifest_path=base_manifest_path,
         expected_base_manifest_sha256=base_manifest_sha256,
     )
-    if host_id not in _HOST_IDS:
+    declared_host_ids = {
+        host["host_id"] for host in plan["hosts"]
+    }
+    if host_id not in declared_host_ids:
         raise ValueError(f"Unknown NDR extension host: {host_id}")
     manifest_source = Path(manifest_path).resolve()
     base_manifest_source = Path(base_manifest_path).resolve()
@@ -457,7 +487,10 @@ def validate_ndr_extension_host_results(
         base_manifest_path=base_manifest_path,
         expected_base_manifest_sha256=base_manifest_sha256,
     )
-    if host_id not in _HOST_IDS:
+    declared_host_ids = {
+        host["host_id"] for host in plan["hosts"]
+    }
+    if host_id not in declared_host_ids:
         raise ValueError("Unknown NDR extension postflight host")
     tasks_by_id = {
         task["task_id"]: task for task in manifest["tasks"]

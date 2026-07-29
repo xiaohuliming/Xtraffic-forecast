@@ -71,6 +71,49 @@ def test_ndr_extension_plan_covers_each_task_once_on_its_region_host():
     )
 
 
+def test_ndr_rebalance_plan_reuses_four_shards_and_moves_all_tasks_to_host4():
+    manifest_path = CONFIG_ROOT / "matrix.ndr_extension_v1.json"
+    base_manifest_path = CONFIG_ROOT / "matrix.public_material_v2.json"
+    plan_path = (
+        CONFIG_ROOT / "distributed_ndr_extension_4gpu_rebalance_v2.json"
+    )
+    plan = load_ndr_extension_plan(
+        plan_path,
+        manifest_path=manifest_path,
+        expected_manifest_sha256=_sha256(manifest_path),
+        base_manifest_path=base_manifest_path,
+        expected_base_manifest_sha256=_sha256(base_manifest_path),
+    )
+
+    assert plan["plan_id"] == "igstgnn_table4_ndr_extension_4gpu_rebalance_v2"
+    assert plan["execution_layout"] == "single_host_gpu_sku_homogeneous_restart"
+    assert [host["host_id"] for host in plan["hosts"]] == ["table4_4090d4"]
+    assert len(plan["shards"]) == 4
+    assert [shard["gpu_index"] for shard in plan["shards"]] == [0, 1, 2, 3]
+    assert all(shard["host_id"] == "table4_4090d4" for shard in plan["shards"])
+    assert {
+        task_id
+        for shard in plan["shards"]
+        for task_id in shard["task_ids"]
+    } == {
+        f"ndr{index:03d}_{region}_seed{seed}"
+        for index, region, seed in (
+            (1, "alameda", 42),
+            (2, "alameda", 1),
+            (3, "alameda", 2),
+            (4, "contra_costa", 42),
+            (5, "contra_costa", 1),
+            (6, "contra_costa", 2),
+            (7, "orange", 42),
+            (8, "orange", 1),
+            (9, "orange", 2),
+        )
+    }
+    assert plan["shards"][0]["task_ids"][-1] == "ndr007_orange_seed42"
+    assert plan["shards"][1]["task_ids"][-1] == "ndr008_orange_seed1"
+    assert plan["shards"][2]["task_ids"][-1] == "ndr009_orange_seed2"
+
+
 def test_ndr_host_launch_specs_pin_one_shard_to_each_declared_gpu():
     manifest_path = CONFIG_ROOT / "matrix.ndr_extension_v1.json"
     base_manifest_path = CONFIG_ROOT / "matrix.public_material_v2.json"
