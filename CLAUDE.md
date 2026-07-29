@@ -127,6 +127,10 @@ NDR-Net Table 4 扩展使用独立矩阵 `igstgnn_table4_ndr_extension_9_v1`。�
 
 扩展实现提交为 `cd14b90`、`d67ba1c` 与 `085e68d`。扩展源部署在独立目录 `/root/autodl-tmp/table4/ndr_repo`，不会改写仍在运行的原矩阵 checkout。两台延期控制器第一次因虚拟环境 Python 是正常符号链接而被过严安全门拒绝，没有训练、结果或关机动作。修复后四卡机与五卡机控制器 PID 分别为 `447869` 与 `410737`，均已进入等待原矩阵正式回传完成的状态。每台主机在启动扩展正式分片前还会执行该主机最大地区的一次真实 CUDA 前向反向探针。扩展只有在独立 postflight、结果服务器逐文件复验和原子提升全部成功后才移除延期哨兵并关机。
 
+截至 2026-07-29 17:25 新加坡时间，原矩阵 runner 已验收 36/39。四卡机为 26/26，source-host postflight 验证 134 个文件，files digest 为 `a43a4023cb7460fcd2ad2d2cece0adc01c7394588df206461744e67ec94550dd`。首次 finalizer 因缺少 BatchMode 回传密钥在传输前停止，没有改写结果。专用 Ed25519 密钥部署并验证后，四卡机于 17:19 完成结果服务器逐文件复验和原子提升，关机由 NDR 哨兵延期。提交 `ce7a8c2` 把同一回传身份设为原 finalizer 的默认值，双机脚本 SHA-256 已对齐。五卡机为 10/13，正在执行 task037 Orange D2STGNN，首个落盘 epoch 的验证 MAE 为 21.0824，之后仍需 task039 与 task034。
+
+四卡机的 NDR 首次真实 CUDA 探针暴露 `scripts/train_staeformer_deseason.py` 顶层导入了 NDR 不需要的 `h5py`。该次探针在 trainer 和正式目录建立前失败。提交 `77d8815` 把只服务旧入口的数据依赖移到 `main()` 内，并新增无 `h5py` 导入回归。本地全仓为 456 passed 和 2 个既有 warning，双机真实导入门均通过。四卡机重启后的 Contra Costa 探针输出为 `16×496×12`，loss 为 `37.95976257`，CUDA 峰值为 8,128,185,856 bytes。17:24 探针通过，PID `456092` 启动四个正式 shard runner。17:25 四张卡利用率为 93% 到 97%，显存为 8,644 MiB 到 9,416 MiB，ndr004 已落盘 epoch 1，验证 MAE 为 12.62008389。五卡机 NDR 控制器 PID `422803` 继续等待原 Orange 分片完成和正式回传。
+
 ## v2 冻结记录
 
 2026-07-19 曾从提交 `bf3045ac` 构建 v2 三地区缓存。事件样本 train、val、test 数分别为 Alameda 43973、9450、9366，ContraCosta 19159、4026、4040，Orange 75395、15727、14368。full-window 三地区曾记录为 73561、10501、21013，远端曾有 28 项测试通过。45 项队列于 00:39 启动，启动判活时 GPU 利用率为 91%，显存使用约 6.0 GiB。

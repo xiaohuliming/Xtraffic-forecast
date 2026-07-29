@@ -108,10 +108,22 @@ Orange D2STGNN 无法把 batch 64 一次分给五张 24 GB 卡，因为至少四
 
 每台主机开始扩展正式分片前会先在空闲卡上运行最大地区的真实 CUDA 前向反向探针。任何探针、训练、postflight、传输或结果服务器复验失败都会保留关机延期哨兵并保持主机开机。只有扩展独立结果树在结果服务器逐文件复验和原子提升成功后，控制器才移除延期哨兵并调用 `/usr/bin/shutdown -h now`。
 
+## 17:25 四卡机原结果发布与 NDR 正式启动
+
+四卡机于 17:11 完成原矩阵 26/26。source-host postflight 验证 134 个 allowlist 文件，files digest 为 `a43a4023cb7460fcd2ad2d2cece0adc01c7394588df206461744e67ec94550dd`。首次 finalizer 已通过 postflight，但默认 BatchMode SSH 没有可用回传身份，因此在传输前以鉴权失败停止。任务目录、summary、prediction、checkpoint、train log 与 postflight 均未被改写，延期哨兵保持完好，主机保持开机。
+
+双机各自生成了仅用于结果服务器的 Ed25519 身份。公钥按幂等方式加入结果服务器，私钥只保存在对应主机控制目录。双机到结果服务器的 key-only SSH 均已真实验证。四卡机使用显式身份重新运行 finalizer，于 17:18 完成 1,254,043,651 bytes 与 134 个文件的上传，于 17:19 完成结果服务器逐文件 SHA-256、精确目录树和原子提升，随后记录 `FINALIZE_SUCCESS shutdown_deferred`。提交 `ce7a8c2` 将该身份路径设为原 finalizer 的默认值，专项 shell 测试覆盖成功关机、延期关机、远端复验失败与 postflight 失败。修改后的脚本已在两台主机逐文件 SHA-256 对齐。
+
+四卡机 NDR 首次 CUDA 探针发现官方复现环境未安装 `h5py`。NDR 模型本身不读取 HDF5，依赖来自 `scripts/train_staeformer_deseason.py` 的旧入口顶层导入。探针在正式任务目录和 trainer 建立前失败，记录为 fail-closed incident。提交 `77d8815` 将只服务旧入口的数据集、loader、运行上下文和训练统计导入移入 `main()`，并新增阻断 `h5py` 时模型模块仍可导入的子进程回归。Mac 全仓结果为 456 passed 和 2 个既有 warning，两台 Linux 主机的真实模型导入均输出 `NDR_IMPORT_OK`。
+
+四卡机 NDR 控制器以 PID `456092` 重启。Contra Costa 的真实 CUDA 前向反向探针输出为 `NDR_EXTENSION_SMOKE_OK`，shape 为 `16×496×12`，loss 为 `37.95976257`，峰值分配显存为 8,128,185,856 bytes。探针于 17:24 通过后，控制器启动四个正式 shard runner。GPU 0 到 GPU 2 分别开始 Alameda seeds 42、1、2，GPU 3 开始 Contra Costa seed 42。17:25 四张卡利用率为 93%、97%、97%、93%，显存为 9,416 MiB、9,416 MiB、9,416 MiB、8,644 MiB。ndr004 的首个落盘 epoch 训练 loss 为 25.55628414，验证 MAE 为 12.62008389。
+
+同一时刻，原矩阵总进度为 36/39。五卡机为 10/13，task036 Orange DGCRN 已完整落盘，task037 Orange D2STGNN 正在执行。task037 首个落盘 epoch 的训练 loss 为 27.5222，验证 MAE 为 21.0824。后续仍需 task039 Orange IGSTGNN 与 task034 Orange STTN。五卡机 NDR 控制器 PID `422803` 继续等待原分片完成、source-host postflight 和结果服务器正式复验。
+
 ## 下一步
 
-1. 等待原矩阵剩余 5 项完成并分别通过 source-host postflight 与结果服务器复验。
-2. 等待两台延期控制器完成 CUDA 探针并启动 NDR-Net 六项与三项分片。
+1. 等待五卡机原矩阵剩余 3 项完成，并通过 source-host postflight 与结果服务器复验。
+2. 等待四卡机 6 项 NDR-Net 完成，等待五卡机完成 CUDA 探针并启动 Orange 3 项。
 3. 等待扩展 source-host postflight、独立回传、结果服务器复验与自动关机。
 4. 建立原 39 项只读 composite index，并建立独立的 9 项扩展索引。
 5. 从逐份复验的 summary 与 predictions 生成论文同结构的原表、NDR-Net 三种子补充行、逐单元差值表和数字追溯索引。
