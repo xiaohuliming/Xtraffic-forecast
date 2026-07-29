@@ -16,6 +16,7 @@ RELAY=${RELAY:-root@8.134.12.5}
 RELAY_BASE=${RELAY_BASE:-/root/xtraffic_results/igstgnn_table4_official_v1/distributed_4090d_9gpu_v1/hosts}
 SSH_BIN=${SSH_BIN:-/usr/bin/ssh}
 SHUTDOWN_BIN=${SHUTDOWN_BIN:-/usr/bin/shutdown}
+PYTHON=${PYTHON:-$ROOT/env/bin/python}
 WAIT_SECONDS=${WAIT_SECONDS:-60}
 WAIT_ONCE=${WAIT_ONCE:-0}
 LOG=${LOG:-$CONTROL_DIR/original_shutdown_waiter.log}
@@ -35,6 +36,7 @@ fail() {
 [[ -f "$SHUTDOWN_DEFER_FILE" && ! -L "$SHUTDOWN_DEFER_FILE" ]] \
   || fail "shutdown defer sentinel is missing or unsafe"
 [[ "$RELAY_BASE" =~ ^/[A-Za-z0-9._/-]+$ ]] || fail "unsafe RELAY_BASE"
+command -v "$PYTHON" >/dev/null 2>&1 || fail "Python runtime is missing"
 
 log "ORIGINAL_SHUTDOWN_WAIT export=$TRANSFER_MARKER"
 while true; do
@@ -52,7 +54,7 @@ while true; do
   sleep "$WAIT_SECONDS"
 done
 
-python3 - "$TRANSFER_MARKER" "$TRANSFER_MANIFEST" "$TRANSFER_FILE_LIST" \
+"$PYTHON" - "$TRANSFER_MARKER" "$TRANSFER_MANIFEST" "$TRANSFER_FILE_LIST" \
   "$POSTFLIGHT_REPORT" "$HOST_ID" <<'PY'
 import hashlib
 import json

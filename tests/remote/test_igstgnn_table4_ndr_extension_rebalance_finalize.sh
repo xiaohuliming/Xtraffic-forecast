@@ -36,6 +36,7 @@ PRIOR_TASK_ARTIFACTS="$root/control/prior.sha256" \
 PRIOR_TASK_ARTIFACT_COUNT=1 \
 SHUTDOWN_GUARD="$root/control/shutdown_guard" \
 HANDOFF_BIN="$root/bin/handoff" \
+PYTHON=python3 \
 WAIT_ONCE=1 \
 bash "$SCRIPT" >/dev/null 2>&1
 rc=$?
@@ -95,6 +96,7 @@ SHUTDOWN_GUARD="$root/control/shutdown_guard" \
 WAIT_ONCE=1 \
 HANDOFF_BIN="$root/bin/handoff" \
 RELAY_BASE=/srv/ndr-v2/hosts \
+PYTHON=python3 \
 EXPECTED_PLAN="$root/repo/plan.json" \
 EXPECTED_GUARD="$root/control/shutdown_guard" \
 HANDOFF_CALLED="$root/handoff.called" \

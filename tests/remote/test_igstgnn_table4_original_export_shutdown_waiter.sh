@@ -19,6 +19,7 @@ HOST_ID=table4_4090d5 \
 ROOT="$TMP/root" \
 WAIT_ONCE=1 \
 SHUTDOWN_BIN="$TMP/bin/shutdown" \
+PYTHON=python3 \
 bash "$SCRIPT" >/dev/null 2>&1
 rc=$?
 set -e
@@ -86,6 +87,7 @@ ROOT="$success_root" \
 WAIT_ONCE=1 \
 SSH_BIN="$TMP/bin/ssh" \
 SHUTDOWN_BIN="$TMP/bin/shutdown" \
+PYTHON=python3 \
 bash "$SCRIPT" >/dev/null
 
 [[ -e "$TMP/shutdown.called" ]]

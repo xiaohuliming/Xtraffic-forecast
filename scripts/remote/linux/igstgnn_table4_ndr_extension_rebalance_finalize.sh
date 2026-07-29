@@ -15,6 +15,7 @@ PRIOR_TASK_ARTIFACT_COUNT=${PRIOR_TASK_ARTIFACT_COUNT:-30}
 SHUTDOWN_GUARD=${SHUTDOWN_GUARD:-$CONTROL_DIR/shutdown_guard}
 HANDOFF_BIN=${HANDOFF_BIN:-$REPO/scripts/remote/linux/igstgnn_table4_ndr_extension_handoff.sh}
 RELAY_BASE=${RELAY_BASE:-/root/xtraffic_results/igstgnn_table4_official_v1/ndr_extension_4gpu_rebalance_v2/hosts}
+PYTHON=${PYTHON:-$ROOT/env/bin/python}
 WAIT_SECONDS=${WAIT_SECONDS:-60}
 WAIT_ONCE=${WAIT_ONCE:-0}
 LOG=${LOG:-$CONTROL_DIR/rebalance_finalize.log}
@@ -43,12 +44,13 @@ fail() {
   || fail "shutdown guard is missing or unsafe"
 [[ -x "$HANDOFF_BIN" && ! -L "$HANDOFF_BIN" ]] \
   || fail "handoff controller is missing or unsafe"
+command -v "$PYTHON" >/dev/null 2>&1 || fail "Python runtime is missing"
 
 log "NDR_REBALANCE_FINALIZE_WAIT status=$HOST_STATUS"
 while true; do
   if [[ -s "$HOST_STATUS" && ! -L "$HOST_STATUS" ]]; then
     set +e
-    python3 - "$HOST_STATUS" "$HOST_ID" "$PLAN_SHA256" <<'PY'
+    "$PYTHON" - "$HOST_STATUS" "$HOST_ID" "$PLAN_SHA256" <<'PY'
 import json
 import sys
 from pathlib import Path
