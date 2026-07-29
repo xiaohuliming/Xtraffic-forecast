@@ -29,6 +29,7 @@ SSH_IDENTITY_FILE=${SSH_IDENTITY_FILE:-}
 SSH_BIN=${SSH_BIN:-/usr/bin/ssh}
 RSYNC_BIN=${RSYNC_BIN:-/usr/bin/rsync}
 SHUTDOWN_BIN=${SHUTDOWN_BIN:-/usr/bin/shutdown}
+REALPATH_BIN=${REALPATH_BIN:-/usr/bin/realpath}
 WAIT_SECONDS=${WAIT_SECONDS:-60}
 HANDOFF_WAIT_ONCE=${HANDOFF_WAIT_ONCE:-0}
 LOG=${LOG:-$CONTROL_DIR/handoff.log}
@@ -46,7 +47,16 @@ fail() {
 
 [[ "$HOST_ID" =~ ^table4_4090d[45]$ ]] || fail "invalid HOST_ID"
 [[ -d "$REPO" && ! -L "$REPO" ]] || fail "NDR repository is missing or unsafe"
-[[ -x "$PYTHON" && ! -L "$PYTHON" ]] || fail "Python runtime is missing or unsafe"
+[[ -x "$PYTHON" ]] || fail "Python runtime is missing or unsafe"
+[[ -x "$REALPATH_BIN" ]] || fail "realpath utility is missing or unsafe"
+resolved_root=$("$REALPATH_BIN" "$ROOT")
+resolved_python=$("$REALPATH_BIN" "$PYTHON")
+[[ -f "$resolved_python" && ! -L "$resolved_python" && -x "$resolved_python" ]] \
+  || fail "resolved Python runtime is missing or unsafe"
+case "$resolved_python" in
+  "$resolved_root"/env/bin/*) ;;
+  *) fail "resolved Python runtime escapes the bound environment" ;;
+esac
 [[ -d "$SPLITS_ROOT" && ! -L "$SPLITS_ROOT" ]] \
   || fail "official split root is missing or unsafe"
 for source in "$PLAN" "$MANIFEST" "$PROFILE" "$BASE_MANIFEST"; do
