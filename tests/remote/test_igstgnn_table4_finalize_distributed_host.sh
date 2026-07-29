@@ -111,6 +111,7 @@ make_case() {
     > "$root/results/shards/example/tasks/t/summary.json"
   printf '%s\n' '{"plan":"test"}' > "$root/plan.json"
   printf '%s\n' '{"manifest":"test"}' > "$root/manifest.json"
+  touch "$root/relay_ed25519"
 }
 
 run_finalizer() {
@@ -129,6 +130,7 @@ run_finalizer() {
   TRANSFER_FILE_LIST="$root/transfer.files" \
   TRANSFER_MANIFEST="$root/transfer.sha256" \
   TRANSFER_MARKER="$root/complete.json" \
+  SSH_IDENTITY_FILE="$root/relay_ed25519" \
   SSH_BIN="$bin_root/ssh" \
   RSYNC_BIN="$bin_root/rsync" \
   SHUTDOWN_BIN="$bin_root/shutdown" \
@@ -182,6 +184,7 @@ export SHUTDOWN_MARKER="$root/shutdown.called"
 set +e
 POSTFLIGHT_CMD=false \
 FINALIZER_ONCE=1 \
+SSH_IDENTITY_FILE="$root/relay_ed25519" \
 SSH_BIN="$bin_root/ssh" \
 RSYNC_BIN="$bin_root/rsync" \
 SHUTDOWN_BIN="$bin_root/shutdown" \
