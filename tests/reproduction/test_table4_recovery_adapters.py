@@ -93,6 +93,7 @@ def test_multi_gpu_recovery_preserves_the_declared_full_batch(monkeypatch) -> No
         "full_batch_preserved": True,
         "optimizer_step_contract_preserved": True,
         "unregistered_tensor_policy": "replica_device_copy",
+        "replica_linalg_warmup": False,
         "upstream_source_modified": False,
     }
 

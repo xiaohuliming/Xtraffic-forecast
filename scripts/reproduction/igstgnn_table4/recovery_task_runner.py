@@ -103,6 +103,14 @@ class RecoveryDataParallel(torch.nn.DataParallel):
         return self.module.param_num()
 
 
+def _warm_up_replica_linalg(device_ids: list[int]) -> None:
+    for device_id in device_ids:
+        device = torch.device("cuda", device_id)
+        with torch.cuda.device(device):
+            torch.linalg.qr(torch.eye(2, dtype=torch.float32, device=device))
+            torch.cuda.synchronize(device)
+
+
 def wrap_model_for_recovery(
     *,
     method: str,
@@ -120,6 +128,9 @@ def wrap_model_for_recovery(
     device_ids = list(range(torch.cuda.device_count()))
     if len(device_ids) < 2:
         raise ValueError("Multi-GPU recovery requires at least two visible GPUs")
+    replica_linalg_warmup = method == "dgcrn"
+    if replica_linalg_warmup:
+        _warm_up_replica_linalg(device_ids)
     wrapped = RecoveryDataParallel(
         model,
         device_ids=device_ids,
@@ -135,6 +146,7 @@ def wrap_model_for_recovery(
             "full_batch_preserved": True,
             "optimizer_step_contract_preserved": True,
             "unregistered_tensor_policy": "replica_device_copy",
+            "replica_linalg_warmup": replica_linalg_warmup,
             "upstream_source_modified": False,
         },
     )
