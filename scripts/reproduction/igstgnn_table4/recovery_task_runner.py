@@ -8,6 +8,7 @@ import tempfile
 from dataclasses import replace
 from pathlib import Path
 from collections.abc import Sequence
+from types import MethodType
 from typing import Any
 
 import numpy as np
@@ -246,6 +247,124 @@ def _warm_up_replica_linalg(device_ids: list[int]) -> None:
             torch.cuda.synchronize(device)
 
 
+def _d2stgnn_microbatch_train_batch(engine: Any) -> tuple[float, float, float]:
+    engine.model.train()
+    train_loss: list[float] = []
+    train_mape: list[float] = []
+    train_rmse: list[float] = []
+    train_loader = engine._dataloader["train_loader"]
+    train_loader.shuffle()
+    for x_data, label_data in train_loader.get_iterator():
+        engine._optimizer.zero_grad()
+        full_label = engine._to_device(engine._to_tensor([label_data]))[0]
+        full_label = engine._inverse_transform(full_label)
+        mask_value = torch.tensor(0.0, device=full_label.device)
+        if full_label.min() < 1:
+            mask_value = full_label.min()
+        if engine._iter_cnt == 0:
+            print("check mask value", mask_value)
+
+        engine._iter_cnt += 1
+        if engine._iter_cnt < engine._warm_step:
+            engine._cl_len = engine._horizon
+        elif engine._iter_cnt == engine._warm_step:
+            engine._cl_len = 1
+        elif (
+            (engine._iter_cnt - engine._warm_step) % engine._cl_step == 0
+            and engine._cl_len < engine._horizon
+        ):
+            engine._cl_len += 1
+
+        full_label = full_label[:, : engine._cl_len, :, :]
+        full_mask = full_label != mask_value
+        total_valid = int(full_mask.sum().item())
+        if total_valid <= 0:
+            raise ValueError("D2STGNN microbatch has no valid target observations")
+        batch_size = int(len(x_data))
+        microbatch_count = min(engine._recovery_microbatch_count, batch_size)
+        index_chunks = np.array_split(np.arange(batch_size), microbatch_count)
+        weighted_loss = 0.0
+        mape_sum = 0.0
+        squared_error_sum = 0.0
+        for indices in index_chunks:
+            micro_x, micro_label = engine._to_device(
+                engine._to_tensor([x_data[indices], label_data[indices]])
+            )
+            prediction = engine.model(micro_x, micro_label)
+            prediction, micro_label = engine._inverse_transform(
+                [prediction, micro_label]
+            )
+            prediction = prediction[:, : engine._cl_len, :, :]
+            micro_label = micro_label[:, : engine._cl_len, :, :]
+            micro_mask = micro_label != mask_value
+            micro_valid = int(micro_mask.sum().item())
+            micro_loss = engine._loss_fn(
+                prediction,
+                micro_label,
+                mask_value,
+            )
+            loss_weight = micro_valid / total_valid
+            (micro_loss * loss_weight).backward()
+            weighted_loss += micro_loss.detach().item() * loss_weight
+
+            absolute_error = torch.abs(prediction.detach() - micro_label)
+            safe_mape = torch.where(
+                micro_mask,
+                absolute_error / micro_label,
+                torch.zeros_like(absolute_error),
+            )
+            safe_mape = torch.where(
+                torch.isnan(safe_mape),
+                torch.zeros_like(safe_mape),
+                safe_mape,
+            )
+            mape_sum += safe_mape.sum().item()
+            squared_error_sum += torch.where(
+                micro_mask,
+                absolute_error.square(),
+                torch.zeros_like(absolute_error),
+            ).sum().item()
+        if engine._clip_grad_value != 0:
+            torch.nn.utils.clip_grad_norm_(
+                engine.model.parameters(),
+                engine._clip_grad_value,
+            )
+        engine._optimizer.step()
+        train_loss.append(weighted_loss)
+        train_mape.append(mape_sum / total_valid)
+        train_rmse.append(float(np.sqrt(squared_error_sum / total_valid)))
+    return (
+        float(np.mean(train_loss)),
+        float(np.mean(train_mape)),
+        float(np.mean(train_rmse)),
+    )
+
+
+def install_d2stgnn_microbatch_training(
+    *,
+    engine: Any,
+    microbatches: int,
+) -> dict[str, Any]:
+    if (
+        isinstance(microbatches, bool)
+        or not isinstance(microbatches, int)
+        or microbatches < 2
+    ):
+        raise ValueError("D2STGNN recovery requires at least two microbatches")
+    if hasattr(engine, "_recovery_microbatch_count"):
+        raise ValueError("D2STGNN microbatch recovery is already installed")
+    engine._recovery_microbatch_count = microbatches
+    engine.train_batch = MethodType(_d2stgnn_microbatch_train_batch, engine)
+    return {
+        "microbatch_count": microbatches,
+        "effective_batch_preserved": True,
+        "masked_loss_global_weighting": True,
+        "optimizer_steps_per_batch": 1,
+        "gradient_clips_per_batch": 1,
+        "curriculum_updates_per_batch": 1,
+    }
+
+
 def wrap_model_for_recovery(
     *,
     method: str,
@@ -339,6 +458,7 @@ def run_recovery_task(
     results_root: Path | str,
     device: str,
     adapter: str,
+    microbatches: int = 1,
 ) -> Path:
     spec = load_table4_task_spec(
         manifest_path=manifest_path,
@@ -351,6 +471,18 @@ def run_recovery_task(
     if adapter == _MULTI_GPU_ADAPTER and method not in _MULTI_GPU_METHODS:
         raise ValueError(
             "The multi-GPU recovery adapter requires DGCRN, D2STGNN, or IGSTGNN"
+        )
+    if (
+        isinstance(microbatches, bool)
+        or not isinstance(microbatches, int)
+        or microbatches <= 0
+    ):
+        raise ValueError("microbatches must be a positive integer")
+    if microbatches > 1 and (
+        adapter != _MULTI_GPU_ADAPTER or method != "d2stgnn"
+    ):
+        raise ValueError(
+            "Microbatch recovery is valid only for multi-GPU D2STGNN"
         )
     root = _prepare_results_root(results_root)
     target = _prepare_result_target(results_root=root, task=spec.task)
@@ -406,6 +538,15 @@ def run_recovery_task(
                             device=device_value,
                             adapter=adapter,
                         )
+                    if microbatches > 1:
+                        microbatch_adapter = install_d2stgnn_microbatch_training(
+                            engine=factory.engine,
+                            microbatches=microbatches,
+                        )
+                        execution_adapter = {
+                            **execution_adapter,
+                            "gradient_accumulation": microbatch_adapter,
+                        }
                     if execution_adapter is None:
                         raise RuntimeError("Recovery adapter provenance is missing")
                     execution_adapter = {
@@ -474,6 +615,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--results-root", required=True, type=Path)
     parser.add_argument("--device", required=True)
     parser.add_argument("--adapter", required=True, choices=_ADAPTERS)
+    parser.add_argument("--microbatches", type=int, default=1)
     return parser
 
 
@@ -487,6 +629,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         results_root=arguments.results_root,
         device=arguments.device,
         adapter=arguments.adapter,
+        microbatches=arguments.microbatches,
     )
     print(target)
     return 0

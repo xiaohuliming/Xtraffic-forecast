@@ -8,6 +8,7 @@ import torch
 
 from scripts.reproduction.igstgnn_table4.recovery_task_runner import (
     adapt_runtime_for_recovery,
+    install_d2stgnn_microbatch_training,
     main,
     primary_light_chunk_sizes,
     wrap_model_for_recovery,
@@ -108,6 +109,107 @@ def test_primary_gpu_receives_the_smallest_remainder_chunk() -> None:
         13,
         13,
     ]
+
+
+def test_d2stgnn_microbatches_match_one_full_masked_optimizer_step() -> None:
+    class _Loader:
+        num_batch = 1
+
+        def __init__(self, batch) -> None:
+            self.batch = batch
+
+        def shuffle(self) -> None:
+            pass
+
+        def get_iterator(self):
+            return iter([self.batch])
+
+    class _Model(torch.nn.Module):
+        horizon = 1
+
+        def __init__(self) -> None:
+            super().__init__()
+            self.weight = torch.nn.Parameter(torch.tensor(0.75))
+
+        def forward(self, value, label=None):
+            return value * self.weight
+
+        def param_num(self) -> int:
+            return 1
+
+    class _Engine:
+        def __init__(self, model, batch) -> None:
+            self.model = model
+            self._dataloader = {"train_loader": _Loader(batch)}
+            self._optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+            self._clip_grad_value = 0
+            self._iter_cnt = 0
+            self._warm_step = 100
+            self._cl_step = 10
+            self._cl_len = 0
+            self._horizon = 1
+            self._device = torch.device("cpu")
+
+        def _to_tensor(self, values):
+            return [
+                torch.as_tensor(value, dtype=torch.float32)
+                for value in values
+            ]
+
+        def _to_device(self, values):
+            return [value.to(self._device) for value in values]
+
+        def _inverse_transform(self, values):
+            return values
+
+        @staticmethod
+        def _loss_fn(prediction, label, mask_value):
+            mask = (label != mask_value).float()
+            mask = mask / mask.mean()
+            loss = torch.abs(prediction - label) * mask
+            loss = torch.where(torch.isnan(loss), torch.zeros_like(loss), loss)
+            return loss.mean()
+
+    x_data = np.asarray([1.0, 2.0, 3.0, 4.0], dtype=np.float32).reshape(
+        4, 1, 1, 1
+    )
+    y_data = np.asarray([0.0, 3.0, 2.0, 8.0], dtype=np.float32).reshape(
+        4, 1, 1, 1
+    )
+    batch = (x_data, y_data)
+    full_model = _Model()
+    micro_model = _Model()
+    micro_model.load_state_dict(full_model.state_dict())
+
+    full_optimizer = torch.optim.SGD(full_model.parameters(), lr=0.1)
+    full_optimizer.zero_grad()
+    full_prediction = full_model(torch.as_tensor(x_data))
+    full_label = torch.as_tensor(y_data)
+    full_loss = _Engine._loss_fn(
+        full_prediction,
+        full_label,
+        torch.tensor(0.0),
+    )
+    full_loss.backward()
+    full_optimizer.step()
+
+    micro_engine = _Engine(micro_model, batch)
+    provenance = install_d2stgnn_microbatch_training(
+        engine=micro_engine,
+        microbatches=2,
+    )
+    micro_engine.train_batch()
+
+    torch.testing.assert_close(micro_model.weight, full_model.weight)
+    assert micro_engine._iter_cnt == 1
+    assert provenance == {
+        "microbatch_count": 2,
+        "effective_batch_preserved": True,
+        "masked_loss_global_weighting": True,
+        "optimizer_steps_per_batch": 1,
+        "gradient_clips_per_batch": 1,
+        "curriculum_updates_per_batch": 1,
+    }
     assert primary_light_chunk_sizes(batch_size=48, device_count=4) == [
         12,
         12,
@@ -173,4 +275,5 @@ def test_recovery_cli_forwards_the_selected_adapter(
         "results_root": tmp_path / "results",
         "device": "cuda:0",
         "adapter": "stgcn-idempotent-self-loop-removal",
+        "microbatches": 1,
     }

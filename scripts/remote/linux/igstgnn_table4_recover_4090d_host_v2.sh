@@ -29,6 +29,7 @@ run_recovery_task() {
   local shard_id=$2
   local adapter=$3
   local visible_devices=$4
+  local microbatches=${5:-1}
   local result_root="$RESULTS_BASE/shards/$shard_id"
   local task_dir="$result_root/tasks/$task_id"
 
@@ -41,7 +42,7 @@ run_recovery_task() {
   [[ ! -e "$task_dir" && ! -L "$task_dir" ]] \
     || fail "task target is unsafe for $task_id"
 
-  log "RECOVERY_TASK_START task=$task_id adapter=$adapter devices=$visible_devices"
+  log "RECOVERY_TASK_START task=$task_id adapter=$adapter devices=$visible_devices microbatches=$microbatches"
   set +e
   CUDA_VISIBLE_DEVICES="$visible_devices" \
   CUDA_DEVICE_ORDER=PCI_BUS_ID \
@@ -54,7 +55,8 @@ run_recovery_task() {
     --splits-root "$SPLITS_ROOT" \
     --results-root "$result_root" \
     --device cuda:0 \
-    --adapter "$adapter" >> "$LOG" 2>&1
+    --adapter "$adapter" \
+    --microbatches "$microbatches" >> "$LOG" 2>&1
   local task_rc=$?
   set -e
   [[ "$task_rc" == "0" ]] \
@@ -106,7 +108,7 @@ case "$HOST_ID" in
       multi-gpu-full-batch 0,1,2,3,4
     run_recovery_task \
       037_orange_d2stgnn table4_4090d5_gpu2 \
-      multi-gpu-full-batch 0,1,2,3,4
+      multi-gpu-full-batch 0,1,2,3,4 2
     run_recovery_task \
       039_orange_igstgnn table4_4090d5_gpu4 \
       multi-gpu-full-batch 0,1,2,3,4
