@@ -24,6 +24,7 @@ PYTHON=${PYTHON:-/root/autodl-tmp/table4/env/bin/python}
 SSH_BIN=${SSH_BIN:-/usr/bin/ssh}
 RSYNC_BIN=${RSYNC_BIN:-/usr/bin/rsync}
 SHUTDOWN_BIN=${SHUTDOWN_BIN:-/usr/sbin/shutdown}
+SHUTDOWN_DEFER_FILE=${SHUTDOWN_DEFER_FILE:-/root/autodl-tmp/table4/control/$HOST_ID/defer_shutdown_for_ndr_extension}
 LOG=${LOG:-/root/autodl-tmp/table4/control/$HOST_ID/finalize.log}
 
 mkdir -p "$(dirname "$LOG")"
@@ -52,6 +53,18 @@ log() {
 fail() {
   log "FINALIZE_BLOCKED $*"
   exit 1
+}
+
+finish_successfully() {
+  sync
+  if [[ -e "$SHUTDOWN_DEFER_FILE" || -L "$SHUTDOWN_DEFER_FILE" ]]; then
+    [[ -f "$SHUTDOWN_DEFER_FILE" && ! -L "$SHUTDOWN_DEFER_FILE" ]] \
+      || fail "shutdown defer sentinel is unsafe"
+    log "FINALIZE_SUCCESS shutdown_deferred sentinel=$SHUTDOWN_DEFER_FILE"
+    return
+  fi
+  log "FINALIZE_SUCCESS shutting_down"
+  "$SHUTDOWN_BIN" -h now
 }
 
 [[ "$HOST_ID" =~ ^[A-Za-z0-9._-]+$ ]] || fail "unsafe HOST_ID"
@@ -329,9 +342,7 @@ while true; do
   if [[ "$final_exists" == "1" ]]; then
     if verify_remote_tree "$remote_final" "_TRANSFER_COMPLETE.json"; then
       log "REMOTE_ALREADY_VERIFIED destination=$RELAY:$remote_final"
-      sync
-      log "FINALIZE_SUCCESS shutting_down"
-      "$SHUTDOWN_BIN" -h now
+      finish_successfully
       exit 0
     fi
     fail "relay destination exists but full verification failed"
@@ -389,6 +400,4 @@ verify_remote_tree "$remote_final" "_TRANSFER_COMPLETE.json" \
   || fail "promoted remote tree failed full verification"
 
 log "REMOTE_VERIFY_OK destination=$RELAY:$remote_final"
-sync
-log "FINALIZE_SUCCESS shutting_down"
-"$SHUTDOWN_BIN" -h now
+finish_successfully

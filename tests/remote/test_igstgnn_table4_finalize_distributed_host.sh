@@ -149,6 +149,16 @@ grep -q 'sha256sum -c' "$tmp_root/success/actions.log"
 grep -q 'FINALIZE_SUCCESS' "$tmp_root/success/finalizer.log"
 printf '%s\n' "PASS verified transfer shuts the host down"
 
+make_case deferred_shutdown
+root="$tmp_root/deferred_shutdown"
+touch "$root/defer_shutdown"
+export SHUTDOWN_DEFER_FILE="$root/defer_shutdown"
+run_finalizer deferred_shutdown
+unset SHUTDOWN_DEFER_FILE
+test ! -e "$root/shutdown.called"
+grep -q 'FINALIZE_SUCCESS shutdown_deferred' "$root/finalizer.log"
+printf '%s\n' "PASS verified transfer honors the shutdown defer sentinel"
+
 make_case remote_verification_failure
 set +e
 FAKE_VERIFY_RC=8 run_finalizer remote_verification_failure
