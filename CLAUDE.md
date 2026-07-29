@@ -119,6 +119,14 @@ task003 首次 SSH 附着运行在完成 3 个 epoch 后于 22:32:25 按计划�
 
 两台主机继续执行自动收尾。只有 source-host postflight、严格 allowlist 上传、结果服务器逐文件 SHA-256、精确目录树和原子提升全部通过后，源主机才调用 `/usr/bin/shutdown -h now`。任一步失败时主机保持开机。结果服务器目前仍没有正式 Table 4 主机目录，不能写成已上传或已完成。
 
+截至 2026-07-29 17:05 新加坡时间，原 39 项矩阵已正式落盘并由任务 runner 验收 34/39。四卡机为 25/26，仅余 task021 Contra Costa STTN。五卡机为 9/13，正在执行 task036 Orange DGCRN，之后仍需 task037、task039 与 task034。结果服务器仍没有正式主机目录。两台主机的原矩阵关机都由安全哨兵延期，原结果完成 source-host postflight、上传和结果服务器复验后会保持开机，随后进入 NDR-Net 扩展。
+
+NDR-Net Table 4 扩展使用独立矩阵 `igstgnn_table4_ndr_extension_9_v1`。它不修改原 39 项清单。扩展共 9 项，为 NDR-Net 在 Alameda、Contra Costa、Orange 三地区和种子 42、1、2 的组合。扩展清单 SHA-256 为 `2442f1f29b6e3dcef1d3f6999c0ce9dbf474e43644f98cd6f2aec765908db5b4`，配置 SHA-256 为 `6ca46be0fb76543a61a8bd32996c7598ac674bbe239b701d1a92481f63be9422`，九卡分片计划 SHA-256 为 `f20be0db02fbd04732640cd5b024f7012ce6a16ea155d6a90c0962839f857522`。claim scope 固定为 `same_protocol_project_method_extension`，validity label 仍为 `official_protocol_with_known_overlap`。
+
+扩展训练在模型、损失和评测前使用绑定的 `incident_stats.npz` 把官方标准化 flow 还原为原始流量单位。周内时段中位数基线只从官方 train split 的 x 与 y 位置拟合。验证 MAE 按所有有效观测点统一累计。结果继续使用原 Table 4 的 H3、H6、H12 和 12 步平均指标，并写入独立五文件 artifact。Mac 真实 Contra Costa 数据适配与 MPS 前向反向探针通过，全仓为 455 passed 和 2 个既有 warning。两台 4090 D 主机的扩展专项门各为 33 passed。
+
+扩展实现提交为 `cd14b90`、`d67ba1c` 与 `085e68d`。扩展源部署在独立目录 `/root/autodl-tmp/table4/ndr_repo`，不会改写仍在运行的原矩阵 checkout。两台延期控制器第一次因虚拟环境 Python 是正常符号链接而被过严安全门拒绝，没有训练、结果或关机动作。修复后四卡机与五卡机控制器 PID 分别为 `447869` 与 `410737`，均已进入等待原矩阵正式回传完成的状态。每台主机在启动扩展正式分片前还会执行该主机最大地区的一次真实 CUDA 前向反向探针。扩展只有在独立 postflight、结果服务器逐文件复验和原子提升全部成功后才移除延期哨兵并关机。
+
 ## v2 冻结记录
 
 2026-07-19 曾从提交 `bf3045ac` 构建 v2 三地区缓存。事件样本 train、val、test 数分别为 Alameda 43973、9450、9366，ContraCosta 19159、4026、4040，Orange 75395、15727、14368。full-window 三地区曾记录为 73561、10501、21013，远端曾有 28 项测试通过。45 项队列于 00:39 启动，启动判活时 GPU 利用率为 91%，显存使用约 6.0 GiB。

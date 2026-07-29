@@ -92,10 +92,26 @@ Orange D2STGNN 无法把 batch 64 一次分给五张 24 GB 卡，因为至少四
 
 通过 postflight 后，finalizer 只上传 allowlist 文件到 `root@8.134.12.5:/root/xtraffic_results/igstgnn_table4_official_v1/distributed_4090d_9gpu_v1/hosts`。结果服务器会逐文件重新计算 SHA-256、核对精确目录树并原子提升。只有正式目标再次完整复验通过后，源主机才调用 `/usr/bin/shutdown -h now`。postflight、容量、传输、远端哈希或原子提升任一步失败时，主机保持开机。
 
+## 17:05 进度与 NDR-Net 扩展
+
+截至 2026-07-29 17:05 新加坡时间，原 39 项矩阵已正式落盘并由任务 runner 验收 34 项。四卡机为 25/26，仅余 task021 Contra Costa STTN。五卡机为 9/13，当前为 task036 Orange DGCRN，后续仍需 task037 Orange D2STGNN、task039 Orange IGSTGNN 与 task034 Orange STTN。结果服务器仍没有正式主机目录。
+
+原矩阵本身不增加方法或任务。NDR-Net 使用独立扩展矩阵 `igstgnn_table4_ndr_extension_9_v1`。它包含三地区与种子 42、1、2 的全部组合，共 9 项。扩展清单 SHA-256 为 `2442f1f29b6e3dcef1d3f6999c0ce9dbf474e43644f98cd6f2aec765908db5b4`，配置 SHA-256 为 `6ca46be0fb76543a61a8bd32996c7598ac674bbe239b701d1a92481f63be9422`，分片计划 SHA-256 为 `f20be0db02fbd04732640cd5b024f7012ce6a16ea155d6a90c0962839f857522`。
+
+四卡机承担 Alameda 与 Contra Costa 六项。五卡机承担 Orange 三项。扩展 claim scope 为 `same_protocol_project_method_extension`，validity label 为 `official_protocol_with_known_overlap`。它可以与原 39 项在同一官方协议表中并列展示，但必须明确标为项目方法补充行，不能写成 IGSTGNN 原论文的第 14 个公开方法。
+
+官方 split 中的 flow 已经标准化。扩展入口使用同一 split manifest 绑定的 `incident_stats.npz` 先逆变换到原始流量单位，再拟合训练集周内时段基线、计算损失和评测。基线只使用 train split 的 x 与 y 位置。验证 MAE 使用全部有效观测点的误差总和除以有效点总数。测试输出沿用官方 H3、H6、H12 与 12 步算术平均。
+
+实现提交为 `cd14b90`、`d67ba1c` 与 `085e68d`。Mac 真实 Contra Costa 数据适配耗时约 4.4 秒，峰值内存约 1.42 GiB。MPS 前向反向探针输出为 `16×496×12`，loss 为 `37.98567963`。本地全仓为 455 passed 和 2 个既有 warning。两台 Linux 主机的扩展专项测试各为 33 passed。
+
+扩展代码部署在独立 `/root/autodl-tmp/table4/ndr_repo`，所有新增与修改文件均与 Mac 逐文件 SHA-256 一致。该目录不改写原 39 项仍在使用的 `/root/autodl-tmp/table4/repo`。原 finalizer 已部署关机延期哨兵。第一次扩展控制器因虚拟环境 `python` 是正常符号链接而被过严安全门拒绝，没有 trainer、正式结果、传输或关机动作。链接解析检查修复后，四卡机 PID `447869` 与五卡机 PID `410737` 已进入等待原矩阵回传完成的状态。
+
+每台主机开始扩展正式分片前会先在空闲卡上运行最大地区的真实 CUDA 前向反向探针。任何探针、训练、postflight、传输或结果服务器复验失败都会保留关机延期哨兵并保持主机开机。只有扩展独立结果树在结果服务器逐文件复验和原子提升成功后，控制器才移除延期哨兵并调用 `/usr/bin/shutdown -h now`。
+
 ## 下一步
 
-1. 等待两台正式恢复控制器完成适配任务。
-2. 由控制器重跑完整主机计划，原 21 项和恢复任务会被验证并跳过，其余任务继续训练。
-3. 等待两台主机各自完成 postflight、回传、结果服务器复验和关机。
-4. 两份正式主机结果都提升后，建立只读 39 项 composite index。
-5. 从逐份复验的 summary 与 predictions 生成与论文同结构的 Table 4、逐单元差值表和数字追溯索引。
+1. 等待原矩阵剩余 5 项完成并分别通过 source-host postflight 与结果服务器复验。
+2. 等待两台延期控制器完成 CUDA 探针并启动 NDR-Net 六项与三项分片。
+3. 等待扩展 source-host postflight、独立回传、结果服务器复验与自动关机。
+4. 建立原 39 项只读 composite index，并建立独立的 9 项扩展索引。
+5. 从逐份复验的 summary 与 predictions 生成论文同结构的原表、NDR-Net 三种子补充行、逐单元差值表和数字追溯索引。

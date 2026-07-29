@@ -56,6 +56,14 @@ task003 首次通过 SSH 附着运行，在完成 3 个 epoch 后于 2026-07-28 
 
 双机 finalizer 已设置结果服务器严格回传、逐文件复验、原子提升和成功后自动关机。关机命令显式使用 `/usr/bin/shutdown`。任何训练、postflight、容量、传输或远端复验失败都会保持机器开机。完整启动记录见 `docs/audits/igstgnn_table4_4090d_launch_2026-07-29.md`。
 
+截至 2026-07-29 17:05 新加坡时间，原 Table 4 矩阵已正式落盘并由任务 runner 验收 34/39。四卡机为 25/26，仅余 task021 Contra Costa STTN。五卡机为 9/13，正在执行 task036 Orange DGCRN，之后仍需 task037、task039 与 task034。结果服务器仍没有正式主机目录。
+
+NDR-Net 补充对比保持原 39 项清单不变，使用独立矩阵 `igstgnn_table4_ndr_extension_9_v1`。扩展为 NDR-Net 乘三地区乘种子 42、1、2，共 9 项。扩展清单 SHA-256 为 `2442f1f29b6e3dcef1d3f6999c0ce9dbf474e43644f98cd6f2aec765908db5b4`，配置 SHA-256 为 `6ca46be0fb76543a61a8bd32996c7598ac674bbe239b701d1a92481f63be9422`，九卡分片计划 SHA-256 为 `f20be0db02fbd04732640cd5b024f7012ce6a16ea155d6a90c0962839f857522`。claim scope 为 `same_protocol_project_method_extension`，validity label 仍为 `official_protocol_with_known_overlap`。扩展不得写成 IGSTGNN 原论文的方法行，也不得与 v3 无泄露矩阵混合。
+
+扩展管线先用绑定的 `incident_stats.npz` 把官方标准化 flow 还原为原始流量单位，再只用 train split 的 x 与 y 位置拟合周内时段中位数基线。验证 MAE 按所有有效观测点累计。评测沿用 H3、H6、H12 与 12 步平均。实现提交为 `cd14b90`、`d67ba1c` 与 `085e68d`。Mac 全仓为 455 passed 和 2 个既有 warning，两台 Linux 扩展门各为 33 passed。
+
+扩展部署在两台主机的独立 `/root/autodl-tmp/table4/ndr_repo`，没有改写原矩阵 checkout。原 finalizer 的关机由安全哨兵延期。第一次扩展控制器因正常的 Python 符号链接被过严安全门拒绝，没有训练、结果或关机动作。修复后的四卡机与五卡机延期控制器 PID 为 `447869` 与 `410737`，均在等待原矩阵回传成功。每台主机启动扩展正式分片前会先做最大地区的真实 CUDA 前向反向探针。扩展只有在独立 postflight、结果服务器逐文件复验和原子提升全部通过后才移除延期哨兵并调用 `/usr/bin/shutdown -h now`。
+
 项目方法层级为 `RADS ⊂ RADS-O ⊂ NDR-Net`。完整研究史和数字出处见主报告，当前有效性见审计文件。
 
 所有数字必须来自落盘文件。保留诚实负结果。种子约定为 42、1、2。指标采用 masked MAE。
