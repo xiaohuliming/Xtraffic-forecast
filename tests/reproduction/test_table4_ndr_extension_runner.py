@@ -4,12 +4,18 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from types import SimpleNamespace
 
 import numpy as np
+import torch
 
 from scripts.reproduction.igstgnn_table4.ndr_extension_runner import (
     fit_training_climatology,
     prepare_ndr_batch,
+)
+from scripts.train_staeformer_deseason import (
+    build_ndr_loss_normalizers,
+    compute_loss,
 )
 
 
@@ -19,6 +25,100 @@ class _StaticLoader:
 
     def get_iterator(self):
         yield self._batch
+
+
+class _TinyDualNDR(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.gate_logit = torch.nn.Parameter(torch.tensor(0.2))
+        self.normal_bias = torch.nn.Parameter(torch.tensor(0.4))
+        self.disturbance_bias = torch.nn.Parameter(torch.tensor(-0.3))
+        self.register_buffer("sd_node", torch.tensor([1.0, 2.0]))
+        self.oracle_sup = True
+        self.dual = True
+        self.abank = False
+        self.aux = None
+
+    def forward(self, baseline, persistence):
+        gate = torch.sigmoid(self.gate_logit).expand_as(baseline)
+        normal = baseline + self.normal_bias
+        disturbance = persistence + self.disturbance_bias
+        self.aux = {
+            "g": gate,
+            "B": baseline,
+            "P": persistence,
+            "yn": normal,
+            "yd": disturbance,
+        }
+        return gate * normal + (1.0 - gate) * disturbance
+
+
+def test_two_microbatch_ndr_loss_matches_full_batch_loss_and_gradients():
+    target = torch.tensor(
+        [
+            [[2.0, 3.0], [4.0, 5.0]],
+            [[3.0, 4.0], [5.0, 6.0]],
+            [[4.0, 5.0], [6.0, 7.0]],
+            [[5.0, 6.0], [7.0, 8.0]],
+        ]
+    )
+    mask = torch.ones_like(target)
+    baseline = target - 0.7
+    persistence = target + 0.9
+    args = SimpleNamespace(lambda_gate=1.0, lambda_spec=0.3)
+
+    full_model = _TinyDualNDR()
+    full_prediction = full_model(baseline, persistence)
+    full_loss, _ = compute_loss(
+        full_model,
+        full_prediction,
+        {
+            "y_true": target.unsqueeze(-1),
+            "y_mask": mask.unsqueeze(-1),
+        },
+        args,
+        torch.device("cpu"),
+    )
+    full_loss.backward()
+    full_gradients = {
+        name: parameter.grad.detach().clone()
+        for name, parameter in full_model.named_parameters()
+    }
+
+    micro_model = _TinyDualNDR()
+    normalizers = build_ndr_loss_normalizers(
+        micro_model,
+        {
+            "y_true": target.unsqueeze(-1),
+            "y_mask": mask.unsqueeze(-1),
+        },
+        baseline=baseline,
+        persistence=persistence,
+        device=torch.device("cpu"),
+    )
+    micro_losses = []
+    for chunk in (slice(0, 2), slice(2, 4)):
+        prediction = micro_model(
+            baseline[chunk],
+            persistence[chunk],
+        )
+        loss, _ = compute_loss(
+            micro_model,
+            prediction,
+            {
+                "y_true": target[chunk].unsqueeze(-1),
+                "y_mask": mask[chunk].unsqueeze(-1),
+            },
+            args,
+            torch.device("cpu"),
+            normalizers=normalizers,
+        )
+        loss.backward()
+        micro_losses.append(loss.detach())
+
+    torch.testing.assert_close(sum(micro_losses), full_loss.detach())
+    for name, parameter in micro_model.named_parameters():
+        torch.testing.assert_close(parameter.grad, full_gradients[name])
 
 
 def test_ndr_model_module_import_does_not_require_h5py():

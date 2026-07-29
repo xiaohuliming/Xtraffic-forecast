@@ -272,13 +272,75 @@ def per_node_residual_std(rdata, hi, ch=0, floor=1e-6):
     return sd.astype(np.float32)                                 # (N,)
 
 
-def compute_loss(model, y, batch, args, device):
+def build_ndr_loss_normalizers(
+    model,
+    batch,
+    *,
+    baseline,
+    persistence,
+    device,
+):
+    """Build full-batch constants for exact gradient microbatching of NDR s0g."""
+    if not model.oracle_sup or not model.dual or getattr(model, "abank", False):
+        raise ValueError("NDR loss normalizers require the dual oracle-gated model")
+    target = batch["y_true"][..., 0].to(device)
+    mask = batch["y_mask"][..., 0].to(device).float()
+    baseline = baseline.to(device)
+    persistence = persistence.to(device)
+    if (
+        target.shape != mask.shape
+        or target.shape != baseline.shape
+        or target.shape != persistence.shape
+    ):
+        raise ValueError("NDR loss normalizer tensors must have identical shapes")
+    if not torch.logical_or(mask == 0, mask == 1).all():
+        raise ValueError("NDR loss mask must contain only zero and one")
+    valid_count = mask.sum()
+    if int(valid_count.item()) == 0:
+        raise ValueError("NDR full batch has zero valid observations")
+    if (
+        not torch.isfinite(target[mask.bool()]).all()
+        or not torch.isfinite(baseline).all()
+        or not torch.isfinite(persistence).all()
+    ):
+        raise FloatingPointError("NDR full-batch loss inputs are non-finite")
+    baseline_error = (target - baseline).abs()
+    persistence_error = (target - persistence).abs()
+    gate_target = persistence_error / (
+        baseline_error + persistence_error + 1e-6
+    )
+    confidence = (
+        (baseline_error - persistence_error).abs()
+        / (baseline_error + persistence_error + 1e-6)
+        * (
+            (baseline - persistence).abs()
+            / model.sd_node.view(1, -1, 1)
+        ).clamp(0, 1)
+        * mask
+    )
+    return {
+        "valid_count": valid_count.detach(),
+        "gate_confidence_sum": confidence.sum().detach(),
+        "mean_gate_target": (
+            (gate_target * mask).sum() / (valid_count + 1e-6)
+        ).detach(),
+    }
+
+
+def compute_loss(model, y, batch, args, device, *, normalizers=None):
     """Fused MAE + (oracle-gate distillation, specialization) for the hgate variants.
     Gate loss is flow-unit calibrated (x sd_node): without it the oracle gradient on the
     ~36 gate params is two orders below the main-loss gradient and the supervision is inert."""
     t = batch["y_true"][..., 0].to(device)
     msk = batch["y_mask"][..., 0].to(device).float()
     loss = masked_mae(y, t, msk)
+    if normalizers is not None:
+        local_valid_count = msk.sum()
+        loss = (
+            loss
+            * local_valid_count
+            / normalizers["valid_count"].to(device)
+        )
     parts = {"mae": float(loss.item())}
     aux = model.aux
     if aux is not None and model.oracle_sup and model.training and getattr(model, "abank", False):
@@ -302,15 +364,31 @@ def compute_loss(model, y, batch, args, device):
         conf = ((eB - eP).abs() / (eB + eP + 1e-6)) \
             * ((Bq - P).abs() / model.sd_node.view(1, -1, 1)).clamp(0, 1) * msk
         huber = F.smooth_l1_loss(g, gstar, reduction="none", beta=0.25)
-        lg = (conf * model.sd_node.view(1, -1, 1) * huber).sum() / (conf.sum() + 1e-6)
+        gate_denominator = (
+            conf.sum()
+            if normalizers is None
+            else normalizers["gate_confidence_sum"].to(device)
+        )
+        lg = (
+            conf * model.sd_node.view(1, -1, 1) * huber
+        ).sum() / (gate_denominator + 1e-6)
         loss = loss + args.lambda_gate * lg
         parts["gate"] = float(lg.item())
         if model.dual:
-            mg = (gstar * msk).sum() / (msk.sum() + 1e-6)
+            mg = (
+                (gstar * msk).sum() / (msk.sum() + 1e-6)
+                if normalizers is None
+                else normalizers["mean_gate_target"].to(device)
+            )
             wN = gstar / (mg + 1e-6)
             wD = (1.0 - gstar) / (1.0 - mg + 1e-6)
+            specialization_denominator = (
+                msk.sum()
+                if normalizers is None
+                else normalizers["valid_count"].to(device)
+            )
             ls = ((wN * (aux["yn"] - t).abs() + wD * (aux["yd"] - t).abs()) * msk).sum() \
-                / (msk.sum() + 1e-6)
+                / (specialization_denominator + 1e-6)
             loss = loss + args.lambda_spec * ls
             parts["spec"] = float(ls.item())
     return loss, parts

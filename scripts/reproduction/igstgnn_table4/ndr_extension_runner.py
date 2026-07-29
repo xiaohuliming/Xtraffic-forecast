@@ -510,6 +510,73 @@ def _forward(model: Any, tensors: Mapping[str, Any]) -> Any:
     )
 
 
+def backward_ndr_batch(
+    *,
+    model: Any,
+    tensors: Mapping[str, Any],
+    loss_batch: Mapping[str, Any],
+    loss_args: Any,
+    device: Any,
+    max_microbatch_size: int,
+) -> tuple[float, tuple[int, ...], int]:
+    """Backpropagate one effective batch, splitting only its activation graph."""
+    from scripts.train_staeformer_deseason import (
+        build_ndr_loss_normalizers,
+        compute_loss,
+    )
+
+    if type(max_microbatch_size) is not int or max_microbatch_size <= 0:
+        raise ValueError("max_microbatch_size must be a positive integer")
+    batch_size = int(tensors["target"].shape[0])
+    if batch_size <= 0:
+        raise ValueError("NDR training batch is empty")
+    use_microbatching = batch_size > max_microbatch_size
+    normalizers = None
+    if use_microbatching:
+        normalizers = build_ndr_loss_normalizers(
+            model,
+            loss_batch,
+            baseline=tensors["y_baseline"],
+            persistence=tensors["flow_hist"][:, :, -1:].expand_as(
+                tensors["y_baseline"]
+            ),
+            device=device,
+        )
+    total_loss = 0.0
+    microbatch_count = 0
+    for start in range(0, batch_size, max_microbatch_size):
+        stop = min(start + max_microbatch_size, batch_size)
+        chunk = slice(start, stop)
+        micro_tensors = {
+            key: value[chunk]
+            for key, value in tensors.items()
+        }
+        micro_loss_batch = {
+            key: value[chunk]
+            for key, value in loss_batch.items()
+        }
+        prediction = _forward(model, micro_tensors)
+        loss, _ = compute_loss(
+            model,
+            prediction,
+            micro_loss_batch,
+            loss_args,
+            device,
+            normalizers=normalizers,
+        )
+        loss.backward()
+        total_loss += float(loss.item())
+        microbatch_count += 1
+    prediction_shape = (
+        batch_size,
+        int(tensors["target"].shape[1]),
+        int(tensors["target"].shape[2]),
+    )
+    if not np.isfinite(total_loss):
+        raise RuntimeError("NDR training batch produced a non-finite loss")
+    return total_loss, prediction_shape, microbatch_count
+
+
 def _evaluate_validation(
     *,
     model: Any,
@@ -697,6 +764,28 @@ def _runtime_provenance(
             "target_dim": 3,
             "splits": _loader_provenance(bundle),
         },
+        "training_batch_adapter": (
+            {
+                "mode": "exact_full_batch_two_microforward_v1",
+                "declared_batch_size": 16,
+                "max_microbatch_size": 8,
+                "optimizer_updates_per_effective_batch": 1,
+                "scheduler_steps_per_effective_batch": 1,
+                "global_loss_terms": [
+                    "masked_mae_valid_count",
+                    "gate_confidence_sum",
+                    "mean_gate_target",
+                    "specialization_valid_count",
+                ],
+            }
+            if spec.task["region"] == "Orange"
+            else {
+                "mode": "direct_full_batch",
+                "declared_batch_size": spec.profile["effective"][
+                    "batch_size_by_region"
+                ][spec.task["region"]],
+            }
+        ),
         "training_only_climatology": {
             "baseline_sha256": baseline_sha256,
             "shape": list(statistics.baseline.shape),
@@ -740,7 +829,6 @@ def run_ndr_extension_task(
     import torch
     from torch.optim import Adam
     from torch.optim.lr_scheduler import CosineAnnealingLR
-    from scripts.train_staeformer_deseason import compute_loss
 
     spec = load_ndr_table4_task_spec(
         manifest_path=manifest_path,
@@ -793,6 +881,20 @@ def run_ndr_extension_task(
                         f"residual_std={statistics.residual_std:.6f}",
                         flush=True,
                     )
+                    max_microbatch_size = (
+                        8
+                        if spec.task["region"] == "Orange"
+                        else effective["batch_size_by_region"][
+                            spec.task["region"]
+                        ]
+                    )
+                    print(
+                        "training-batch adapter "
+                        f"effective_batch={effective['batch_size_by_region'][spec.task['region']]} "
+                        f"max_microbatch={max_microbatch_size} "
+                        "optimizer_updates_per_effective_batch=1",
+                        flush=True,
+                    )
                     model = _make_model(
                         node_count=bundle.node_count,
                         statistics=statistics,
@@ -830,24 +932,23 @@ def run_ndr_extension_task(
                                 statistics,
                                 device=device_value,
                             )
-                            prediction = _forward(model, tensors)
-                            loss, _ = compute_loss(
-                                model,
-                                prediction,
-                                loss_batch,
-                                loss_args,
-                                device_value,
-                            )
                             optimizer.zero_grad(set_to_none=True)
-                            loss.backward()
+                            batch_loss, _, _ = backward_ndr_batch(
+                                model=model,
+                                tensors=tensors,
+                                loss_batch=loss_batch,
+                                loss_args=loss_args,
+                                device=device_value,
+                                max_microbatch_size=max_microbatch_size,
+                            )
                             torch.nn.utils.clip_grad_norm_(
                                 model.parameters(),
                                 optimizer_config["gradient_clip"],
                             )
                             optimizer.step()
                             scheduler.step()
-                            batch_size = int(prediction.shape[0])
-                            weighted_loss += float(loss.item()) * batch_size
+                            batch_size = int(tensors["target"].shape[0])
+                            weighted_loss += batch_loss * batch_size
                             sample_count += batch_size
                         validation_mae = _evaluate_validation(
                             model=model,
@@ -954,7 +1055,6 @@ def probe_ndr_extension_task(
     device: str,
 ) -> None:
     import torch
-    from scripts.train_staeformer_deseason import compute_loss
 
     spec = load_ndr_table4_task_spec(
         manifest_path=manifest_path,
@@ -984,20 +1084,25 @@ def probe_ndr_extension_task(
         statistics,
         device=device_value,
     )
-    prediction = _forward(model, tensors)
     effective = spec.profile["effective"]
-    loss, _ = compute_loss(
-        model,
-        prediction,
-        loss_batch,
-        SimpleNamespace(
+    max_microbatch_size = (
+        8
+        if spec.task["region"] == "Orange"
+        else effective["batch_size_by_region"][spec.task["region"]]
+    )
+    model.zero_grad(set_to_none=True)
+    loss_value, prediction_shape, microbatch_count = backward_ndr_batch(
+        model=model,
+        tensors=tensors,
+        loss_batch=loss_batch,
+        loss_args=SimpleNamespace(
             lambda_gate=effective["loss"]["lambda_gate"],
             lambda_spec=effective["loss"]["lambda_specialization"],
         ),
-        device_value,
+        device=device_value,
+        max_microbatch_size=max_microbatch_size,
     )
-    loss.backward()
-    if not torch.isfinite(prediction).all() or not torch.isfinite(loss):
+    if not np.isfinite(loss_value):
         raise RuntimeError("NDR extension probe produced non-finite values")
     peak_bytes = None
     if device_value.type == "cuda":
@@ -1005,8 +1110,9 @@ def probe_ndr_extension_task(
         peak_bytes = int(torch.cuda.max_memory_allocated(device_value))
     print(
         "NDR_EXTENSION_SMOKE_OK "
-        f"task={task_id} shape={tuple(prediction.shape)} "
-        f"loss={float(loss.item()):.8f} peak_allocated_bytes={peak_bytes}",
+        f"task={task_id} shape={prediction_shape} "
+        f"loss={loss_value:.8f} microbatches={microbatch_count} "
+        f"peak_allocated_bytes={peak_bytes}",
         flush=True,
     )
 
