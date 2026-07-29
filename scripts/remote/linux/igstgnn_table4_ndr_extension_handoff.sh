@@ -80,6 +80,28 @@ fi
 log "NDR_HANDOFF_ORIGINAL_VERIFIED host=$HOST_ID"
 
 export PYTHONPATH="$REPO"
+if [[ "$HOST_ID" == "table4_4090d4" ]]; then
+  probe_task=ndr004_contra_costa_seed42
+  probe_gpu=3
+else
+  probe_task=ndr007_orange_seed42
+  probe_gpu=4
+fi
+CUDA_VISIBLE_DEVICES="$probe_gpu" \
+CUDA_DEVICE_ORDER=PCI_BUS_ID \
+"$PYTHON" -X utf8 -m \
+  scripts.reproduction.igstgnn_table4.ndr_extension_runner \
+  --manifest "$MANIFEST" \
+  --manifest-sha256 "$MANIFEST_SHA256" \
+  --base-manifest "$BASE_MANIFEST" \
+  --base-manifest-sha256 "$BASE_MANIFEST_SHA256" \
+  --task-id "$probe_task" \
+  --splits-root "$SPLITS_ROOT" \
+  --device cuda:0 \
+  --smoke >> "$LOG" 2>&1 \
+  || fail "NDR extension forward-backward probe failed"
+log "NDR_PROBE_OK host=$HOST_ID task=$probe_task gpu=$probe_gpu"
+
 "$PYTHON" -X utf8 -m \
   scripts.reproduction.igstgnn_table4.ndr_extension_distributed \
   run-host \
