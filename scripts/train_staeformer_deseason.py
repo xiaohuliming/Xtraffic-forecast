@@ -41,11 +41,8 @@ import torch.nn.functional as F
 from torch.optim import Adam
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
-from dist_net.data import MultiRegionDataset, make_loader
-from dist_net.metrics import MaskedMAEAccumulator, masked_mae_loss
-from dist_net.training_runtime import TrainingRunContext
+from dist_net.metrics import masked_mae_loss
 from fourier_dual_net.rgdn import AdaptiveAlpha
-from fourier_dual_net.deseason import train_residual_std
 from STAEformer import STAEformer
 
 VARIANTS = {
@@ -320,6 +317,11 @@ def compute_loss(model, y, batch, args, device):
 
 
 def main():
+    from dist_net.data import MultiRegionDataset, make_loader
+    from dist_net.metrics import MaskedMAEAccumulator
+    from dist_net.training_runtime import TrainingRunContext
+    from fourier_dual_net.deseason import train_residual_std
+
     p = argparse.ArgumentParser()
     p.add_argument("--region", required=True, choices=["Alameda", "ContraCosta", "Orange"])
     p.add_argument("--variant", required=True, choices=list(VARIANTS))

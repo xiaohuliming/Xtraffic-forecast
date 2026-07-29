@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import os
+from pathlib import Path
+import subprocess
+import sys
+
 import numpy as np
 
 from scripts.reproduction.igstgnn_table4.ndr_extension_runner import (
@@ -14,6 +19,35 @@ class _StaticLoader:
 
     def get_iterator(self):
         yield self._batch
+
+
+def test_ndr_model_module_import_does_not_require_h5py():
+    project_root = Path(__file__).resolve().parents[2]
+    script = """
+import builtins
+
+real_import = builtins.__import__
+
+def guarded_import(name, *args, **kwargs):
+    if name == "h5py" or name.startswith("h5py."):
+        raise ModuleNotFoundError("h5py is intentionally unavailable")
+    return real_import(name, *args, **kwargs)
+
+builtins.__import__ = guarded_import
+import scripts.train_staeformer_deseason
+"""
+    environment = dict(os.environ)
+    environment["PYTHONPATH"] = str(project_root)
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=project_root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def _training_batch():
