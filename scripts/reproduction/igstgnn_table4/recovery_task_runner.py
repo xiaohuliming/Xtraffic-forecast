@@ -12,6 +12,7 @@ from typing import Any
 
 import numpy as np
 import torch
+from torch.nn.parallel._functions import Scatter
 
 from .execution import (
     capture_test_predictions,
@@ -36,6 +37,39 @@ _STGCN_ADAPTER = "stgcn-idempotent-self-loop-removal"
 _MULTI_GPU_ADAPTER = "multi-gpu-full-batch"
 _MULTI_GPU_METHODS = frozenset({"dgcrn", "d2stgnn", "igstgnn"})
 _ADAPTERS = (_STGCN_ADAPTER, _MULTI_GPU_ADAPTER)
+
+
+def primary_light_chunk_sizes(
+    *,
+    batch_size: int,
+    device_count: int,
+) -> list[int]:
+    if (
+        isinstance(batch_size, bool)
+        or not isinstance(batch_size, int)
+        or batch_size <= 0
+    ):
+        raise ValueError("batch_size must be a positive integer")
+    if (
+        isinstance(device_count, bool)
+        or not isinstance(device_count, int)
+        or device_count <= 0
+    ):
+        raise ValueError("device_count must be a positive integer")
+    active_devices = min(batch_size, device_count)
+    quotient, remainder = divmod(batch_size, active_devices)
+    return [
+        quotient + (1 if index > 0 and index <= remainder else 0)
+        for index in range(active_devices)
+    ]
+
+
+def _is_namedtuple(value: Any) -> bool:
+    return (
+        isinstance(value, tuple)
+        and hasattr(value, "_asdict")
+        and hasattr(value, "_fields")
+    )
 
 
 class RecoveryDataParallel(torch.nn.DataParallel):
@@ -95,6 +129,107 @@ class RecoveryDataParallel(torch.nn.DataParallel):
                         setattr(child, name, moved)
         return replicas
 
+    @staticmethod
+    def _batch_size(inputs: tuple[Any, ...], dim: int) -> int:
+        pending = list(inputs)
+        while pending:
+            value = pending.pop(0)
+            if torch.is_tensor(value):
+                if value.ndim <= dim:
+                    continue
+                return int(value.shape[dim])
+            if isinstance(value, dict):
+                pending.extend(value.values())
+            elif isinstance(value, (list, tuple)):
+                pending.extend(value)
+        raise ValueError("Multi-GPU recovery inputs do not contain a batch tensor")
+
+    @staticmethod
+    def _scatter_value(
+        value: Any,
+        *,
+        target_gpus: list[int],
+        chunk_sizes: list[int],
+        dim: int,
+    ) -> list[Any]:
+        def scatter_map(item: Any) -> list[Any]:
+            if torch.is_tensor(item):
+                return list(Scatter.apply(target_gpus, chunk_sizes, dim, item))
+            if _is_namedtuple(item):
+                return [
+                    type(item)(*values)
+                    for values in zip(
+                        *map(scatter_map, item),
+                        strict=False,
+                    )
+                ]
+            if isinstance(item, tuple) and item:
+                return list(zip(*map(scatter_map, item), strict=False))
+            if isinstance(item, list) and item:
+                return [
+                    list(values)
+                    for values in zip(
+                        *map(scatter_map, item),
+                        strict=False,
+                    )
+                ]
+            if isinstance(item, dict) and item:
+                return [
+                    type(item)(values)
+                    for values in zip(
+                        *map(scatter_map, item.items()),
+                        strict=False,
+                    )
+                ]
+            return [item for _ in target_gpus]
+
+        try:
+            return scatter_map(value)
+        finally:
+            scatter_map = None
+
+    def scatter(
+        self,
+        inputs: tuple[Any, ...],
+        kwargs: dict[str, Any],
+        device_ids: list[int],
+    ) -> tuple[tuple[Any, ...], tuple[dict[str, Any], ...]]:
+        batch_size = self._batch_size(inputs, self.dim)
+        chunk_sizes = primary_light_chunk_sizes(
+            batch_size=batch_size,
+            device_count=len(device_ids),
+        )
+        active_devices = device_ids[: len(chunk_sizes)]
+        scattered_inputs = (
+            self._scatter_value(
+                inputs,
+                target_gpus=active_devices,
+                chunk_sizes=chunk_sizes,
+                dim=self.dim,
+            )
+            if inputs
+            else []
+        )
+        scattered_kwargs = (
+            self._scatter_value(
+                kwargs,
+                target_gpus=active_devices,
+                chunk_sizes=chunk_sizes,
+                dim=self.dim,
+            )
+            if kwargs
+            else []
+        )
+        if len(scattered_inputs) < len(scattered_kwargs):
+            scattered_inputs.extend(
+                () for _ in range(len(scattered_kwargs) - len(scattered_inputs))
+            )
+        elif len(scattered_kwargs) < len(scattered_inputs):
+            scattered_kwargs.extend(
+                {} for _ in range(len(scattered_inputs) - len(scattered_kwargs))
+            )
+        return tuple(scattered_inputs), tuple(scattered_kwargs)
+
     @property
     def horizon(self) -> int:
         return self.module.horizon
@@ -145,6 +280,7 @@ def wrap_model_for_recovery(
             "device_ids": device_ids,
             "full_batch_preserved": True,
             "optimizer_step_contract_preserved": True,
+            "primary_chunk_policy": "smallest_remainder_chunk",
             "unregistered_tensor_policy": "replica_device_copy",
             "replica_linalg_warmup": replica_linalg_warmup,
             "upstream_source_modified": False,

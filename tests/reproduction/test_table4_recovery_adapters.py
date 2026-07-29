@@ -9,6 +9,7 @@ import torch
 from scripts.reproduction.igstgnn_table4.recovery_task_runner import (
     adapt_runtime_for_recovery,
     main,
+    primary_light_chunk_sizes,
     wrap_model_for_recovery,
 )
 
@@ -92,10 +93,27 @@ def test_multi_gpu_recovery_preserves_the_declared_full_batch(monkeypatch) -> No
         "device_ids": [0, 1, 2],
         "full_batch_preserved": True,
         "optimizer_step_contract_preserved": True,
+        "primary_chunk_policy": "smallest_remainder_chunk",
         "unregistered_tensor_policy": "replica_device_copy",
         "replica_linalg_warmup": False,
         "upstream_source_modified": False,
     }
+
+
+def test_primary_gpu_receives_the_smallest_remainder_chunk() -> None:
+    assert primary_light_chunk_sizes(batch_size=64, device_count=5) == [
+        12,
+        13,
+        13,
+        13,
+        13,
+    ]
+    assert primary_light_chunk_sizes(batch_size=48, device_count=4) == [
+        12,
+        12,
+        12,
+        12,
+    ]
 
 
 def test_multi_gpu_recovery_rejects_a_non_primary_device() -> None:
