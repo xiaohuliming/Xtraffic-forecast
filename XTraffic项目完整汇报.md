@@ -744,11 +744,18 @@ runner 层现已完成或重新验收 45/45。5090 新分片为 18/18，5080 新
 48. 完成两台 RTX 4090 D 主机的 9 卡固定分片、Linux host runner、source-host postflight、结果服务器严格回传和成功后关机闭环。分片计划 SHA-256 为 `d6eec02c9935a5699cdd814d72be85317575e361fe8f244ff7cb47e4e67fffcc`。
 49. 两台主机完成 27 个正式数据文件的逐文件 SHA-256 复验。首次所有权安全门拒绝保留为 incident，修正 UID 后重新验收并正式启动。
 50. 识别 Orange IGSTGNN 的 24 GB 单卡容量不足。提交 `f43fb58` 保留完整 batch 并使用双卡 DataParallel，提交 `25b5307` 建立资源等待、task039 恢复、queue 重验、全主机 postflight、回传和关机控制器。本地全仓为 440 passed 和 2 个既有 warning。
+51. 复核双机九卡落盘状态，确认原 runner 已完成并逐任务验收 21/39。四卡机为 13/26，五卡机为 8/13。其余 18 项中 7 项实际失败，11 项因 shard fail closed 未启动。结果服务器尚无正式 Table 4 主机结果。
+52. 定位 STGCN 的确定根因。正式发布邻接矩阵已经为零对角线，LargeST STGCN 入口仍重复减单位矩阵，导致缩放拉普拉斯含 NaN。上游 masked 指标把 NaN loss 清零，正式有限值检查最终拒绝发布无效预测。
+53. 完成 24 GB 恢复层。提交 `b266c89` 建立带独立 provenance 的恢复 runner，提交 `05e2951` 增加 DGCRN QR 预热，提交 `1a5582f` 让主卡接收较小余数分片，提交 `af6456a` 以全批有效点加权的两次微前向保持 Orange D2STGNN 的有效 batch 64。
+54. 完成六组真实远端训练探针。STGCN GSO 全为有限值。Alameda D2STGNN 与 IGSTGNN 四卡通过。Orange DGCRN、D2STGNN 与 IGSTGNN 五卡通过。最高探针显存为 Orange D2STGNN 的约 13.5 GiB。所有探针使用临时目录，没有发布正式结果。
+55. 完成本地 446 项全仓回归和 2 个既有 warning。两台 Linux 主机的训练相关门各为 158 passed、12 个平台跳过和 1 个既有 warning。完整 Linux 复现测试中的 macOS sandbox 用例和 NumPy 2 专用构造用例不属于训练门。
+56. 锁定恢复前 21 项 artifact。四卡机 65 文件清单 SHA-256 为 `3e89aac6c8b5ebbf2bc8d2df4cc3f518587418464d9a49fd8b349e93967f4513`，五卡机 40 文件清单 SHA-256 为 `ee52c8e11ba150c3d49b65cf8d0efe480e46df0f5134ff310b3de14a440c1c61`。
+57. 于 2026-07-29 10:57 新加坡时间启动正式恢复。四卡机控制器 PID 为 `39176`，从 task005 开始。五卡机控制器 PID 为 `40326`，从 task031 开始。恢复完成后会自动续跑完整分片，只在 source-host postflight、结果服务器逐文件复验和原子提升全部通过后关机。
 
 当前待执行事项按优先级排列。
 
-1. 验证 Orange IGSTGNN 双卡恢复通过首个真实 batch。
-2. 等待双机 9 卡固定分片完成、回传、结果服务器复验与自动关机。
+1. 等待双机正式恢复任务和后续固定分片完成。
+2. 等待双机 source-host postflight、回传、结果服务器复验与自动关机。
 3. 建立 Table 4 只读 39 项 composite index，并生成论文同结构表、逐单元差值表和数字追溯索引。
 
 ---

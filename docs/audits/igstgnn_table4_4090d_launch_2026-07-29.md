@@ -1,6 +1,6 @@
 # IGSTGNN Table 4 双机九卡启动进度报告
 
-更新时间：2026-07-29 01:16 新加坡时间
+更新时间：2026-07-29 10:57 新加坡时间
 
 ## 当前结论
 
@@ -8,7 +8,9 @@ IGSTGNN Table 4 复现已从 5080 单卡 pilot 切换为两台 RTX 4090 D 主机
 
 39 项固定分片清单位于 `config/reproduction/igstgnn_table4/distributed_4090d_9gpu_v1.json`，SHA-256 为 `d6eec02c9935a5699cdd814d72be85317575e361fe8f244ff7cb47e4e67fffcc`。五卡机承担 Orange 的 13 项，四卡机承担 Alameda 与 Contra Costa 的 26 项。每个地区的全部方法保留在同一台主机上，地区内直接比较不会跨主机。
 
-四卡机的 4 个 shard 正常运行。五卡机的 Orange HL 已完成，另外 3 个单卡 shard 正常运行。Orange IGSTGNN 因 24 GB 单卡物理显存不足进入经过记录的双卡恢复流程。恢复控制器 PID 为 `20105`，它会等待 Orange BiST 释放 GPU 3，再使用物理 GPU 4 与 GPU 3 执行完整 batch 的 IGSTGNN。该流程不缩小 batch，不修改 pristine 上游源码，不修改数据、损失、优化器、epoch 或 early stopping 契约。
+原九卡 runner 已停止在可审计的失败保护状态。已完成并逐任务验收 21/39，四卡机为 13/26，五卡机为 8/13。两台机器均在线，GPU 在恢复启动前为空闲。结果服务器尚未收到正式主机结果。
+
+正式恢复控制器已于 10:57 启动。四卡机 PID 为 `39176`，当前执行 task005 Alameda STGCN。五卡机 PID 为 `40326`，当前执行 task031 Orange STGCN。恢复层不修改 pristine 上游源码或正式数据，并对每个输入语义或硬件适配记录独立 SHA-256 provenance。
 
 ## 固定身份
 
@@ -23,9 +25,11 @@ IGSTGNN Table 4 复现已从 5080 单卡 pilot 切换为两台 RTX 4090 D 主机
 | 多卡 IGSTGNN 适配提交 | `f43fb58` |
 | 自动恢复控制提交 | `25b5307` |
 | 多卡 IGSTGNN 训练代码 SHA-256 | `641b0ac88078f33b3368cbc7fa352ad60c9238493fb40537e82bbf28075f28ad` |
-| 本地全仓回归 | 440 passed，2 个既有 warning |
-| 两台 Linux 原始训练门 | 各 112 passed，1 个既有 warning |
-| 多卡仓库远端专项门 | 15 passed |
+| 最终恢复控制提交 | `af6456afc33106db0082c3635c524fb30c70c157` |
+| 恢复 runner SHA-256 | `52829dd65362ef03127f391b7054aff1c0feeacf011bc4af974e2be408f07a76` |
+| 持久恢复脚本 SHA-256 | `23980df3dfe42afe952bc52febb97e3fd85e1c1629b86e70b2b2679b3c8a5b4b` |
+| 本地全仓回归 | 446 passed，2 个既有 warning |
+| 两台 Linux 训练相关门 | 各 158 passed、12 skipped、1 个既有 warning |
 
 LargeST、BiST 与 IGSTGNN 的 pristine 上游提交继续锁定为 `b7c6ff5f7f0c10051ed10a319b2cfe58021312f9`、`dd94adf7721fcbb9e3feb5d1b44040305199a4cc` 与 `64c6e243466f791f1b75e50421d63e39577ec9fa`。两台主机的三个 checkout 均通过 clean worktree 与 `git fsck` 检查。
 
@@ -51,6 +55,37 @@ Orange IGSTGNN 在默认 CUDA 分配器下于首个 forward 尝试分配 2.10 Gi
 
 提交 `f43fb58` 增加显式 `--igstgnn-data-parallel` 入口。它保留完整 batch，由单一 loss 与优化器处理汇总输出。上游模型的未注册图张量在副本建立时复制到对应设备。pristine 上游目录保持未修改。此适配属于执行层差异，最终报告不得写成单卡逐命令复现。
 
+双卡恢复在首批反向传播时再次 OOM，只差 270 MiB，没有形成正式 task039。该记录证明 Orange IGSTGNN 需要超过两张 24 GB 卡。
+
+## 21/39 失败保护快照
+
+四卡机完成 13 项，五卡机完成 8 项。21 项均有五份正式 artifact，并由原 runner 逐任务验收。四卡机 65 个文件的恢复前 SHA-256 清单摘要为 `3e89aac6c8b5ebbf2bc8d2df4cc3f518587418464d9a49fd8b349e93967f4513`。五卡机 40 个文件的对应摘要为 `ee52c8e11ba150c3d49b65cf8d0efe480e46df0f5134ff310b3de14a440c1c61`。
+
+7 个实际失败任务是 Alameda STGCN、D2STGNN、IGSTGNN，Orange STGCN、DGCRN、D2STGNN、IGSTGNN。其余 11 项没有启动，因为 matrix runner 对每个 shard 执行 fail closed。
+
+STGCN 的发布邻接矩阵已经是零对角线。LargeST STGCN 入口又减一次单位矩阵，使节点度数出现负值，缩放拉普拉斯包含 NaN。上游 masked 指标会把 NaN loss 清零，所以训练没有及时失败，直到正式预测有限值检查才被拦截。恢复层在输入已经无自环时临时加入单位矩阵，让原入口的减法只执行一次。最终送入图归一化的无自环图与发布图完全相同。
+
+D2STGNN、DGCRN 与 IGSTGNN 的其余错误为 24 GB 物理容量。DGCRN 还暴露 PyTorch 2.3 在多个 DataParallel 线程首次并发初始化 `torch.linalg.qr` 时的懒加载竞态。恢复层在建副本前按 GPU 串行执行无状态 QR 预热。
+
+## 正式恢复适配
+
+提交 `b266c89` 建立独立恢复 runner，提交 `05e2951` 增加 DGCRN QR 预热，提交 `1a5582f` 把较小余数分片分给主卡，提交 `af6456a` 增加 Orange D2STGNN 的等效全批微步。
+
+Orange D2STGNN 无法把 batch 64 一次分给五张 24 GB 卡，因为至少四张卡需要接收 13 个样本。正式恢复把全批拆成两个 32 样本微前向。每个微批在五卡间分为 6、7、7、6、6。两个微批按全批有效观测点数加权并累积梯度，之后只执行一次梯度裁剪和一次优化器更新。每个原始 batch 仍只推进一次 curriculum。该流程保持有效 batch 64，不把 microbatch 当成两个训练 step。
+
+真实远端探针结果如下。
+
+| 任务 | 执行方式 | 峰值显存 |
+|---|---|---|
+| Alameda STGCN | 单卡，幂等自环移除 | 约 1.1 GiB |
+| Alameda D2STGNN | 四卡完整 batch | 每卡约 9.9 GiB |
+| Alameda IGSTGNN | 四卡完整 batch | 每卡约 7.6 GiB |
+| Orange DGCRN | 五卡完整 batch，QR 预热 | 每卡约 5.9 GiB |
+| Orange D2STGNN | 五卡，两次 32 样本微前向 | 最高约 13.5 GiB |
+| Orange IGSTGNN | 五卡完整 batch | 最高约 10.0 GiB |
+
+所有探针都执行了真实前向、反向和优化器更新。探针使用临时目录，没有发布正式 task artifact。
+
 ## 自动回传与关机
 
 两台主机完成各自固定 shard 后，会执行 source-host postflight。postflight 要求 queue 完成、任务和文件 allowlist 精确、五份 artifact 齐全、运行时主机身份一致、GPU 型号为 RTX 4090 D，并按训练代码家族验证 digest。
@@ -59,8 +94,8 @@ Orange IGSTGNN 在默认 CUDA 分配器下于首个 forward 尝试分配 2.10 Gi
 
 ## 下一步
 
-1. 验证 Orange IGSTGNN 双卡运行通过首个真实 batch，并确认两张卡同时持有模型副本。
-2. 保持 8 个常规 shard 与 Orange IGSTGNN 自动运行。
+1. 等待两台正式恢复控制器完成适配任务。
+2. 由控制器重跑完整主机计划，原 21 项和恢复任务会被验证并跳过，其余任务继续训练。
 3. 等待两台主机各自完成 postflight、回传、结果服务器复验和关机。
 4. 两份正式主机结果都提升后，建立只读 39 项 composite index。
 5. 从逐份复验的 summary 与 predictions 生成与论文同结构的 Table 4、逐单元差值表和数字追溯索引。

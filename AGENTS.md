@@ -46,7 +46,13 @@ task003 首次通过 SSH 附着运行，在完成 3 个 epoch 后于 2026-07-28 
 
 2026-07-29，Table 4 正式执行切换为两台 RTX 4090 D 主机的 9 卡固定分片。计划 SHA-256 为 `d6eec02c9935a5699cdd814d72be85317575e361fe8f244ff7cb47e4e67fffcc`。五卡机承担 Orange 13 项，四卡机承担 Alameda 与 Contra Costa 26 项。5080 旧 pilot 在 epoch 38 后停止，没有 task003 正式目录，计划任务已禁用，incident 清单 SHA-256 为 `29c58bad6635ae3c7d476ec875cd577153ab4a95981d32f2a16baf89248bde4a`。
 
-两端 27 个正式数据文件均通过逐文件 SHA-256 复验。首次启动因 Mac UID 501 所有权被安全门拒绝，没有 trainer 或正式结果。修正所有权并重新验哈希后，五卡机与四卡机分别于 00:47:14 和 00:47:32 新加坡时间正式重启。Orange IGSTGNN 的两次单卡诊断证明 24 GB 物理显存不足。提交 `f43fb58` 增加保留完整 batch 的双卡适配，提交 `25b5307` 增加自动恢复控制器。控制器 PID 为 `20105`，等待 Orange BiST 完成后使用 GPU 4 与 GPU 3 执行 task039。本地全仓为 440 passed 和 2 个既有 warning，多卡仓库远端专项门为 15 passed。
+两端 27 个正式数据文件均通过逐文件 SHA-256 复验。首次启动因 Mac UID 501 所有权被安全门拒绝，没有 trainer 或正式结果。修正所有权并重新验哈希后，五卡机与四卡机分别于 00:47:14 和 00:47:32 新加坡时间正式重启。
+
+截至 2026-07-29 10:57 新加坡时间，原九卡 runner 已完成并逐任务验收 21/39，四卡机为 13/26，五卡机为 8/13。剩余 18 项中有 7 项实际失败，11 项因 shard 遇错即停而未启动。STGCN 失败来自零对角线邻接矩阵被重复减单位矩阵，D2STGNN、DGCRN 与 IGSTGNN 失败来自 24 GB 显存容量。旧双卡 Orange IGSTGNN 恢复在反向传播时仍然 OOM，没有正式 task039。
+
+提交 `b266c89`、`05e2951`、`1a5582f` 与 `af6456a` 增加带独立 provenance 的 24 GB 恢复层。STGCN 使用幂等自环移除。DGCRN 使用无状态 QR 预热。多卡执行把较小余数分片分给主卡。Orange D2STGNN 使用两次 32 样本微前向和一次优化器更新，按全批有效观测点加权梯度，有效 batch 仍为 64。真实探针均通过。Alameda D2STGNN 与 IGSTGNN 峰值约为每卡 9.9 GiB 和 7.6 GiB。Orange DGCRN、D2STGNN 与 IGSTGNN 峰值约为每卡 5.9 GiB、最高 13.5 GiB 和最高 10.0 GiB。STGCN 修正 GSO 全为有限值。本地全仓为 446 passed 和 2 个既有 warning，两台 Linux 训练门各为 158 passed、12 个平台跳过和 1 个既有 warning。
+
+正式恢复控制器于 10:57 启动。四卡机 PID 为 `39176`，从 task005 开始。五卡机 PID 为 `40326`，从 task031 开始。恢复前 21 项的五文件清单已经锁定，四卡机与五卡机清单 SHA-256 为 `3e89aac6c8b5ebbf2bc8d2df4cc3f518587418464d9a49fd8b349e93967f4513` 与 `ee52c8e11ba150c3d49b65cf8d0efe480e46df0f5134ff310b3de14a440c1c61`。恢复 runner 与持久控制脚本 SHA-256 为 `52829dd65362ef03127f391b7054aff1c0feeacf011bc4af974e2be408f07a76` 与 `23980df3dfe42afe952bc52febb97e3fd85e1c1629b86e70b2b2679b3c8a5b4b`。只有双机 source-host postflight、结果服务器逐文件复验和原子提升全部通过后才自动关机，任何失败都会保持开机。
 
 双机 finalizer 已设置结果服务器严格回传、逐文件复验、原子提升和成功后自动关机。关机命令显式使用 `/usr/bin/shutdown`。任何训练、postflight、容量、传输或远端复验失败都会保持机器开机。完整启动记录见 `docs/audits/igstgnn_table4_4090d_launch_2026-07-29.md`。
 

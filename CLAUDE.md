@@ -107,9 +107,17 @@ task003 首次 SSH 附着运行在完成 3 个 epoch 后于 22:32:25 按计划�
 
 2026-07-29，正式执行已切换到两台 RTX 4090 D 主机，共 9 张 24 GB GPU。固定计划 `igstgnn_table4_4090d_9gpu_v1` 的 SHA-256 为 `d6eec02c9935a5699cdd814d72be85317575e361fe8f244ff7cb47e4e67fffcc`。五卡机承担 Orange 13 项，四卡机承担 Alameda 与 Contra Costa 26 项。三地区方法内比较均保持同机。两端 27 个正式数据文件均通过逐文件 SHA-256 复验。5080 旧 pilot 在 epoch 38 后停止，没有 task003 正式目录，计划任务已禁用，incident 清单 SHA-256 为 `29c58bad6635ae3c7d476ec875cd577153ab4a95981d32f2a16baf89248bde4a`。
 
-首次九卡启动因 rsync 保留 Mac UID 501 被所有权安全门拒绝。9 个 shard 均在 trainer 启动前退出，没有正式结果。修正所有权并重新完成数据哈希校验后，五卡机与四卡机分别于 00:47:14 和 00:47:32 新加坡时间正式重启。Orange IGSTGNN 的两次单卡尝试证明 24 GB 物理显存不足。提交 `f43fb58` 与 `25b5307` 增加保留完整 batch 的双卡适配和自动恢复控制器。恢复控制器 PID 为 `20105`，等待 Orange BiST 释放 GPU 3 后，使用 GPU 4 与 GPU 3 运行 task039。完整进度见 `docs/audits/igstgnn_table4_4090d_launch_2026-07-29.md`。
+首次九卡启动因 rsync 保留 Mac UID 501 被所有权安全门拒绝。9 个 shard 均在 trainer 启动前退出，没有正式结果。修正所有权并重新完成数据哈希校验后，五卡机与四卡机分别于 00:47:14 和 00:47:32 新加坡时间正式重启。
 
-两台主机均已布防自动收尾。只有 source-host postflight、严格 allowlist 上传、结果服务器逐文件 SHA-256、精确目录树和原子提升全部通过后，源主机才调用 `/usr/bin/shutdown -h now`。任一步失败时主机保持开机。本地全仓回归现为 440 passed 和 2 个既有 warning，多卡仓库远端专项门为 15 passed。
+截至 2026-07-29 10:57 新加坡时间，原九卡 runner 已完成并逐任务验收 21/39，四卡机为 13/26，五卡机为 8/13。其余 18 项中有 7 项实际失败，11 项因 shard 遇错即停而未启动。STGCN 的根因是发布邻接矩阵已经为零对角线，而 LargeST 入口仍重复减单位矩阵，产生含 NaN 的缩放拉普拉斯。D2STGNN、DGCRN 与 IGSTGNN 的失败属于 24 GB 显存容量。旧双卡 Orange IGSTGNN 恢复在反向传播时仍然 OOM，没有形成正式 task039。
+
+提交 `b266c89`、`05e2951`、`1a5582f` 与 `af6456a` 增加带独立 SHA-256 provenance 的恢复层。STGCN 只执行幂等自环移除。DGCRN 在 DataParallel 前按 GPU 串行预热 QR。多卡分片把较小余数分片分给主卡。Orange D2STGNN 使用两次 32 样本微前向，按全批有效观测点加权梯度，仍只执行一次 curriculum 更新、一次梯度裁剪和一次优化器更新，有效 batch 保持 64。pristine 上游目录、正式数据、优化器、epoch、scheduler、early stopping 与指标口径均未修改。
+
+真实远端探针全部通过。Alameda D2STGNN 四卡峰值约为每卡 9.9 GiB，Alameda IGSTGNN 四卡约为 7.6 GiB。Orange DGCRN 五卡约为 5.9 GiB，Orange D2STGNN 两微批五卡最高约为 13.5 GiB，Orange IGSTGNN 五卡最高约为 10.0 GiB。STGCN 修正后的 GSO 全为有限值，单批训练峰值约为 1.1 GiB。本地全仓回归为 446 passed 和 2 个既有 warning。两台 Linux 训练相关门各为 158 passed、12 个平台跳过和 1 个既有 warning。完整 Linux 全复现测试中的 macOS sandbox 用例及 NumPy 2 专用构造用例不属于 Linux 训练门。
+
+正式恢复控制器于 10:57 启动。四卡机 PID 为 `39176`，当前从 task005 Alameda STGCN 开始。五卡机 PID 为 `40326`，当前从 task031 Orange STGCN 开始。恢复前 21 项的五文件快照已经落盘，四卡机 65 个文件清单 SHA-256 为 `3e89aac6c8b5ebbf2bc8d2df4cc3f518587418464d9a49fd8b349e93967f4513`，五卡机 40 个文件清单 SHA-256 为 `ee52c8e11ba150c3d49b65cf8d0efe480e46df0f5134ff310b3de14a440c1c61`。恢复 runner SHA-256 为 `52829dd65362ef03127f391b7054aff1c0feeacf011bc4af974e2be408f07a76`，持久控制脚本 SHA-256 为 `23980df3dfe42afe952bc52febb97e3fd85e1c1629b86e70b2b2679b3c8a5b4b`。完整进度见 `docs/audits/igstgnn_table4_4090d_launch_2026-07-29.md`。
+
+两台主机继续执行自动收尾。只有 source-host postflight、严格 allowlist 上传、结果服务器逐文件 SHA-256、精确目录树和原子提升全部通过后，源主机才调用 `/usr/bin/shutdown -h now`。任一步失败时主机保持开机。结果服务器目前仍没有正式 Table 4 主机目录，不能写成已上传或已完成。
 
 ## v2 冻结记录
 
@@ -119,8 +127,8 @@ task003 首次 SSH 附着运行在完成 3 个 epoch 后于 22:32:25 按计划�
 
 ## 下一步顺序
 
-1. 验证 Orange IGSTGNN 双卡恢复通过首个真实 batch。
-2. 等待双机 9 卡固定分片完成 source-host postflight、回传和自动关机。
+1. 等待双机正式恢复任务和后续固定分片完成。
+2. 完成 source-host postflight、严格回传、结果服务器原子提升和自动关机。
 3. 生成与论文同结构的 Table 4、逐单元差值表和数字追溯索引。
 4. 只根据完整的 v3 落盘结果决定原项目论文主张。Table 4 复现结果与 v3 无泄露结论必须分开解释。
 
