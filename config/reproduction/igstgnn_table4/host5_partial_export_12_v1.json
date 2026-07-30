@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "plan_id": "igstgnn_table4_host5_partial_export_12_v1",
+  "protocol_id": "igstgnn_table4_official_v1",
+  "matrix_id": "igstgnn_table4_public_repro_39_v2",
+  "manifest_sha256": "d0c7fb88e24c6026d670a4a6d571357eb5320393417a83d344adb05151023a78",
+  "base_plan_id": "igstgnn_table4_4090d_9gpu_v1",
+  "base_plan_sha256": "d6eec02c9935a5699cdd814d72be85317575e361fe8f244ff7cb47e4e67fffcc",
+  "host_id": "table4_4090d5",
+  "hostname": "autodl-container-caf44cbe32-9a5094c3",
+  "gpu_sku": "NVIDIA GeForce RTX 4090 D",
+  "gpu_count": 5,
+  "gpu_uuids": [
+    "GPU-0e99a357-a4e6-4f6c-7140-7e12bc886b24",
+    "GPU-9c540b6e-d07f-56c0-9c91-02d5ae2b878d",
+    "GPU-3f8dd3dc-cd6c-7cc8-d3ab-bc0c6014f611",
+    "GPU-46cd8fd3-f0bb-1337-5911-a981d046bf61",
+    "GPU-ec7541cd-7e49-626b-12c0-14e826ee9de6"
+  ],
+  "execution_layout": "single_host_partial_original_export",
+  "tasks": [
+    {
+      "task_id": "027_orange_hl",
+      "results_root": "shards/table4_4090d5_gpu0"
+    },
+    {
+      "task_id": "028_orange_lstm",
+      "results_root": "shards/table4_4090d5_gpu1"
+    },
+    {
+      "task_id": "029_orange_dcrnn",
+      "results_root": "shards/table4_4090d5_gpu0"
+    },
+    {
+      "task_id": "030_orange_agcrn",
+      "results_root": "shards/table4_4090d5_gpu1"
+    },
+    {
+      "task_id": "031_orange_stgcn",
+      "results_root": "shards/table4_4090d5_gpu0"
+    },
+    {
+      "task_id": "032_orange_gwnet",
+      "results_root": "shards/table4_4090d5_gpu1"
+    },
+    {
+      "task_id": "033_orange_astgcn",
+      "results_root": "shards/table4_4090d5_gpu2"
+    },
+    {
+      "task_id": "035_orange_dstagnn",
+      "results_root": "shards/table4_4090d5_gpu2"
+    },
+    {
+      "task_id": "036_orange_dgcrn",
+      "results_root": "shards/table4_4090d5_gpu1"
+    },
+    {
+      "task_id": "037_orange_d2stgnn",
+      "results_root": "shards/table4_4090d5_gpu2"
+    },
+    {
+      "task_id": "038_orange_bist",
+      "results_root": "shards/table4_4090d5_gpu3"
+    },
+    {
+      "task_id": "039_orange_igstgnn",
+      "results_root": "shards/table4_4090d5_gpu4"
+    }
+  ],
+  "relay_base": "/root/xtraffic_results/igstgnn_table4_official_v1/original_host5_partial_12_v1/hosts"
+}
