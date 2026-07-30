@@ -134,10 +134,26 @@ Orange D2STGNN 无法把 batch 64 一次分给五张 24 GB 卡，因为至少四
 
 00:18 时原矩阵总进度为 37/39。五卡机已完成 11/13，task039 Orange IGSTGNN 已完成 44/100 epoch，之后只余 task034 Orange STTN。五卡机原矩阵未完成回传，最终 Table 4 仍不得生成。
 
+## 09:21 task034 跨主机四卡恢复
+
+四卡机 NDR 扩展随后完成 9/9，并在结果服务器完成逐文件复验和原子提升。正式目录含 49 个文件和 940,488,092 字节，files digest 为 `ab21c8e300ba930e5611cb9c07ff5b047eb03d281ca669c756242707231c87e7`。task039 Orange IGSTGNN 也已完整落盘。其 H3、H6、H12 与 Average MAE 为 12.503220、13.296460、14.551459 与 13.285545，summary SHA-256 为 `ab0288a4b8fe5a17c33b43b758bbc5851b0e63cc0cce7456a07eb5fe451ce998`。原矩阵 runner 层达到 38/39。
+
+五卡机继续 task034 Orange STTN 时，单卡空间注意力在首个训练步尝试额外分配 11.22 GiB 并 OOM。该失败没有 summary 或正式 task034 目录。用户要求关闭五卡机后，控制层确认 trainer 为 0、既有 12 项保持完整，并生成 60 个 artifact 的关机前清单。五卡机随后正常关闭。该主机尚未完成原分片 postflight 和正式回传。
+
+用户重新启动四卡机并批准由该机接管 task034。重启后四张卡均为 RTX 4090 D，但 GPU0 已更换。锁定 UUID 依次为 `GPU-c12dfe6a-f3b4-2056-8a0c-1b0a629feb36`、`GPU-70077372-d84a-eeb9-7ffc-ff3f33f25653`、`GPU-af61ffd0-be5f-a346-ec99-1a6dd755b670` 与 `GPU-f89fbd8b-93b0-65dd-ca38-386cbf894bb8`。
+
+独立计划 `igstgnn_table4_task034_4gpu_recovery_v1` 的 SHA-256 为 `022d3d9a0c635f94ce5f7b7760c022ba38162bbccfe68675b33cd6bbe78834c5`。计划只允许 task034，原始来源仍记录为五卡机的 `table4_4090d5_gpu0`，实际恢复主机记录为四卡机。execution layout 固定为 `cross_host_single_task_recovery`。正式结果写入独立根，不覆盖四卡机原 26 项或五卡机原 12 项。
+
+提交 `4935b9b` 增加 STTN 四卡整批 DataParallel、真实完整优化步 smoke、独立 postflight 和通用严格 finalizer 身份绑定。本地全仓回归为 465 passed 和 2 个既有 warning。四卡机部署文件逐份 SHA-256 与本地一致，专项测试为 13 passed。
+
+四卡机控制器 PID `2928` 于 2026-07-30 09:21:02 新加坡时间启动。真实 smoke 使用 batch 64，完成前向、反向、梯度裁剪和一次优化器更新。loss 为 `170.42190551757812`，prediction shape 为 `64×12×990×1`。GPU0 至 GPU3 的峰值分配显存为 16,082,649,088、16,060,899,840、16,060,899,840 与 16,060,899,840 bytes。09:21:28 smoke 验证通过后，控制器自动启动正式 task034。
+
+正式训练首个落盘 epoch 的训练 loss 为 29.8492，训练 RMSE 为 43.5428，训练 MAPE 为 0.7190，验证 loss 为 21.1960，验证 RMSE 为 34.2392，验证 MAPE 为 0.3215。训练与验证耗时为 42.5066 秒和 4.5379 秒。控制器会在训练完成后重新验证精确五文件 allowlist，再执行独立 source-host postflight、结果服务器逐文件 SHA-256、精确目录树复验和原子提升。全部成功后调用 `/usr/bin/shutdown -h now`，任何失败都保持四卡机开机。
+
 ## 下一步
 
-1. 等待五卡机原矩阵 task039 与 task034 完成，并通过 source-host postflight、结果服务器复验与自动关机。
-2. 等待四卡机 Orange 3 项完成，使 NDR 扩展达到 9/9，并复验旧六项 artifact 哈希不变。
-3. 等待 NDR 扩展 postflight、独立回传、结果服务器复验与自动关机。
-4. 建立原 39 项只读 composite index，并建立独立的 9 项扩展索引。
-5. 从逐份复验的 summary 与 predictions 生成论文同结构的原表、NDR-Net 三种子补充行、逐单元差值表和数字追溯索引。
+1. 等待四卡机 task034 完成独立 postflight、正式回传和自动关机。
+2. 需要用户重新开启五卡机，只读复验并回传其既有 12 项，不再重训 task034。
+3. 建立原 39 项三源只读 composite index，并验证 canonical tasks001 至 039 各出现一次。
+4. 为已发布的 NDR 9 项建立独立索引。
+5. 从逐份复验的 summary 与 predictions 生成论文同结构原表、NDR-Net 三种子补充行、逐单元差值表和数字追溯索引。

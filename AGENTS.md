@@ -70,6 +70,12 @@ NDR-Net 补充对比保持原 39 项清单不变，使用独立矩阵 `igstgnn_t
 
 四卡机正式 NDR 控制器 PID 为 `3677`，GPU 0、1、2 分别执行 Orange seeds 42、1、2。00:18 三项均完成 epoch 1，validation MAE 为 13.19330061、13.06060743、12.91147725。完成控制器 PID `5614` 会复验旧六项的 30 个 artifact 哈希，再执行 9 项 postflight、结果服务器逐文件复验、原子提升和关机。五卡机旧 NDR 等待器 PID `422803` 已停止，incident 清单摘要为 `556c4289e2b4ec41b35b40d1f9a72190e1ad1c3c5a55edf1986843a70aa6e8a1`。五卡机新关机等待器 PID `201649` 只负责在原 39 项回传复验后关机。控制脚本提交为 `dd2d087` 与 `b5d9751`。任何失败都会保留对应主机开机。
 
+NDR 扩展现已完成并正式发布 9/9。结果服务器目录含 49 个文件和 940,488,092 字节，files digest 为 `ab21c8e300ba930e5611cb9c07ff5b047eb03d281ca669c756242707231c87e7`。task039 Orange IGSTGNN 已完整落盘，Average MAE、RMSE、MAPE 为 13.285545、23.504318、14.457104，summary SHA-256 为 `ab0288a4b8fe5a17c33b43b758bbc5851b0e63cc0cce7456a07eb5fe451ce998`。原矩阵 runner 层达到 38/39。
+
+五卡机上的 task034 Orange STTN 单卡训练在尝试额外分配 11.22 GiB 时 OOM，没有正式结果。用户要求关机后，五卡机既有 12 项先完成关机前 artifact 清单并正常关闭，尚未正式回传。用户随后开启四卡机并批准接管 task034。独立恢复计划 `igstgnn_table4_task034_4gpu_recovery_v1` 的 SHA-256 为 `022d3d9a0c635f94ce5f7b7760c022ba38162bbccfe68675b33cd6bbe78834c5`，execution layout 为 `cross_host_single_task_recovery`。
+
+提交 `4935b9b` 增加 STTN 四卡整批恢复、真实完整优化步探针、独立 postflight 和严格回传。本地全仓为 465 passed 和 2 个既有 warning，四卡机专项门为 13 passed。2026-07-30 09:21:02 新加坡时间，控制器 PID `2928` 启动。batch 64 探针 loss 为 `170.42190551757812`，四卡峰值为 16,082,649,088、16,060,899,840、16,060,899,840 与 16,060,899,840 bytes。09:21:28 探针通过并启动正式 task034。首个 epoch 的训练 loss 为 29.8492，验证 loss 为 21.1960。task034 只有在五文件验收、独立 postflight、结果服务器逐文件复验和原子提升全部通过后才触发四卡机关机。最终 39 项必须标记为包含跨主机单任务恢复，不得称为原九卡同质矩阵。
+
 项目方法层级为 `RADS ⊂ RADS-O ⊂ NDR-Net`。完整研究史和数字出处见主报告，当前有效性见审计文件。
 
 所有数字必须来自落盘文件。保留诚实负结果。种子约定为 42、1、2。指标采用 masked MAE。

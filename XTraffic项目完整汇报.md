@@ -249,6 +249,18 @@ Orange IGSTGNN 的默认分配器与 `cudaMallocAsync` 两次单卡诊断均在�
 
 两台主机均已布防严格自动收尾。各自固定 shard 完成后先执行 source-host postflight，再按精确 allowlist 上传到结果服务器。结果服务器逐文件计算 SHA-256、核对精确目录树并原子提升。只有正式目标再次完整复验通过后，源主机才调用 `/usr/bin/shutdown -h now`。任一步失败都会保持机器开机。完整记录见 `docs/audits/igstgnn_table4_4090d_launch_2026-07-29.md`。
 
+### 最新进展，2026-07-30，NDR 9/9 发布与 task034 四卡恢复
+
+NDR-Net Table 4 扩展已完成 9/9。结果服务器正式目录通过逐文件 SHA-256、精确目录树和原子提升，含 49 个文件和 940,488,092 字节，files digest 为 `ab21c8e300ba930e5611cb9c07ff5b047eb03d281ca669c756242707231c87e7`。该扩展继续独立标记为 `same_protocol_project_method_extension`，不属于 IGSTGNN 原论文 39 项。
+
+原矩阵 task039 Orange IGSTGNN 已完整落盘并通过五文件验收。H3、H6、H12 与 Average MAE 为 12.503220、13.296460、14.551459 与 13.285545，summary SHA-256 为 `ab0288a4b8fe5a17c33b43b758bbc5851b0e63cc0cce7456a07eb5fe451ce998`。原矩阵由此达到 38/39。
+
+最后一项 task034 Orange STTN 在五卡机单卡训练时尝试额外分配 11.22 GiB 并 OOM，没有正式结果。用户要求关机后，五卡机既有 12 项先完成 60 个 artifact 的关机前清单，随后正常关闭。五卡机尚未正式回传。用户重新开启四卡机并批准接管 task034。
+
+独立恢复计划 `igstgnn_table4_task034_4gpu_recovery_v1` 的 SHA-256 为 `022d3d9a0c635f94ce5f7b7760c022ba38162bbccfe68675b33cd6bbe78834c5`。execution layout 固定为 `cross_host_single_task_recovery`。提交 `4935b9b` 增加 STTN 四卡整批恢复、真实完整优化步探针、独立 postflight 和严格回传。本地全仓为 465 passed 和 2 个既有 warning，四卡机专项门为 13 passed。
+
+2026-07-30 09:21:02 新加坡时间，四卡机控制器 PID `2928` 启动。batch 64 smoke 完成前向、反向、梯度裁剪和一次优化器更新，loss 为 `170.42190551757812`。四卡峰值分配显存约为每卡 16.1 GB。09:21:28 smoke 通过后，正式 task034 开始训练。首个 epoch 的训练 loss 为 29.8492，验证 loss 为 21.1960。只有五文件验收、独立 postflight、结果服务器逐文件复验和原子提升全部成功后，四卡机才自动关机。
+
 ---
 
 ## 第二部分：研究目标与演进路径
@@ -762,12 +774,15 @@ runner 层现已完成或重新验收 45/45。5090 新分片为 18/18，5080 新
 66. Orange 原 batch 16 单卡 backward 探针因 24 GB 显存不足而 fail closed，没有正式结果。提交 `87526d1` 使用两次 max microbatch 8 前向，以全批分母计算 loss，只做一次梯度裁剪、一次 optimizer step 与一次 scheduler step，有效 batch 仍为 16。梯度等价回归通过。真实 CUDA 探针 loss 为 `42.45340157`，峰值分配显存为 12,632,052,224 bytes。
 67. 四卡机正式 NDR 控制器 PID `3677` 于 2026-07-30 00:08:27 新加坡时间启动。00:18 三项均完成 epoch 1，validation MAE 为 13.19330061、13.06060743、12.91147725。完成控制器 PID `5614` 会先证明旧六项 30 个 artifact 哈希未改变，再执行完整 9 项 postflight、独立回传、结果服务器复验、原子提升与关机。
 68. 五卡机旧 NDR 等待器 PID `422803` 已定向停止，原矩阵未受影响。incident 清单摘要为 `556c4289e2b4ec41b35b40d1f9a72190e1ad1c3c5a55edf1986843a70aa6e8a1`。新关机等待器 PID `201649` 只在原矩阵回传和结果服务器正式树复验通过后关机。00:18 原矩阵为 37/39，task039 Orange IGSTGNN 已完成 44/100 epoch，之后只余 task034 Orange STTN。控制提交为 `dd2d087` 与 `b5d9751`。
+69. NDR 扩展完成 9/9 并正式发布到结果服务器。正式树含 49 个文件和 940,488,092 字节，files digest 为 `ab21c8e300ba930e5611cb9c07ff5b047eb03d281ca669c756242707231c87e7`。task039 Orange IGSTGNN 完整落盘，原矩阵达到 38/39。
+70. 五卡机 task034 Orange STTN 单卡训练因额外 11.22 GiB 分配请求 OOM，没有正式结果。五卡机完成既有 12 项关机前清单后按用户要求关闭。提交 `4935b9b` 建立四卡机跨主机单任务恢复，计划 SHA-256 为 `022d3d9a0c635f94ce5f7b7760c022ba38162bbccfe68675b33cd6bbe78834c5`。真实 batch 64 完整优化步探针通过，正式 task034 于 09:21:28 启动。
 
 当前待执行事项按优先级排列。
 
-1. 等待原 39 项在五卡机上的 task039 与 task034，以及该主机正式回传和自动关机。
-2. 等待四卡机 Orange 三项完成，使 NDR-Net 扩展达到 9/9，再完成旧六项哈希复验、独立回传与自动关机。
-3. 分别建立原 39 项与 NDR-Net 9 项只读索引，再生成论文同结构表、三种子补充行、逐单元差值表和数字追溯索引。
+1. 等待四卡机 task034 完成独立 postflight、正式回传和自动关机。
+2. 重新开启五卡机，只读复验并回传其既有 12 项，不再重训 task034。
+3. 建立原 39 项三源只读 composite index，并验证 task001 至 task039 各出现一次。
+4. 为已发布的 NDR 9 项建立独立索引，再生成论文同结构表、三种子补充行、逐单元差值表和数字追溯索引。
 
 ---
 
