@@ -150,10 +150,23 @@ Orange D2STGNN 无法把 batch 64 一次分给五张 24 GB 卡，因为至少四
 
 正式训练首个落盘 epoch 的训练 loss 为 29.8492，训练 RMSE 为 43.5428，训练 MAPE 为 0.7190，验证 loss 为 21.1960，验证 RMSE 为 34.2392，验证 MAPE 为 0.3215。训练与验证耗时为 42.5066 秒和 4.5379 秒。控制器会在训练完成后重新验证精确五文件 allowlist，再执行独立 source-host postflight、结果服务器逐文件 SHA-256、精确目录树复验和原子提升。全部成功后调用 `/usr/bin/shutdown -h now`，任何失败都保持四卡机开机。
 
+## 09:48 五卡机 12 项正式回传
+
+用户重新开启五卡机并要求立即回传既有结果后，主机核验显示 5 张 GPU 全空闲，没有 Table 4 trainer。正式 summary 恰好 12 份，任务为 Orange tasks027 至 039 中除 task034 之外的全部项目。task034 正式目录仍不存在。
+
+提交 `918af63` 增加只读固定计划 `igstgnn_table4_host5_partial_export_12_v1`、独立 postflight 和 fail-closed 回传控制器。计划 SHA-256 为 `cd81652493690d1d329f5eecd45fe541c9de7db26c93650fc490a2507616845d`。本地全仓回归为 469 passed 和 2 个既有 warning，五卡机专项测试为 4 passed。该计划只允许 12 项和 60 个正式 artifact，不读取失败 queue 作为完成证据，不包含 task034。
+
+两次 source-host postflight 均验证 12 项、60 个文件和 1,975,159,969 bytes，files digest 均为 `5c11ad4596228f08613b783d8a42ed9334e9976ce8cff4d23d09f6b79f055490`。结果服务器初始可用空间为 1,967,017,984 bytes，低于源文件加安全余量，首次控制器在传输前保持等待。没有 incoming 正式数据，也没有结果改写。
+
+结果服务器只清理系统归档日志、APT 缓存、pip 缓存和 npm 缓存，共释放 1,753,280,512 bytes，没有删除任何正式实验树。等待控制器被定向停止并保留日志。重试控制器使用 512 MiB 余量，随后完成 60 文件传输、incoming 树逐文件 SHA-256、原子提升和正式树二次复验。
+
+正式目标为 `original_host5_partial_12_v1/hosts/table4_4090d5_partial12`。transfer marker SHA-256 为 `53f73b3e7ae2f92535eed44fb0fc934d7be45387de579b8dfc3fcb853afd54cc`，postflight SHA-256 为 `427a21568b8739c355a5ca5851d01e622947556f8dcf9ae6572cd45dfc19c2d4`，transfer manifest SHA-256 为 `b3e773916c28907bcaa93adaf236cededd08e798f233f538633c57758e609bb4`。四卡机使用独立密钥再次验证正式树精确包含 60 个结果文件、无 incoming 目录且 marker 与 postflight 身份一致。五卡机随后自动关机，SSH 返回连接关闭。
+
+同一时刻，四卡机 task034 已落盘到 epoch 35。训练 loss 为 14.3433，验证 loss 为 14.0013，训练仍在继续。
+
 ## 下一步
 
 1. 等待四卡机 task034 完成独立 postflight、正式回传和自动关机。
-2. 需要用户重新开启五卡机，只读复验并回传其既有 12 项，不再重训 task034。
-3. 建立原 39 项三源只读 composite index，并验证 canonical tasks001 至 039 各出现一次。
-4. 为已发布的 NDR 9 项建立独立索引。
-5. 从逐份复验的 summary 与 predictions 生成论文同结构原表、NDR-Net 三种子补充行、逐单元差值表和数字追溯索引。
+2. 建立原 39 项三源只读 composite index，并验证 canonical tasks001 至 039 各出现一次。
+3. 为已发布的 NDR 9 项建立独立索引。
+4. 从逐份复验的 summary 与 predictions 生成论文同结构原表、NDR-Net 三种子补充行、逐单元差值表和数字追溯索引。
