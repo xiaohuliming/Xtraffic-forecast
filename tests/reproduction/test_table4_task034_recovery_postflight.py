@@ -86,12 +86,14 @@ def _write_completed_recovery(tmp_path: Path) -> tuple[Path, Path]:
                 "torch": "2.3.1+cu121",
                 "numpy": "1.24.4",
             },
-            "execution_adapter": {
-                "name": "replica_device_full_batch_v1",
-                "device_ids": [0, 1, 2, 3],
-                "full_batch_preserved": True,
-                "optimizer_step_contract_preserved": True,
-                "controller_sha256": "4" * 64,
+            "factory": {
+                "execution_adapter": {
+                    "name": "replica_device_full_batch_v1",
+                    "device_ids": [0, 1, 2, 3],
+                    "full_batch_preserved": True,
+                    "optimizer_step_contract_preserved": True,
+                    "controller_sha256": "4" * 64,
+                },
             },
             "recovery_execution": {
                 "adapter": "multi-gpu-full-batch",

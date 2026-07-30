@@ -262,7 +262,12 @@ def build_task034_recovery_postflight(
     host = provenance.get("host")
     device = provenance.get("device")
     runtime = provenance.get("runtime")
-    execution_adapter = provenance.get("execution_adapter")
+    factory = provenance.get("factory")
+    execution_adapter = (
+        factory.get("execution_adapter")
+        if isinstance(factory, dict)
+        else None
+    )
     recovery_execution = provenance.get("recovery_execution")
     controller_sha256 = (
         execution_adapter.get("controller_sha256")
