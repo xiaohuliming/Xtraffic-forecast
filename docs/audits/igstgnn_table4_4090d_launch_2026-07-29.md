@@ -164,9 +164,22 @@ Orange D2STGNN 无法把 batch 64 一次分给五张 24 GB 卡，因为至少四
 
 同一时刻，四卡机 task034 已落盘到 epoch 35。训练 loss 为 14.3433，验证 loss 为 14.0013，训练仍在继续。
 
+## 11:46 task034 正式发布与四卡机关机
+
+task034 于 2026-07-30 10:38:24 新加坡时间完成正式训练。summary 状态为 completed，prediction shape 为 `2752×12×990`，有效观测点数为 25,963,481。H3、H6、H12 与 Average MAE 为 12.652451515197754、13.311158180236816、14.048541069030762 与 13.212108294169107。Average RMSE 为 23.50298039118449，Average MAPE 为 14.091901232798895%。
+
+五份 artifact 的 SHA-256 分别为 checkpoint `9ceb053e70af62ca323df23e79a386c1422a9b0bebf86cc0195de3390dfc1b85`、predictions `c6064688ab3bedd36b4f058ce899a97b8882645c4169979d0a6170fabf1f773a`、provenance `51bdd35e72c52c72824d8e3db879a052fe55ab72af890142b3f64860e4d4f140`、summary `674387a493d3b4e7d2b1836b7805f3e549976dea12e859526c87f27c2fa080c5` 与 train log `4cfd5498182baf93dab3744854bc9eba4b0bdb1913c8bfa6aa97fbe7a846686a`。
+
+首次 postflight 因控制器错误读取顶层 `execution_adapter` 而拒绝。正式 provenance 把该记录保存在 `factory.execution_adapter`。提交 `a9511d5` 修正读取位置并新增真实层级测试。postflight 随后验证成功，但 finalizer 发现报告导出路径相对于 task034 shard 根，而旧控制器传入外层结果根。提交 `51148f1` 把 finalizer 的 `RESULTS_BASE` 改为 `$TASK_RESULT_ROOT` 并新增 fail-closed 回归。两次失败均未启动 trainer、未改写 artifact、未重训，也未产生第二份正式任务目录。本地全仓为 469 passed 和 2 个既有 warning，四卡机专项门为 4 passed。
+
+修正后的 source-host postflight 验证 1 项、5 个文件和 170,575,062 bytes，files digest 为 `6ce435df4293dad11602378b1e5b9acf18ffde1717f5e0fdfb5922f3282e8258`。结果服务器默认 2 GiB 安全余量门在传输前暂停，incoming 与正式目标均不存在。等待进程被定向停止后，以 512 MiB 安全余量重启。该设置在本次 170,575,062 bytes 传输后仍保留约 1 GiB 空间。
+
+正式目标为 `task034_4gpu_recovery_v1/hosts/table4_4090d4_task034`。结果服务器独立复验确认 incoming 不存在，正式树恰有 5 个结果文件和 4 个元数据文件，五个结果文件均通过 `sha256sum -c`。transfer marker SHA-256 为 `e393e8238b25677b55e7f1ae00813c3f0a9eb46f7a532c0eb7bba21ee4758d68`，postflight SHA-256 为 `fa8a3d0f0e0fba9d67fa569392edc83c9a74d9131b81439ea7644c7fbc700e15`，transfer file list SHA-256 为 `a7eb3458f77d4a2393329298f2dcc58a92d436b6f34d94975c9e7c5549238240`，transfer manifest SHA-256 为 `e5d850546233779c36f02ffb321b1fe1a9779d76d295d336a642cf9504caab1a`。
+
+四卡机随后执行自动关机。Mac 连续三次 SSH 探测均返回连接关闭。五卡机此前也已关机。原 39 项的任务结果层现为 39/39，包含四卡机原 26 项、五卡机只读导出的 12 项和 task034 跨主机四卡恢复 1 项。该状态仍不得写成最终矩阵已验证，必须先完成三源只读 composite index。
+
 ## 下一步
 
-1. 等待四卡机 task034 完成独立 postflight、正式回传和自动关机。
-2. 建立原 39 项三源只读 composite index，并验证 canonical tasks001 至 039 各出现一次。
-3. 为已发布的 NDR 9 项建立独立索引。
-4. 从逐份复验的 summary 与 predictions 生成论文同结构原表、NDR-Net 三种子补充行、逐单元差值表和数字追溯索引。
+1. 建立原 39 项三源只读 composite index，并验证 canonical tasks001 至 039 各出现一次。
+2. 为已发布的 NDR 9 项建立独立索引。
+3. 从逐份复验的 summary 与 predictions 生成论文同结构原表、NDR-Net 三种子补充行、逐单元差值表和数字追溯索引。

@@ -263,7 +263,15 @@ NDR-Net Table 4 扩展已完成 9/9。结果服务器正式目录通过逐文件
 
 用户随后重新开启五卡机。提交 `918af63` 建立明确排除 task034 的 12 项只读导出计划。计划 SHA-256 为 `cd81652493690d1d329f5eecd45fe541c9de7db26c93650fc490a2507616845d`。source-host postflight 验证 12 项、60 个 artifact 和 1,975,159,969 bytes，files digest 为 `5c11ad4596228f08613b783d8a42ed9334e9976ce8cff4d23d09f6b79f055490`。
 
-结果服务器容量门首次在传输前安全暂停。只清理系统归档日志和包缓存后释放 1,753,280,512 bytes，没有删除正式结果。重试完成逐文件 SHA-256、精确目录树和原子提升。transfer marker SHA-256 为 `53f73b3e7ae2f92535eed44fb0fc934d7be45387de579b8dfc3fcb853afd54cc`。五卡机随后自动关机并确认 SSH 不可达。09:48 的四卡机 task034 进度为 epoch 35，训练 loss 为 14.3433，验证 loss 为 14.0013。
+结果服务器容量门首次在传输前安全暂停。只清理系统归档日志和包缓存后释放 1,753,280,512 bytes，没有删除正式结果。重试完成逐文件 SHA-256、精确目录树和原子提升。transfer marker SHA-256 为 `53f73b3e7ae2f92535eed44fb0fc934d7be45387de579b8dfc3fcb853afd54cc`。五卡机随后自动关机并确认 SSH 不可达。
+
+task034 于 2026-07-30 10:38:24 新加坡时间完成正式训练。H3、H6、H12 与 Average MAE 分别为 12.652452、13.311158、14.048541 与 13.212108。Average RMSE 为 23.502980，Average MAPE 为 14.091901%。prediction SHA-256 为 `c6064688ab3bedd36b4f058ce899a97b8882645c4169979d0a6170fabf1f773a`，有效观测点数为 25,963,481。
+
+首次收尾因 provenance 层级读取错误而 fail closed。提交 `a9511d5` 修正 postflight 从 `factory.execution_adapter` 读取。第二次收尾确认 postflight 已通过，但 finalizer 把报告中的相对路径解析到外层结果目录。提交 `51148f1` 改为传入 task034 shard 根。两次故障都发生在训练完成之后，没有重训、没有改写五份 artifact，也没有建立第二个正式任务目录。全仓回归为 469 passed 和 2 个既有 warning。
+
+修正后的收尾验证 5 个结果文件和 170,575,062 bytes。结果服务器容量门先按默认 2 GiB 余量暂停，在证明没有 incoming 或正式目标后改用 512 MiB 余量。正式树完成逐文件 SHA-256、精确目录、原子提升和二次复验。目标为 `task034_4gpu_recovery_v1/hosts/table4_4090d4_task034`，files digest 为 `6ce435df4293dad11602378b1e5b9acf18ffde1717f5e0fdfb5922f3282e8258`，transfer marker SHA-256 为 `e393e8238b25677b55e7f1ae00813c3f0a9eb46f7a532c0eb7bba21ee4758d68`，postflight SHA-256 为 `fa8a3d0f0e0fba9d67fa569392edc83c9a74d9131b81439ea7644c7fbc700e15`。incoming 已不存在，五份结果均为 OK。四卡机随后自动关机，连续三次 SSH 探测均确认不可达。
+
+原 Table 4 复现的任务结果层由此达到 39/39。该状态只证明三个正式来源树已经发布，不等同于最终矩阵已验证。下一步必须建立三源只读 composite index，证明 task001 至 task039 各出现一次且身份一致，之后才能生成最终对比表。
 
 ---
 
@@ -781,12 +789,12 @@ runner 层现已完成或重新验收 45/45。5090 新分片为 18/18，5080 新
 69. NDR 扩展完成 9/9 并正式发布到结果服务器。正式树含 49 个文件和 940,488,092 字节，files digest 为 `ab21c8e300ba930e5611cb9c07ff5b047eb03d281ca669c756242707231c87e7`。task039 Orange IGSTGNN 完整落盘，原矩阵达到 38/39。
 70. 五卡机 task034 Orange STTN 单卡训练因额外 11.22 GiB 分配请求 OOM，没有正式结果。五卡机完成既有 12 项关机前清单后按用户要求关闭。提交 `4935b9b` 建立四卡机跨主机单任务恢复，计划 SHA-256 为 `022d3d9a0c635f94ce5f7b7760c022ba38162bbccfe68675b33cd6bbe78834c5`。真实 batch 64 完整优化步探针通过，正式 task034 于 09:21:28 启动。
 71. 用户重新开启五卡机。提交 `918af63` 建立严格排除 task034 的 12 项只读导出。source-host postflight 验证 60 个 artifact 和 1,975,159,969 bytes，files digest 为 `5c11ad4596228f08613b783d8a42ed9334e9976ce8cff4d23d09f6b79f055490`。结果服务器清理非实验缓存后完成逐文件复验和原子提升，五卡机自动关机。
+72. task034 于 10:38:24 完成。提交 `a9511d5` 与 `51148f1` 修复两个 fail-closed 收尾问题，没有重训或 artifact 改写。task034 的 5 个文件和 170,575,062 bytes 在结果服务器完成逐文件复验、原子提升和正式树二次复验，transfer marker SHA-256 为 `e393e8238b25677b55e7f1ae00813c3f0a9eb46f7a532c0eb7bba21ee4758d68`。四卡机自动关机，原 39 项任务结果层达到 39/39。
 
 当前待执行事项按优先级排列。
 
-1. 等待四卡机 task034 完成独立 postflight、正式回传和自动关机。
-2. 建立原 39 项三源只读 composite index，并验证 task001 至 task039 各出现一次。
-3. 为已发布的 NDR 9 项建立独立索引，再生成论文同结构表、三种子补充行、逐单元差值表和数字追溯索引。
+1. 建立原 39 项三源只读 composite index，并验证 task001 至 task039 各出现一次。
+2. 为已发布的 NDR 9 项建立独立索引，再生成论文同结构表、三种子补充行、逐单元差值表和数字追溯索引。
 
 ---
 

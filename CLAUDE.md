@@ -149,7 +149,11 @@ Orange 原始 batch 16 的首次单卡真实探针在 backward 因 24 GB 显存�
 
 五卡机 source-host postflight 两次得到同一结果，validated tasks 为 12，文件数为 60，总字节数为 1,975,159,969，files digest 为 `5c11ad4596228f08613b783d8a42ed9334e9976ce8cff4d23d09f6b79f055490`。结果服务器初始容量不足，控制器在传输前安全暂停。只清理系统归档日志和包缓存后释放 1,753,280,512 bytes，没有删除任何正式结果。重试使用 512 MiB 安全余量，正式树完成逐文件 SHA-256、精确目录和原子提升。transfer marker SHA-256 为 `53f73b3e7ae2f92535eed44fb0fc934d7be45387de579b8dfc3fcb853afd54cc`，postflight SHA-256 为 `427a21568b8739c355a5ca5851d01e622947556f8dcf9ae6572cd45dfc19c2d4`。五卡机随后自动关机，SSH 已不可达。
 
-09:48 的 task034 落盘快照为 epoch 35，训练 loss 为 14.3433，验证 loss 为 14.0013，四张卡仍保持训练。原 39 项最终发布还需等待 task034 独立结果正式提升，再建立三源 composite index。
+task034 于 2026-07-30 10:38:24 新加坡时间完成正式训练与五文件落盘。H3、H6、H12 与 Average MAE 分别为 12.652452、13.311158、14.048541 与 13.212108，Average RMSE 与 MAPE 为 23.502980 与 14.091901%。prediction SHA-256 为 `c6064688ab3bedd36b4f058ce899a97b8882645c4169979d0a6170fabf1f773a`。
+
+首次 task034 postflight 因读取了错误的 provenance 层级而失败。提交 `a9511d5` 改为从 `factory.execution_adapter` 读取。复验通过后，finalizer 又发现单任务报告路径相对于 shard 根，而旧控制器传入外层结果根。提交 `51148f1` 修正 finalizer 源根并增加回归。两次均为控制层 fail closed，不改写任何训练 artifact，也没有重训。结果服务器容量门随后在传输前暂停，改用 512 MiB 安全余量后完成 5 个文件和 170,575,062 bytes 的逐文件复验、原子提升和正式树二次复验。
+
+task034 正式目标为 `task034_4gpu_recovery_v1/hosts/table4_4090d4_task034`。files digest 为 `6ce435df4293dad11602378b1e5b9acf18ffde1717f5e0fdfb5922f3282e8258`，transfer marker SHA-256 为 `e393e8238b25677b55e7f1ae00813c3f0a9eb46f7a532c0eb7bba21ee4758d68`，postflight SHA-256 为 `fa8a3d0f0e0fba9d67fa569392edc83c9a74d9131b81439ea7644c7fbc700e15`。incoming 目录已不存在，五份结果逐文件复验均为 OK。四卡机随后自动关机并连续三次确认 SSH 不可达。原 39 项的任务结果层现为 39/39，最终有效性仍等待三源只读 composite index。
 
 ## v2 冻结记录
 
@@ -159,10 +163,9 @@ Orange 原始 batch 16 的首次单卡真实探针在 backward 因 24 GB 显存�
 
 ## 下一步顺序
 
-1. 等待四卡机完成 task034、独立 postflight、严格回传和自动关机。
-2. 建立原 39 项的三源只读 composite index，并复验 task001 至 task039 各出现一次。
-3. 为已正式发布的 NDR 9 项建立独立索引，再生成论文同结构 Table 4、三种子补充行、逐单元差值表和数字追溯索引。
-4. 只根据完整的 v3 落盘结果决定原项目论文主张。Table 4 复现结果与 v3 无泄露结论必须分开解释。
+1. 建立原 39 项的三源只读 composite index，并复验 task001 至 task039 各出现一次。
+2. 为已正式发布的 NDR 9 项建立独立索引，再生成论文同结构 Table 4、三种子补充行、逐单元差值表和数字追溯索引。
+3. 只根据完整的 v3 落盘结果决定原项目论文主张。Table 4 复现结果与 v3 无泄露结论必须分开解释。
 
 ## 最小判别矩阵
 
