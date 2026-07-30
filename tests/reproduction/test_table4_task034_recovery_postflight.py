@@ -192,6 +192,7 @@ def test_task034_controller_is_fail_closed_and_cannot_expand_the_queue() -> None
         'EXPECTED_EXECUTION_LAYOUT="cross_host_single_task_recovery"'
         in source
     )
+    assert 'RESULTS_BASE="$TASK_RESULT_ROOT" \\\n' in source
     assert 'SHUTDOWN_BIN="/usr/bin/shutdown"' in source
     assert "bash \"$FINALIZER\"" in source
     assert '"$SHUTDOWN_BIN" -h now' not in source
