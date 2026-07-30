@@ -30,7 +30,18 @@ v2 已因重复 forecast origin、active event 跨 split、验证累计和训练
 | `train_benchmark.py` | METR-LA、PEMS04 与 PEMS08 标准基准 |
 | `train_baseline_zoo.py` | 统一 baseline zoo，旧 XTraffic 缓存结果暂不汇总为正式结论 |
 
-以上 XTraffic 训练入口默认读取 `outputs/dist_net/region_data_v3_noleak_dedup`，并将新结果写入 `outputs/protocol_v3_noleak_dedup`。正式入口通过 `dist_net/training_runtime.py` 校验 cache bundle、Git SHA、输出隔离和 summary 契约。v3 正式缓存已经通过本地两次、5080 一次和 5090 一次严格复验，状态为 `verified`。runner 层 45/45 已完成或重新验收。5090 分片为 18/18，5080 分片为 27/27，`rtx5090_18` 与 `rtx5080_27` 均已验证回传。两分片保持独立结果根、`config_hash` 与运行时 provenance。只读 composite index 已验证成功。index 的 `status` 为 `verified`，矩阵有效性状态为 `verified_host_stratified_45`，`execution_layout` 为 `dual_host_stratified`，index SHA-256 为 `8cf92dc2e931e3e9c3ca18cafb81a794fe68fbd0556dec3401b8650f827899fe`。多种子统计仍未完成。旧结果和最先完成的 4 个 v2 远程结果均不可用于恢复论文结论。
+以上 XTraffic 训练入口默认读取 `outputs/dist_net/region_data_v3_noleak_dedup`，并将新结果写入 `outputs/protocol_v3_noleak_dedup`。正式入口通过 `dist_net/training_runtime.py` 校验 cache bundle、Git SHA、输出隔离和 summary 契约。v3 正式缓存已经通过本地两次、5080 一次和 5090 一次严格复验，状态为 `verified`。runner 层 45/45 已完成或重新验收。5090 分片为 18/18，5080 分片为 27/27，`rtx5090_18` 与 `rtx5080_27` 均已验证回传。两分片保持独立结果根、`config_hash` 与运行时 provenance。只读 composite index 已验证成功。index 的 `status` 为 `verified`，矩阵有效性状态为 `verified_host_stratified_45`，`execution_layout` 为 `dual_host_stratified`，index SHA-256 为 `8cf92dc2e931e3e9c3ca18cafb81a794fe68fbd0556dec3401b8650f827899fe`。同机配对、多种子和窗口级显著性分析已经完成。旧结果和最先完成的 4 个 v2 远程结果均不可用于恢复论文结论。
+
+## IGSTGNN Table 4 复现与报告
+
+| 入口 | 状态 | 用途 |
+|---|---|---|
+| `reproduction/igstgnn_table4/composite_postflight.py` | 已验证 | 在结果服务器只读合并三个正式来源并验证 canonical 39 |
+| `reproduction/igstgnn_table4/composite_report.py` | 已验证 | 从精确哈希绑定的 composite index 生成 39 项 CSV、Markdown、LaTeX 和论文值差异表 |
+| `reproduction/igstgnn_table4/ndr_extension_report.py` | 已验证 | 核对 NDR 的 49 文件远端回执、9 个任务 provenance，并生成三种子均值和样本标准差 |
+| `reproduction/igstgnn_table4/ndr_extension_merge.py` | 已验证 | 将原 39 项与三个 NDR 地区汇总行合并为最终展示表 |
+
+原 39 项 composite index SHA-256 为 `3e5f6bee6eb0cd667f28c287f9538136b31c4312652673453e3f56e446edbbe2`。NDR 扩展 index SHA-256 为 `8f4666c45b7708c47d1ee90f3a81444eaf46fee5ba1011bc0242f96c20e0983a`。最终报告位于 `outputs/reproduction/igstgnn_table4_official_v1/`。该协议保留已知重叠，不能与 v3 无泄露结果混用。
 
 ## 事故标签对撞
 
@@ -81,7 +92,7 @@ posthoc
 
 `remote/linux/protocol_v3_start_5090_shard_after_boundary.sh` 已在 task039 通过验收后发布 ready marker 并启动 18 项新队列。`remote/linux/protocol_v3_finalize_5090_shard.sh` 在 18 项验收、上传和远端哈希全部通过后完成关机。`remote/windows/protocol_v3_repartition_5080_27_waiter.cmd` 已严格验证 marker 并启动 27 项 runner 与新 finalizer。旧 runner、finalizer、watcher、transition 与 5080 等待器均按设计退出。task040 与 task041 已从原 staging 完成可审计恢复，task042 正常完成。5080 达到 27/27，runner 层达到 45/45。`rtx5090_18` 与 `rtx5080_27` 均已验证回传。
 
-后续控制提交补齐精度契约、staging recovery、Windows 长路径与 finalizer 引号修复。提交 `5f3113b` 降低 composite 复验内存，同时保持 float32 producer 与 2 ULP 契约不变。控制提交 `93038ec` 跳过 full-window 中未使用的事件分组归约，同时完整保留 `all` 指标校验。composite 于 2026-07-27 18:28:27 新加坡时间验证成功，共含 45 个任务和 2 个分片，5080 为 27 项，5090 为 18 项，canonical tasks001-045 各出现一次。首次使用 `c48f232` 的无输出尝试已作为 incident 保留，incident SHA-256 为 `166923ef9a63b80ecbc065f6e455eb393341e526ef6411c8c5ccd16ebfa2c70a`。最终服务退出码为 0，内存峰值为 2.1G，swap 峰值为 15.1M，没有改写 summary 或 artifact。全仓回归为 252 passed 和 1 个既有 warning。下一步执行同机配对、多种子与显著性分析，composite 完成不恢复论文结论。
+后续控制提交补齐精度契约、staging recovery、Windows 长路径与 finalizer 引号修复。提交 `5f3113b` 降低 composite 复验内存，同时保持 float32 producer 与 2 ULP 契约不变。控制提交 `93038ec` 跳过 full-window 中未使用的事件分组归约，同时完整保留 `all` 指标校验。composite 于 2026-07-27 18:28:27 新加坡时间验证成功，共含 45 个任务和 2 个分片，5080 为 27 项，5090 为 18 项，canonical tasks001-045 各出现一次。首次使用 `c48f232` 的无输出尝试已作为 incident 保留，incident SHA-256 为 `166923ef9a63b80ecbc065f6e455eb393341e526ef6411c8c5ccd16ebfa2c70a`。最终服务退出码为 0，内存峰值为 2.1G，swap 峰值为 15.1M，没有改写 summary 或 artifact。同机配对、多种子和窗口级显著性分析已经完成，composite 完成仍不自动恢复论文结论。
 
 `cleanup_dead_outputs.sh` 是历史输出清理辅助脚本。执行前必须先使用其 dry-run 模式核对候选，不能把它当成仓库整理的默认步骤。
 

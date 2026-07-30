@@ -1,0 +1,528 @@
+{
+  "base_manifest_sha256": "d0c7fb88e24c6026d670a4a6d571357eb5320393417a83d344adb05151023a78",
+  "base_matrix_id": "igstgnn_table4_public_repro_39_v2",
+  "claim_scope": "same_protocol_project_method_extension",
+  "execution_layout": "single_host_gpu_sku_homogeneous_restart",
+  "files_digest": "ab21c8e300ba930e5611cb9c07ff5b047eb03d281ca669c756242707231c87e7",
+  "gpu_sku": "NVIDIA GeForce RTX 4090 D",
+  "host_id": "table4_4090d4",
+  "manifest_sha256": "2442f1f29b6e3dcef1d3f6999c0ce9dbf474e43644f98cd6f2aec765908db5b4",
+  "marker_sha256": "3c8ccbf3c430c7f14b5fa3e9975f78ba1bf1a98b2a3a684e60976f2cb961395e",
+  "matrix_id": "igstgnn_table4_ndr_extension_9_v1",
+  "plan_sha256": "56a71fe2a3b8101ae282dc6f9b9efab07874108a40922276285206e99cbf2612",
+  "postflight_sha256": "dca55533c846d583cf0b5670498d11e8e3a5178fe4691679dfcaba44cfa1adee",
+  "profile_sha256": "6ca46be0fb76543a61a8bd32996c7598ac674bbe239b701d1a92481f63be9422",
+  "protocol_id": "igstgnn_table4_official_v1",
+  "receipt_sha256": "dbd9dcb355a3324707e728a1942465612cd443695b51ea6359e80dc03d1be100",
+  "region_count": 3,
+  "region_summaries": [
+    {
+      "method": "ndr_net",
+      "metrics": {
+        "average": {
+          "mae": {
+            "mean": 10.759523630142212,
+            "sample_std": 0.040861663248075414
+          },
+          "mape_percent": {
+            "mean": 13.734790724184778,
+            "sample_std": 0.04230957289325127
+          },
+          "rmse": {
+            "mean": 20.063200420803494,
+            "sample_std": 0.062496313133688246
+          }
+        },
+        "h12": {
+          "mae": {
+            "mean": 11.39990266164144,
+            "sample_std": 0.06309966037318278
+          },
+          "mape_percent": {
+            "mean": 14.505791167418161,
+            "sample_std": 0.07566863390269397
+          },
+          "rmse": {
+            "mean": 21.62811342875163,
+            "sample_std": 0.0933040318492269
+          }
+        },
+        "h3": {
+          "mae": {
+            "mean": 10.382427851359049,
+            "sample_std": 0.027951410477382924
+          },
+          "mape_percent": {
+            "mean": 13.271484772364298,
+            "sample_std": 0.03931605869370249
+          },
+          "rmse": {
+            "mean": 19.198598225911457,
+            "sample_std": 0.05740475404092533
+          }
+        },
+        "h6": {
+          "mae": {
+            "mean": 10.802188555399576,
+            "sample_std": 0.03762282795993991
+          },
+          "mape_percent": {
+            "mean": 13.69920571645101,
+            "sample_std": 0.03399817279839765
+          },
+          "rmse": {
+            "mean": 20.17988650004069,
+            "sample_std": 0.05736930948920149
+          }
+        }
+      },
+      "region": "Alameda",
+      "seeds": [
+        42,
+        1,
+        2
+      ]
+    },
+    {
+      "method": "ndr_net",
+      "metrics": {
+        "average": {
+          "mae": {
+            "mean": 11.413717269897461,
+            "sample_std": 0.024537142534207537
+          },
+          "mape_percent": {
+            "mean": 14.688177655140558,
+            "sample_std": 0.023821484899841962
+          },
+          "rmse": {
+            "mean": 20.619579792022705,
+            "sample_std": 0.05598168564392409
+          }
+        },
+        "h12": {
+          "mae": {
+            "mean": 12.155705134073893,
+            "sample_std": 0.0373900362509938
+          },
+          "mape_percent": {
+            "mean": 15.658703446388245,
+            "sample_std": 0.08370482175274253
+          },
+          "rmse": {
+            "mean": 22.111182530721027,
+            "sample_std": 0.06660982305857337
+          }
+        },
+        "h3": {
+          "mae": {
+            "mean": 10.909054438273111,
+            "sample_std": 0.013253680717716031
+          },
+          "mape_percent": {
+            "mean": 13.964064419269562,
+            "sample_std": 0.015067163300947272
+          },
+          "rmse": {
+            "mean": 19.607442220052082,
+            "sample_std": 0.027349071613706418
+          }
+        },
+        "h6": {
+          "mae": {
+            "mean": 11.445171038309732,
+            "sample_std": 0.027396969168059566
+          },
+          "mape_percent": {
+            "mean": 14.575119813283285,
+            "sample_std": 0.02612426033200205
+          },
+          "rmse": {
+            "mean": 20.801830927530926,
+            "sample_std": 0.08553493730980949
+          }
+        }
+      },
+      "region": "Contra_Costa",
+      "seeds": [
+        42,
+        1,
+        2
+      ]
+    },
+    {
+      "method": "ndr_net",
+      "metrics": {
+        "average": {
+          "mae": {
+            "mean": 11.569330533345541,
+            "sample_std": 0.03166378261760078
+          },
+          "mape_percent": {
+            "mean": 13.055433188047674,
+            "sample_std": 0.020880100480815764
+          },
+          "rmse": {
+            "mean": 21.928622245788574,
+            "sample_std": 0.036888766073914434
+          }
+        },
+        "h12": {
+          "mae": {
+            "mean": 12.092833201090494,
+            "sample_std": 0.04993598243073131
+          },
+          "mape_percent": {
+            "mean": 13.745498657226562,
+            "sample_std": 0.04683918875126561
+          },
+          "rmse": {
+            "mean": 23.180095036824543,
+            "sample_std": 0.05124541146482927
+          }
+        },
+        "h3": {
+          "mae": {
+            "mean": 11.23846435546875,
+            "sample_std": 0.010647495196090527
+          },
+          "mape_percent": {
+            "mean": 12.58355180422465,
+            "sample_std": 0.006238806796178957
+          },
+          "rmse": {
+            "mean": 21.17653528849284,
+            "sample_std": 0.013282877810103719
+          }
+        },
+        "h6": {
+          "mae": {
+            "mean": 11.620901743570963,
+            "sample_std": 0.032466838317120966
+          },
+          "mape_percent": {
+            "mean": 13.095688819885254,
+            "sample_std": 0.01817552245606058
+          },
+          "rmse": {
+            "mean": 22.113313674926758,
+            "sample_std": 0.043070153102254045
+          }
+        }
+      },
+      "region": "Orange",
+      "seeds": [
+        42,
+        1,
+        2
+      ]
+    }
+  ],
+  "reporting_note": "NDR-Net is a three-seed project-method extension and is not an original IGSTGNN Table 4 method row.",
+  "schema_version": 1,
+  "seed_count": 3,
+  "seeds": [
+    42,
+    1,
+    2
+  ],
+  "source_bytes": 940488092,
+  "source_file_count": 49,
+  "status": "verified_ndr_extension_report",
+  "task_count": 9,
+  "tasks": [
+    {
+      "method": "ndr_net",
+      "metrics": {
+        "average": {
+          "mae": 10.755767027537027,
+          "mape_percent": 13.739528134465218,
+          "rmse": 20.05066728591919
+        },
+        "h12": {
+          "mae": 11.392843246459961,
+          "mape_percent": 14.496557414531708,
+          "rmse": 21.616588592529297
+        },
+        "h3": {
+          "mae": 10.379343032836914,
+          "mape_percent": 13.2637619972229,
+          "rmse": 19.17388153076172
+        },
+        "h6": {
+          "mae": 10.794824600219727,
+          "mape_percent": 13.703915476799011,
+          "rmse": 20.159576416015625
+        }
+      },
+      "provenance_sha256": "7999bea0668069240af65bc483896b61f63a1c322875d1a006a66515f6ac5df4",
+      "region": "Alameda",
+      "seed": 42,
+      "summary_sha256": "45234914a4ca8ea5711e0dda62af1d011c51dab27467d4f84f0f02ee56243c6f",
+      "task_id": "ndr001_alameda_seed42",
+      "training_code_sha256": "0c7035ca38b81fbcbfa505092c5c19aa9c99fed9040d80eaa7008de6fe3e0c1d",
+      "valid_count": 10989142
+    },
+    {
+      "method": "ndr_net",
+      "metrics": {
+        "average": {
+          "mae": 10.720669984817505,
+          "mape_percent": 13.690311834216118,
+          "rmse": 20.007920424143474
+        },
+        "h12": {
+          "mae": 11.340629577636719,
+          "mape_percent": 14.435163140296936,
+          "rmse": 21.541107177734375
+        },
+        "h3": {
+          "mae": 10.356146812438965,
+          "mape_percent": 13.236603140830994,
+          "rmse": 19.157691955566406
+        },
+        "h6": {
+          "mae": 10.768792152404785,
+          "mape_percent": 13.663098216056824,
+          "rmse": 20.135435104370117
+        }
+      },
+      "provenance_sha256": "04bd8bcf9845bbb8d6f8f5c3ae205fa68df39dc8628a58fe9ef52aefa08c2cf1",
+      "region": "Alameda",
+      "seed": 1,
+      "summary_sha256": "422bf44353387e89d537267ee5ef6fd6e23ed1853e3a5203ffa65f81edca7743",
+      "task_id": "ndr002_alameda_seed1",
+      "training_code_sha256": "0c7035ca38b81fbcbfa505092c5c19aa9c99fed9040d80eaa7008de6fe3e0c1d",
+      "valid_count": 10989142
+    },
+    {
+      "method": "ndr_net",
+      "metrics": {
+        "average": {
+          "mae": 10.802133878072103,
+          "mape_percent": 13.774532203873,
+          "rmse": 20.13101355234782
+        },
+        "h12": {
+          "mae": 11.466235160827637,
+          "mape_percent": 14.585652947425842,
+          "rmse": 21.72664451599121
+        },
+        "h3": {
+          "mae": 10.41179370880127,
+          "mape_percent": 13.314089179039001,
+          "rmse": 19.26422119140625
+        },
+        "h6": {
+          "mae": 10.842948913574219,
+          "mape_percent": 13.730603456497192,
+          "rmse": 20.244647979736328
+        }
+      },
+      "provenance_sha256": "b36bfda2a61222ffbcb81f5c46d6956aa1953838724306d2619e881b978f3e52",
+      "region": "Alameda",
+      "seed": 2,
+      "summary_sha256": "f41be4504b58ec68515ed0cb216ad7bd15c2390199bb188584ca76357ec2d82c",
+      "task_id": "ndr003_alameda_seed2",
+      "training_code_sha256": "0c7035ca38b81fbcbfa505092c5c19aa9c99fed9040d80eaa7008de6fe3e0c1d",
+      "valid_count": 10989142
+    },
+    {
+      "method": "ndr_net",
+      "metrics": {
+        "average": {
+          "mae": 11.442006587982178,
+          "mape_percent": 14.712462822596232,
+          "rmse": 20.68174473444621
+        },
+        "h12": {
+          "mae": 12.198867797851562,
+          "mape_percent": 15.740399062633514,
+          "rmse": 22.181568145751953
+        },
+        "h3": {
+          "mae": 10.924281120300293,
+          "mape_percent": 13.946785032749176,
+          "rmse": 19.639020919799805
+        },
+        "h6": {
+          "mae": 11.476800918579102,
+          "mape_percent": 14.605246484279633,
+          "rmse": 20.898136138916016
+        }
+      },
+      "provenance_sha256": "6ce04a814cd355085132ab1c37dc0a37f9747058476b66df09e738327d3cccb8",
+      "region": "Contra_Costa",
+      "seed": 42,
+      "summary_sha256": "ea7b3b4619e59aa07140080d2ad8c059970ead0418751adf2ce71356894492f7",
+      "task_id": "ndr004_contra_costa_seed42",
+      "training_code_sha256": "0c7035ca38b81fbcbfa505092c5c19aa9c99fed9040d80eaa7008de6fe3e0c1d",
+      "valid_count": 4061901
+    },
+    {
+      "method": "ndr_net",
+      "metrics": {
+        "average": {
+          "mae": 11.400935411453247,
+          "mape_percent": 14.687221497297287,
+          "rmse": 20.603846232096355
+        },
+        "h12": {
+          "mae": 12.134991645812988,
+          "mape_percent": 15.662586688995361,
+          "rmse": 22.102846145629883
+        },
+        "h3": {
+          "mae": 10.900110244750977,
+          "mape_percent": 13.97446095943451,
+          "rmse": 19.591405868530273
+        },
+        "h6": {
+          "mae": 11.428849220275879,
+          "mape_percent": 14.558728039264679,
+          "rmse": 20.77265739440918
+        }
+      },
+      "provenance_sha256": "01e4ad264583f9c99e9ebf43a0afae7f3ae96772cc9911b25f052268badc4a99",
+      "region": "Contra_Costa",
+      "seed": 1,
+      "summary_sha256": "7417b83604f36c276ed489649a86a6163cad8f8fde3b5f987dfe47fc775c8faa",
+      "task_id": "ndr005_contra_costa_seed1",
+      "training_code_sha256": "0c7035ca38b81fbcbfa505092c5c19aa9c99fed9040d80eaa7008de6fe3e0c1d",
+      "valid_count": 4061901
+    },
+    {
+      "method": "ndr_net",
+      "metrics": {
+        "average": {
+          "mae": 11.398209810256958,
+          "mape_percent": 14.664848645528158,
+          "rmse": 20.573148409525555
+        },
+        "h12": {
+          "mae": 12.133255958557129,
+          "mape_percent": 15.573124587535858,
+          "rmse": 22.04913330078125
+        },
+        "h3": {
+          "mae": 10.902771949768066,
+          "mape_percent": 13.970947265625,
+          "rmse": 19.591899871826172
+        },
+        "h6": {
+          "mae": 11.429862976074219,
+          "mape_percent": 14.561384916305542,
+          "rmse": 20.734699249267578
+        }
+      },
+      "provenance_sha256": "b9e398390781dd3400c3c02e5b19970633831201d854da6eb095338b159ba0b3",
+      "region": "Contra_Costa",
+      "seed": 2,
+      "summary_sha256": "38155be4de41f295a469e4e5539e0bf95696b2a59886254f182d3f951bd8913a",
+      "task_id": "ndr006_contra_costa_seed2",
+      "training_code_sha256": "0c7035ca38b81fbcbfa505092c5c19aa9c99fed9040d80eaa7008de6fe3e0c1d",
+      "valid_count": 4061901
+    },
+    {
+      "method": "ndr_net",
+      "metrics": {
+        "average": {
+          "mae": 11.57553768157959,
+          "mape_percent": 13.067918208738169,
+          "rmse": 21.92877785364787
+        },
+        "h12": {
+          "mae": 12.1011962890625,
+          "mape_percent": 13.781282305717468,
+          "rmse": 23.184009552001953
+        },
+        "h3": {
+          "mae": 11.240530014038086,
+          "mape_percent": 12.577731907367706,
+          "rmse": 21.1662654876709
+        },
+        "h6": {
+          "mae": 11.626178741455078,
+          "mape_percent": 13.111424446105957,
+          "rmse": 22.123525619506836
+        }
+      },
+      "provenance_sha256": "b5c1af23e87c127e8a5c9fb1360376782e91e1254abf77ae43014b28620cc6a8",
+      "region": "Orange",
+      "seed": 42,
+      "summary_sha256": "d671b1001de0d5681f91294dba4964eb12aa55cbe00e3361eec9abd1ffb9dad8",
+      "task_id": "ndr007_orange_seed42",
+      "training_code_sha256": "396de4834480ca2fdf4bfb750b84958b2a1492b444e886898cfb199ca60f88d3",
+      "valid_count": 26464620
+    },
+    {
+      "method": "ndr_net",
+      "metrics": {
+        "average": {
+          "mae": 11.535022815068563,
+          "mape_percent": 13.031328096985817,
+          "rmse": 21.891655921936035
+        },
+        "h12": {
+          "mae": 12.039243698120117,
+          "mape_percent": 13.69248479604721,
+          "rmse": 23.127004623413086
+        },
+        "h3": {
+          "mae": 11.226935386657715,
+          "mape_percent": 12.58278489112854,
+          "rmse": 21.171804428100586
+        },
+        "h6": {
+          "mae": 11.586119651794434,
+          "mape_percent": 13.075794279575348,
+          "rmse": 22.066055297851562
+        }
+      },
+      "provenance_sha256": "b2cb13d5594edf5e4ccfd2a5aab553de74dd1df04ac44cd1b4405359b7af8995",
+      "region": "Orange",
+      "seed": 1,
+      "summary_sha256": "28b2dc13f9e47152cb4bf4f6355c254211e1bc51aa32a31771c42347027c10d1",
+      "task_id": "ndr008_orange_seed1",
+      "training_code_sha256": "396de4834480ca2fdf4bfb750b84958b2a1492b444e886898cfb199ca60f88d3",
+      "valid_count": 26464620
+    },
+    {
+      "method": "ndr_net",
+      "metrics": {
+        "average": {
+          "mae": 11.597431103388468,
+          "mape_percent": 13.067053258419037,
+          "rmse": 21.96543296178182
+        },
+        "h12": {
+          "mae": 12.138059616088867,
+          "mape_percent": 13.762728869915009,
+          "rmse": 23.229270935058594
+        },
+        "h3": {
+          "mae": 11.24792766571045,
+          "mape_percent": 12.590138614177704,
+          "rmse": 21.19153594970703
+        },
+        "h6": {
+          "mae": 11.650406837463379,
+          "mape_percent": 13.099847733974457,
+          "rmse": 22.150360107421875
+        }
+      },
+      "provenance_sha256": "d3a51e9d04d867bc3cccc6ce4dd644a0fbc1ff02ba1a65fd5401e0aa128cd5b6",
+      "region": "Orange",
+      "seed": 2,
+      "summary_sha256": "096c4965a3350842b3e84401f66eba4559d6deeb202aee50d7820c3c3c80fca1",
+      "task_id": "ndr009_orange_seed2",
+      "training_code_sha256": "396de4834480ca2fdf4bfb750b84958b2a1492b444e886898cfb199ca60f88d3",
+      "valid_count": 26464620
+    }
+  ],
+  "training_code_sha256": [
+    "0c7035ca38b81fbcbfa505092c5c19aa9c99fed9040d80eaa7008de6fe3e0c1d",
+    "396de4834480ca2fdf4bfb750b84958b2a1492b444e886898cfb199ca60f88d3"
+  ],
+  "validity_label": "official_protocol_with_known_overlap"
+}

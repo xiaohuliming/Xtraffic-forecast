@@ -1,0 +1,43 @@
+{
+  "base_claim_scope": "public_material_maximum_fidelity_reproduction",
+  "base_matrix_id": "igstgnn_table4_public_repro_39_v2",
+  "base_row_count": 39,
+  "base_table_sha256": "60160b443f63425c3b10cd30e29253db85a17d68e2a3cf12ac5bcf195449cacc",
+  "caveats": [
+    "official_protocol_with_known_overlap",
+    "not_protocol_v3_noleak_dedup",
+    "ndr_net_is_not_an_original_igstgnn_table4_method",
+    "base_rows_are_single_run_values",
+    "ndr_rows_are_three_seed_mean_and_sample_standard_deviation"
+  ],
+  "display_row_count": 42,
+  "extension_claim_scope": "same_protocol_project_method_extension",
+  "extension_matrix_id": "igstgnn_table4_ndr_extension_9_v1",
+  "extension_row_count": 3,
+  "ndr_extension_index_sha256": "8f4666c45b7708c47d1ee90f3a81444eaf46fee5ba1011bc0242f96c20e0983a",
+  "ndr_receipt_sha256": "dbd9dcb355a3324707e728a1942465612cd443695b51ea6359e80dc03d1be100",
+  "ndr_seeds": [
+    42,
+    1,
+    2
+  ],
+  "ndr_statistic": "mean_and_sample_standard_deviation",
+  "outputs": {
+    "table4_with_ndr_extension.csv": {
+      "bytes": 6891,
+      "sha256": "057e0fa94bbea24d834ed16ed00b94b0599a9e9081321cc205643793c47f34c1"
+    },
+    "table4_with_ndr_extension.md": {
+      "bytes": 5956,
+      "sha256": "1097b82ed71ec26d9657ff28cebcefd5c3455a179b3ef8ad6ba68529b7a118d8"
+    },
+    "table4_with_ndr_extension.tex": {
+      "bytes": 5766,
+      "sha256": "33047e4d0e11929ae1c8c4e3121dd6aad9bb8684769713d58c3621fb961e22ce"
+    }
+  },
+  "protocol_id": "igstgnn_table4_official_v1",
+  "schema_version": 1,
+  "status": "verified_table4_with_ndr_extension",
+  "validity_label": "official_protocol_with_known_overlap"
+}

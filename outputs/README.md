@@ -26,14 +26,18 @@
 | `protocol_v2_noleak/` | v2 训练结果统一根目录 | 已停止，最先完成的 4 项为 `contaminated preliminary` |
 | `dist_net/region_data_v3_noleak_dedup/` | schema 3 的 v3 XTraffic 缓存 | 已通过本地两次、5080 一次和 5090 一次严格复验，状态为 `verified` |
 | `protocol_v3_noleak_dedup/` | v3 训练结果统一根目录 | runner 45/45、正式 27/18 分片与只读 composite 均已验证，同机配对、多种子与窗口级显著性分析已完成，见 `protocol_v3_noleak_dedup/analysis/` |
-| `reproduction/igstgnn_table4_official_v1/` | IGSTGNN Table 4 官方发布协议复现数据与本地审计 | 正式清单已冻结，5080 的 Alameda HL 与 LSTM 已完成，DCRNN 正在训练 |
+| `reproduction/igstgnn_table4_official_v1/` | IGSTGNN Table 4 官方发布协议复现与本地审计 | 原 39 项三源 composite 已验证，NDR 9 项扩展已验证，最终 CSV、Markdown 与 LaTeX 表已提交 |
 | `paper_artifacts/` | 旧事故双支论文资产 | Legacy，不代表当前论文方向 |
 | `impact_guided_next_stage/` | 大量旧事故增强实验 | Legacy，不再扩展 |
 | `remote_runs/` | 本地远程回传包与队列日志 | Git 忽略 |
 
 v3 正式缓存的 bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。正式缓存构建代码 SHA 为 `29159f626494de52c69b36fe5bba9854f13cb56c`，最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。正式样本数与 train、val、test 切分为 Alameda 45760 和 32001/6954/6805，ContraCosta 23337 和 16414/3472/3451，Orange 60015 和 42372/9098/8545。远端传输归档 SHA-256 为 `6c5d3ccb53af30d6d90c1032453c83cb463711456839dad151ba676e2bb80ea5`。runner 层已完成或重新验收 45/45。5080 正式分片为 27/27，5090 正式分片为 18/18。只读 composite index 已于 2026-07-27 18:28:27 新加坡时间验证成功。index 的 `status` 为 `verified`，矩阵有效性状态为 `verified_host_stratified_45`，`execution_layout` 为 `dual_host_stratified`，index SHA-256 为 `8cf92dc2e931e3e9c3ca18cafb81a794fe68fbd0556dec3401b8650f827899fe`。控制提交为 `93038ec`。index 共含 45 个任务和 2 个分片，canonical tasks001-045 各出现一次。首次使用 `c48f232` 的无输出尝试已作为 incident 保留，incident SHA-256 为 `166923ef9a63b80ecbc065f6e455eb393341e526ef6411c8c5ccd16ebfa2c70a`。最终服务退出码为 0，内存峰值为 2.1G，swap 峰值为 15.1M，没有改写 summary 或 artifact。当前本地全仓回归为 252 passed 和 1 个既有 warning。composite 完成只证明正式双机分层矩阵的身份与完整性，不恢复论文结论。同机配对、多种子统计与窗口级显著性分析已于 2026-07-27 完成，输入为按 composite index 逐份复验的 45 份 summary 与 45 份 test_predictions.npz，产物在 `protocol_v3_noleak_dedup/analysis/`（`matrix_45.csv`、`multiseed_summary.csv`、`paired_seed_level.csv`、`window_pairs.csv`、`analysis_report.md`、`window_pairs_report.md`、`window_pairs.json`）。窗口级结论：s0c 显著优于 s0a（三区域三种子全部 p<0.01），s0g 小幅优于 s0f（多数显著、幅度小），ICSF 注入效应接近零（Alameda 不显著，ContraCosta 与 Orange 窗口级显著但幅度约 0.02-0.03），full_window 排序为 staeformer < fdn < gwn（全部显著）。论文主张是否恢复仍由用户据落盘结果决定。
 
-IGSTGNN Table 4 复现使用作者发布数据与官方顺序切分，独立于 v3 无泄露缓存。正式清单位于 `config/reproduction/igstgnn_table4/matrix.public_material_v2.json`，SHA-256 为 `d0c7fb88e24c6026d670a4a6d571357eb5320393417a83d344adb05151023a78`。该协议保留官方数据中的已知重合，只能声明为按公开材料最大忠实复现。5080 正式结果根是 `D:\t4\results\igstgnn_table4_public_repro_39_v2`。Alameda HL 与 LSTM 已通过五文件验收，Average MAE 分别为 19.649600 与 14.355326。task003 的 SSH 附着尝试按计划中断且未发布正式结果，incident SHA-256 为 `24da66f71bac2ecfe8e3654ad1630cf97723f7b1f9c2c4fd64b12db7e666be6b`。当前持久接力状态位于 `D:\t4\control\scheduled_handoff_status.json`，DCRNN 已从 epoch 0 重新开始，接力器会在 DCRNN 与 IGSTGNN pilot 均通过后启动完整 39 项。
+IGSTGNN Table 4 复现使用作者发布数据与官方顺序切分，独立于 v3 无泄露缓存。正式清单位于 `config/reproduction/igstgnn_table4/matrix.public_material_v2.json`，SHA-256 为 `d0c7fb88e24c6026d670a4a6d571357eb5320393417a83d344adb05151023a78`。该协议保留官方数据中的已知重合，只能声明为按公开材料最大忠实复现。
+
+39 项结果由四卡机原 26 项、五卡机只读导出 12 项和 task034 跨主机恢复 1 项组成。结果服务器三源只读 composite 于 2026-07-30 通过两次完整复验，状态为 `verified_official_protocol_with_known_overlap_39`，index SHA-256 为 `3e5f6bee6eb0cd667f28c287f9538136b31c4312652673453e3f56e446edbbe2`。原 39 项表位于 `reproduction/igstgnn_table4_official_v1/table4_verified_v1/`。NDR-Net 独立扩展 9 项的结果服务器回执 SHA-256 为 `dbd9dcb355a3324707e728a1942465612cd443695b51ea6359e80dc03d1be100`，验证索引位于 `reproduction/igstgnn_table4_official_v1/ndr_extension_verified_v1/`。最终 39 行加 3 个 NDR 三种子汇总行位于 `reproduction/igstgnn_table4_official_v1/table4_with_ndr_verified_v1/`。
+
+NDR-Net 的 Average MAE 均值与样本标准差为 Alameda `10.759524 ± 0.040862`、Contra Costa `11.413717 ± 0.024537`、Orange `11.569331 ± 0.031664`。前 39 行为各方法的正式单次运行，NDR 三行为种子 42、1、2 的均值和样本标准差。两种统计口径在表中明确标注，不能把 NDR 写成 IGSTGNN 原论文的方法行。
 
 ## 保留与命名规则
 

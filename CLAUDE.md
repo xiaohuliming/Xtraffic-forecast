@@ -153,7 +153,15 @@ task034 于 2026-07-30 10:38:24 新加坡时间完成正式训练与五文件落
 
 首次 task034 postflight 因读取了错误的 provenance 层级而失败。提交 `a9511d5` 改为从 `factory.execution_adapter` 读取。复验通过后，finalizer 又发现单任务报告路径相对于 shard 根，而旧控制器传入外层结果根。提交 `51148f1` 修正 finalizer 源根并增加回归。两次均为控制层 fail closed，不改写任何训练 artifact，也没有重训。结果服务器容量门随后在传输前暂停，改用 512 MiB 安全余量后完成 5 个文件和 170,575,062 bytes 的逐文件复验、原子提升和正式树二次复验。
 
-task034 正式目标为 `task034_4gpu_recovery_v1/hosts/table4_4090d4_task034`。files digest 为 `6ce435df4293dad11602378b1e5b9acf18ffde1717f5e0fdfb5922f3282e8258`，transfer marker SHA-256 为 `e393e8238b25677b55e7f1ae00813c3f0a9eb46f7a532c0eb7bba21ee4758d68`，postflight SHA-256 为 `fa8a3d0f0e0fba9d67fa569392edc83c9a74d9131b81439ea7644c7fbc700e15`。incoming 目录已不存在，五份结果逐文件复验均为 OK。四卡机随后自动关机并连续三次确认 SSH 不可达。原 39 项的任务结果层现为 39/39，最终有效性仍等待三源只读 composite index。
+task034 正式目标为 `task034_4gpu_recovery_v1/hosts/table4_4090d4_task034`。files digest 为 `6ce435df4293dad11602378b1e5b9acf18ffde1717f5e0fdfb5922f3282e8258`，transfer marker SHA-256 为 `e393e8238b25677b55e7f1ae00813c3f0a9eb46f7a532c0eb7bba21ee4758d68`，postflight SHA-256 为 `fa8a3d0f0e0fba9d67fa569392edc83c9a74d9131b81439ea7644c7fbc700e15`。incoming 目录已不存在，五份结果逐文件复验均为 OK。四卡机随后自动关机并连续三次确认 SSH 不可达。原 39 项的任务结果层当时达到 39/39，最终有效性在该快照时仍等待三源只读 composite index。
+
+2026-07-30，原 39 项三源只读 composite 已完成。源规范 SHA-256 为 `38645a51935618e4f12a96374d5d9695711bdf6581d984ec2baa15be63345e56`，validator SHA-256 为 `8d988a7164fb48c526ab0e7df7b1832ecc374bac108371a354a12582298b0e10`，控制提交为 `dc1f8a54919d611ac074e128d6f957c03dd7b0e6`。结果服务器于 06:52:11 UTC 启动正式复验，06:52:41 UTC 完成。状态为 `verified_official_protocol_with_known_overlap_39`，共验证 3 个来源、39 个任务、199 个文件和 3,399,778,682 字节。canonical tasks001 至 039 各出现一次，Alameda、Contra Costa、Orange 各 13 项，13 个方法各 3 项。index SHA-256 为 `3e5f6bee6eb0cd667f28c287f9538136b31c4312652673453e3f56e446edbbe2`。第二次独立完整只读复验得到相同任务集合、指标和 index 内容，差异仅为复验时间字段。两次过程都没有改写 summary 或 artifact。
+
+39 项论文同结构复现表已经从 composite index 生成。`table4_reproduced.csv` SHA-256 为 `60160b443f63425c3b10cd30e29253db85a17d68e2a3cf12ac5bcf195449cacc`，逐单元论文对照表 SHA-256 为 `8f1f80ea3ec29f27efc0ddefd3d4711f06376f0655d68ec51c078016f37a0e98`，Markdown 与 LaTeX 的 SHA-256 为 `d1e39f0a9ea5e93dfff68f8f9c0e407cbe245b210a1f215cc99802b62bf3a843` 与 `fe85057ad0492674464196290aa7754d35250aeedbeffd1326fbc4eea8fafe1d`。论文报告值与复现值的 Average MAE 绝对差均值为 2.450150，复现值减论文值的范围为负 6.216278 至正 0.719624。该差异必须保留，不能把复现表写成作者报告值。
+
+NDR 扩展的正式树也已完成独立复验。结果服务器逐文件回执 SHA-256 为 `dbd9dcb355a3324707e728a1942465612cd443695b51ea6359e80dc03d1be100`，49 文件 checksum log SHA-256 为 `d0f7092ef8b02be8b833a695009971e4f616033f2a5beb7847574c24ceab2f88`。NDR 扩展索引 SHA-256 为 `8f4666c45b7708c47d1ee90f3a81444eaf46fee5ba1011bc0242f96c20e0983a`。Alameda、Contra Costa、Orange 的三种子 Average MAE 均值与样本标准差依次为 `10.759524 ± 0.040862`、`11.413717 ± 0.024537`、`11.569331 ± 0.031664`。Orange 三项使用显存适配后的训练代码摘要 `396de4834480ca2fdf4bfb750b84958b2a1492b444e886898cfb199ca60f88d3`，其余六项为 `0c7035ca38b81fbcbfa505092c5c19aa9c99fed9040d80eaa7008de6fe3e0c1d`。两个摘要均逐任务写入 provenance，不代表协议或指标身份混合。
+
+最终 39 行加 3 个 NDR 汇总行的 CSV、Markdown 与 LaTeX 已生成，SHA-256 分别为 `057e0fa94bbea24d834ed16ed00b94b0599a9e9081321cc205643793c47f34c1`、`1097b82ed71ec26d9657ff28cebcefd5c3455a179b3ef8ad6ba68529b7a118d8` 与 `33047e4d0e11929ae1c8c4e3121dd6aad9bb8684769713d58c3621fb961e22ce`。NDR 的 Average MAE 在 Orange 低于所有单次 baseline，在 Alameda 与 Contra Costa 略高于 BiST。该比较仅为描述性展示，因为 baseline 是单次运行，NDR 是三种子均值。当前本地全仓为 474 passed 和 2 个既有 warning。
 
 ## v2 冻结记录
 
@@ -163,8 +171,8 @@ task034 正式目标为 `task034_4gpu_recovery_v1/hosts/table4_4090d4_task034`�
 
 ## 下一步顺序
 
-1. 建立原 39 项的三源只读 composite index，并复验 task001 至 task039 各出现一次。
-2. 为已正式发布的 NDR 9 项建立独立索引，再生成论文同结构 Table 4、三种子补充行、逐单元差值表和数字追溯索引。
+1. 将已验证的 Table 4 复现表作为复现结果使用，同时保留公开材料不完整和官方协议已知重叠的限制。
+2. 如果需要对 NDR 与 baseline 做统计推断，应为选定 baseline 补跑相同的种子 42、1、2。当前 39 项单次运行只能支持描述性比较。
 3. 只根据完整的 v3 落盘结果决定原项目论文主张。Table 4 复现结果与 v3 无泄露结论必须分开解释。
 
 ## 最小判别矩阵

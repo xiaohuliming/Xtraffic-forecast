@@ -35,6 +35,14 @@ outputs/**
 !outputs/fourier_dual_net/paper_artifacts/
 !outputs/fourier_dual_net/paper_artifacts/**
 !outputs/igstgnn_ours_pipeline_fixed/setting_a_breakdown.json
+!outputs/reproduction/
+!outputs/reproduction/igstgnn_table4_official_v1/
+!outputs/reproduction/igstgnn_table4_official_v1/table4_verified_v1/
+!outputs/reproduction/igstgnn_table4_official_v1/table4_verified_v1/*
+!outputs/reproduction/igstgnn_table4_official_v1/ndr_extension_verified_v1/
+!outputs/reproduction/igstgnn_table4_official_v1/ndr_extension_verified_v1/*
+!outputs/reproduction/igstgnn_table4_official_v1/table4_with_ndr_verified_v1/
+!outputs/reproduction/igstgnn_table4_official_v1/table4_with_ndr_verified_v1/*
 
 # Allow PNG figures only inside committed artifact dirs.
 !outputs/setting_a_artifacts/*.png

@@ -178,8 +178,30 @@ task034 于 2026-07-30 10:38:24 新加坡时间完成正式训练。summary 状�
 
 四卡机随后执行自动关机。Mac 连续三次 SSH 探测均返回连接关闭。五卡机此前也已关机。原 39 项的任务结果层现为 39/39，包含四卡机原 26 项、五卡机只读导出的 12 项和 task034 跨主机四卡恢复 1 项。该状态仍不得写成最终矩阵已验证，必须先完成三源只读 composite index。
 
-## 下一步
+## 12:52 三源 composite 与最终表验证完成
 
-1. 建立原 39 项三源只读 composite index，并验证 canonical tasks001 至 039 各出现一次。
-2. 为已发布的 NDR 9 项建立独立索引。
-3. 从逐份复验的 summary 与 predictions 生成论文同结构原表、NDR-Net 三种子补充行、逐单元差值表和数字追溯索引。
+结果服务器使用提交 `dc1f8a54919d611ac074e128d6f957c03dd7b0e6` 的只读 validator 对三份正式来源执行完整复验。源规范 SHA-256 为 `38645a51935618e4f12a96374d5d9695711bdf6581d984ec2baa15be63345e56`，validator SHA-256 为 `8d988a7164fb48c526ab0e7df7b1832ecc374bac108371a354a12582298b0e10`。
+
+正式复验从 2026-07-30 06:52:11 UTC 运行到 06:52:41 UTC，退出码为 0。输出状态为 `verified_official_protocol_with_known_overlap_39`，包含 3 个来源、39 个任务、199 个文件和 3,399,778,682 字节。四卡机原 26 项、五卡机只读导出 12 项和 task034 跨主机恢复 1 项的并集严格等于 canonical 39。每个 task ID 恰好出现一次，每个地区 13 项，每个方法 3 项。正式 composite index SHA-256 为 `3e5f6bee6eb0cd667f28c287f9538136b31c4312652673453e3f56e446edbbe2`。
+
+第二次独立完整只读复验耗时 29.28 秒，任务集合、来源映射、summary 指标和 index 内容全部一致，仅复验时间字段不同。正式 index 未被覆盖。两次复验都没有改写 summary、prediction、checkpoint、provenance 或 train log。
+
+39 项论文同结构复现表已经生成。CSV、逐单元论文对照 CSV、Markdown 与 LaTeX 的 SHA-256 依次为 `60160b443f63425c3b10cd30e29253db85a17d68e2a3cf12ac5bcf195449cacc`、`8f1f80ea3ec29f27efc0ddefd3d4711f06376f0655d68ec51c078016f37a0e98`、`d1e39f0a9ea5e93dfff68f8f9c0e407cbe245b210a1f215cc99802b62bf3a843` 与 `fe85057ad0492674464196290aa7754d35250aeedbeffd1326fbc4eea8fafe1d`。复现与论文报告值的 Average MAE 绝对差均值为 2.450150。该结果证明复现产物身份完整，不证明作者未公开配置已经被完全还原。
+
+NDR 扩展正式树也完成独立结果服务器复验。远端回执 SHA-256 为 `dbd9dcb355a3324707e728a1942465612cd443695b51ea6359e80dc03d1be100`，49 文件 checksum log SHA-256 为 `d0f7092ef8b02be8b833a695009971e4f616033f2a5beb7847574c24ceab2f88`，扩展 index SHA-256 为 `8f4666c45b7708c47d1ee90f3a81444eaf46fee5ba1011bc0242f96c20e0983a`。
+
+NDR-Net 的 Average MAE 三种子均值与样本标准差如下。
+
+| 地区 | Average MAE | Average RMSE | Average MAPE |
+|---|---:|---:|---:|
+| Alameda | 10.759524 ± 0.040862 | 20.063200 ± 0.062496 | 13.734791 ± 0.042310 |
+| Contra Costa | 11.413717 ± 0.024537 | 20.619580 ± 0.055982 | 14.688178 ± 0.023821 |
+| Orange | 11.569331 ± 0.031664 | 21.928622 ± 0.036889 | 13.055433 ± 0.020880 |
+
+最终 39 行加 3 个 NDR 汇总行的 CSV、Markdown 与 LaTeX SHA-256 依次为 `057e0fa94bbea24d834ed16ed00b94b0599a9e9081321cc205643793c47f34c1`、`1097b82ed71ec26d9657ff28cebcefd5c3455a179b3ef8ad6ba68529b7a118d8` 与 `33047e4d0e11929ae1c8c4e3121dd6aad9bb8684769713d58c3621fb961e22ce`。NDR 在 Orange 的 Average MAE 低于所有单次 baseline，在 Alameda 与 Contra Costa 略高于 BiST。由于 baseline 为单次运行，NDR 为三种子均值，此处只能做描述性比较。
+
+## 后续
+
+1. 对外使用时保留 `official_protocol_with_known_overlap` 和 `public_material_maximum_fidelity_reproduction` 标签。
+2. NDR-Net 必须标记为项目方法扩展，不能写成 IGSTGNN 原论文的第 14 个方法。
+3. 如果需要显著性结论，应为选定 baseline 补齐相同的种子 42、1、2。

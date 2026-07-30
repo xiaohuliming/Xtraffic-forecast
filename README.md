@@ -7,7 +7,7 @@
 
 ## 当前状态
 
-> **v2 已冻结。v3 正式缓存已从 cache-build clean commit `29159f626494de52c69b36fe5bba9854f13cb56c` 构建，并通过本地两次、5080 一次和 5090 一次严格复验。最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。runner 层 45/45 已全部完成或重新验收，5090 为 18/18，5080 为 27/27。两个正式分片均已回传结果服务器，通过逐文件 SHA-256 复验并正式原子提升。只读 composite index 已于 2026-07-27 18:28:27 新加坡时间验证成功。index 的 `status` 为 `verified`，矩阵有效性状态为 `verified_host_stratified_45`，index SHA-256 为 `8cf92dc2e931e3e9c3ca18cafb81a794fe68fbd0556dec3401b8650f827899fe`。composite 完成不恢复论文结论，同机配对、多种子统计与显著性检验仍待完成。**
+> **v2 已冻结。v3 正式缓存已从 cache-build clean commit `29159f626494de52c69b36fe5bba9854f13cb56c` 构建，并通过本地两次、5080 一次和 5090 一次严格复验。最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。runner 层 45/45 已全部完成或重新验收，5090 为 18/18，5080 为 27/27。两个正式分片、只读 composite、同机配对、多种子统计和窗口级显著性分析均已完成。v3 composite index SHA-256 为 `8cf92dc2e931e3e9c3ca18cafb81a794fe68fbd0556dec3401b8650f827899fe`。这些结果不自动恢复论文结论，最终主张仍由用户根据落盘证据决定。**
 >
 > 2026-07-18 的审计确认旧版 XTraffic 数据管线存在未来信息泄露和切分边界污染。2026-07-19 的全面复审进一步确认 v2 存在重复 forecast origin、active event 跨 split、验证累计和训练契约问题。此前报告的所有 XTraffic 数值与最先完成的 4 个 v2 远程结果均保留为历史记录，不应作为论文结论或最终基准引用。完整证据见 [v3 协议复审](docs/audits/protocol_v3_review_2026-07-19.md) 和 [数据泄露审计](docs/audits/data_leakage_2026-07-18.md)。
 
@@ -19,7 +19,7 @@
 - 完成三地区、多种子、等参数消融和一批标准基准实验。
 - 启动统一管线下的 baseline zoo，但结果尚未完成权威汇总。
 
-这些工作仍有方法设计和工程价值，但 XTraffic 上的数值证据需要按新协议重建。当前 v3 代码实现了因果填充、label-free train-only 气候态、完整目标窗切分、forecast origin 去重、active event split 隔离、可部署事故特征、显式 mask、全局有效观测点指标累计、缓存身份校验、输出隔离和 IGSTGNN 对齐。协议为 `protocol_v3_noleak_dedup`，cache schema 为 3。训练 checkout 在 Mac、5080 与 5090 均为 143 passed 和 1 个既有 warning，当前本地全仓回归为 252 passed 和 1 个既有 warning。
+这些工作仍有方法设计和工程价值，但 XTraffic 上的数值证据需要按新协议重建。当前 v3 代码实现了因果填充、label-free train-only 气候态、完整目标窗切分、forecast origin 去重、active event split 隔离、可部署事故特征、显式 mask、全局有效观测点指标累计、缓存身份校验、输出隔离和 IGSTGNN 对齐。协议为 `protocol_v3_noleak_dedup`，cache schema 为 3。训练 checkout 在 Mac、5080 与 5090 均为 143 passed 和 1 个既有 warning，当前本地全仓回归为 474 passed 和 2 个既有 warning。
 
 正式缓存位于 `outputs/dist_net/region_data_v3_noleak_dedup`。它已在本地正式路径和两个远端训练环境完成严格复验，状态均为 `verified`。bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。
 
@@ -31,7 +31,22 @@
 
 正式生效的新分片把 5080 固定为 tasks001-004、007-010、013-016、019-030、040-042，共 27 项。5090 固定为 tasks005-006、011-012、017-018、031-039、043-045，共 18 项。两份分片均已完成、回传并验证。两台机器的结果继续按独立结果根、路径相关 `config_hash`、运行时 provenance 与 source-host postflight 管理。只读 composite index 的 `execution_layout` 为 `dual_host_stratified`，共含 45 个任务和 2 个分片，canonical tasks001-045 各出现一次。结果只能称为双机分层矩阵，不能称为 5090 同机矩阵。现有已验收单项不能代替完整多种子统计或最终论文结论。
 
-27/18 控制面、精度契约、staging recovery、Windows 长路径修复与 finalizer 引号修复均已完成。提交 `5f3113b` 将 composite 的 float32 producer 复验改为数值等价的原位数组计算，并在首次指标校验前释放 target 大数组。控制提交 `93038ec` 进一步跳过 full-window 中未使用的事件分组归约，同时完整保留 `all` 指标契约。首次使用 `c48f232` 的无输出尝试已作为 incident 保留，incident SHA-256 为 `166923ef9a63b80ecbc065f6e455eb393341e526ef6411c8c5ccd16ebfa2c70a`。最终 composite 服务退出码为 0，内存峰值为 2.1G，swap 峰值为 15.1M，没有改写 summary 或 artifact。全仓回归为 252 passed 和 1 个既有 warning，独立复审未发现 P0 或 P1。下一步执行同机配对、多种子与显著性分析。
+27/18 控制面、精度契约、staging recovery、Windows 长路径修复与 finalizer 引号修复均已完成。提交 `5f3113b` 将 composite 的 float32 producer 复验改为数值等价的原位数组计算，并在首次指标校验前释放 target 大数组。控制提交 `93038ec` 进一步跳过 full-window 中未使用的事件分组归约，同时完整保留 `all` 指标契约。首次使用 `c48f232` 的无输出尝试已作为 incident 保留，incident SHA-256 为 `166923ef9a63b80ecbc065f6e455eb393341e526ef6411c8c5ccd16ebfa2c70a`。最终 composite 服务退出码为 0，内存峰值为 2.1G，swap 峰值为 15.1M，没有改写 summary 或 artifact。同机配对、多种子与窗口级显著性分析产物位于 `outputs/protocol_v3_noleak_dedup/analysis/`。
+
+## IGSTGNN Table 4 复现
+
+IGSTGNN Table 4 使用独立协议 `igstgnn_table4_official_v1`。该协议沿用作者发布数据与官方顺序切分，保留已知预测时间重叠，不能与 v3 无泄露矩阵混合。
+
+原论文表的 13 个方法乘 3 个地区，共 39 项，已经完成训练、三源回传和两次只读 composite 复验。正式 composite index SHA-256 为 `3e5f6bee6eb0cd667f28c287f9538136b31c4312652673453e3f56e446edbbe2`。NDR-Net 另以独立 9 项矩阵运行三地区与种子 42、1、2，验证 index SHA-256 为 `8f4666c45b7708c47d1ee90f3a81444eaf46fee5ba1011bc0242f96c20e0983a`。
+
+可直接查看以下已验证产物：
+
+- [39 项复现表](outputs/reproduction/igstgnn_table4_official_v1/table4_verified_v1/table4_reproduced.md)
+- [复现值与论文值逐单元对照](outputs/reproduction/igstgnn_table4_official_v1/table4_verified_v1/table4_paper_comparison.csv)
+- [NDR-Net 三种子汇总](outputs/reproduction/igstgnn_table4_official_v1/ndr_extension_verified_v1/ndr_extension.md)
+- [39 行加 NDR 三行最终表](outputs/reproduction/igstgnn_table4_official_v1/table4_with_ndr_verified_v1/table4_with_ndr_extension.md)
+
+NDR-Net 的 Average MAE 为 Alameda `10.759524 ± 0.040862`、Contra Costa `11.413717 ± 0.024537`、Orange `11.569331 ± 0.031664`。baseline 是单次运行，NDR 是三种子均值和样本标准差，因此目前只支持描述性比较。
 
 ## 已确认的数据问题
 
@@ -47,7 +62,7 @@
 | P0 | 部分验证 MAE 按 batch 或样本均值累计 | 最佳 checkpoint 可能选择错误 |
 | P1 | 多个训练入口的 mask、图支持和结果恢复契约不一致 | 对比结果不能可靠配对 |
 
-旧缓存、v2 缓存和旧结果没有被覆盖。v3 默认缓存目录为 `outputs/dist_net/region_data_v3_noleak_dedup`，新训练默认写入 `outputs/protocol_v3_noleak_dedup`。三地区正式缓存已经通过本地、5080 与 5090 的严格复验。v3 runner、两个正式分片与 composite 已经完成，统计分析尚未完成。本地回归测试位于 `tests/data/`、`tests/training/` 和 `tests/remote/`。
+旧缓存、v2 缓存和旧结果没有被覆盖。v3 默认缓存目录为 `outputs/dist_net/region_data_v3_noleak_dedup`，新训练默认写入 `outputs/protocol_v3_noleak_dedup`。三地区正式缓存已经通过本地、5080 与 5090 的严格复验。v3 runner、两个正式分片、composite 和统计分析已经完成。本地回归测试位于 `tests/data/`、`tests/training/` 和 `tests/remote/`。
 
 ## 方法关系
 

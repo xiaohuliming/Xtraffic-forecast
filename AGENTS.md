@@ -82,7 +82,13 @@ task034 于 2026-07-30 10:38:24 新加坡时间完成训练。H3、H6、H12 与 
 
 首次 postflight 暴露 provenance 层级读取错误，提交 `a9511d5` 修复 `factory.execution_adapter` 读取。随后 finalizer 暴露单任务报告相对 shard 根但源根仍指向外层结果目录的问题，提交 `51148f1` 修正并补回归。两次均 fail closed，没有重训或 artifact 改写。本地全仓为 469 passed 和 2 个既有 warning，四卡机专项测试为 4 passed。
 
-task034 已正式发布到 `task034_4gpu_recovery_v1/hosts/table4_4090d4_task034`。source bytes 为 170,575,062，files digest 为 `6ce435df4293dad11602378b1e5b9acf18ffde1717f5e0fdfb5922f3282e8258`，transfer marker SHA-256 为 `e393e8238b25677b55e7f1ae00813c3f0a9eb46f7a532c0eb7bba21ee4758d68`，postflight SHA-256 为 `fa8a3d0f0e0fba9d67fa569392edc83c9a74d9131b81439ea7644c7fbc700e15`。结果服务器独立复验五份结果均为 OK，incoming 不存在。四卡机随后自动关机，连续三次 SSH 探测均返回连接关闭。原 39 项任务结果现为 39/39，但最终 Table 4 仍需三源只读 composite index 验证后生成。
+task034 已正式发布到 `task034_4gpu_recovery_v1/hosts/table4_4090d4_task034`。source bytes 为 170,575,062，files digest 为 `6ce435df4293dad11602378b1e5b9acf18ffde1717f5e0fdfb5922f3282e8258`，transfer marker SHA-256 为 `e393e8238b25677b55e7f1ae00813c3f0a9eb46f7a532c0eb7bba21ee4758d68`，postflight SHA-256 为 `fa8a3d0f0e0fba9d67fa569392edc83c9a74d9131b81439ea7644c7fbc700e15`。结果服务器独立复验五份结果均为 OK，incoming 不存在。四卡机随后自动关机，连续三次 SSH 探测均返回连接关闭。原 39 项任务结果当时达到 39/39，该快照时仍需三源只读 composite index 验证后生成最终表。
+
+2026-07-30，原 39 项三源 composite 已通过两次完整只读复验。控制提交为 `dc1f8a54919d611ac074e128d6f957c03dd7b0e6`，source spec SHA-256 为 `38645a51935618e4f12a96374d5d9695711bdf6581d984ec2baa15be63345e56`，validator SHA-256 为 `8d988a7164fb48c526ab0e7df7b1832ecc374bac108371a354a12582298b0e10`。正式 index 的状态为 `verified_official_protocol_with_known_overlap_39`，SHA-256 为 `3e5f6bee6eb0cd667f28c287f9538136b31c4312652673453e3f56e446edbbe2`。它包含 3 个来源、39 个唯一 canonical task、199 个文件和 3,399,778,682 字节。第二次完整复验除时间字段外与正式 index 一致，没有改写任何结果。
+
+论文同结构 39 项复现表已生成。CSV SHA-256 为 `60160b443f63425c3b10cd30e29253db85a17d68e2a3cf12ac5bcf195449cacc`，逐单元论文对照表 SHA-256 为 `8f1f80ea3ec29f27efc0ddefd3d4711f06376f0655d68ec51c078016f37a0e98`。复现与论文报告值的 Average MAE 绝对差均值为 2.450150，必须保留差异，不得写成作者数值的完全复现。
+
+NDR 9 项正式树的结果服务器复验回执 SHA-256 为 `dbd9dcb355a3324707e728a1942465612cd443695b51ea6359e80dc03d1be100`，NDR 扩展 index SHA-256 为 `8f4666c45b7708c47d1ee90f3a81444eaf46fee5ba1011bc0242f96c20e0983a`。三地区 Average MAE 的三种子均值与样本标准差为 Alameda `10.759524 ± 0.040862`、Contra Costa `11.413717 ± 0.024537`、Orange `11.569331 ± 0.031664`。最终 39 行加 3 个 NDR 汇总行的 CSV SHA-256 为 `057e0fa94bbea24d834ed16ed00b94b0599a9e9081321cc205643793c47f34c1`。NDR 只能标为 `same_protocol_project_method_extension`。baseline 为单次运行，NDR 为三种子汇总，因此当前只支持描述性比较。全仓回归为 474 passed 和 2 个既有 warning。
 
 项目方法层级为 `RADS ⊂ RADS-O ⊂ NDR-Net`。完整研究史和数字出处见主报告，当前有效性见审计文件。
 

@@ -1,0 +1,39 @@
+{
+  "caveats": [
+    "official_protocol_with_known_overlap",
+    "public_material_maximum_fidelity_reproduction",
+    "not_protocol_v3_noleak_dedup",
+    "not_author_reported_values"
+  ],
+  "claim_scope": "public_material_maximum_fidelity_reproduction",
+  "composite_id": "igstgnn_table4_public_repro_39_composite_v1",
+  "composite_index_sha256": "3e5f6bee6eb0cd667f28c287f9538136b31c4312652673453e3f56e446edbbe2",
+  "matrix_id": "igstgnn_table4_public_repro_39_v2",
+  "method_count": 13,
+  "outputs": {
+    "table4_paper_comparison.csv": {
+      "bytes": 15239,
+      "sha256": "8f1f80ea3ec29f27efc0ddefd3d4711f06376f0655d68ec51c078016f37a0e98"
+    },
+    "table4_reproduced.csv": {
+      "bytes": 5425,
+      "sha256": "60160b443f63425c3b10cd30e29253db85a17d68e2a3cf12ac5bcf195449cacc"
+    },
+    "table4_reproduced.md": {
+      "bytes": 5134,
+      "sha256": "d1e39f0a9ea5e93dfff68f8f9c0e407cbe245b210a1f215cc99802b62bf3a843"
+    },
+    "table4_reproduced.tex": {
+      "bytes": 4997,
+      "sha256": "fe85057ad0492674464196290aa7754d35250aeedbeffd1326fbc4eea8fafe1d"
+    }
+  },
+  "paper_reference_sha256": "ffe7b8ee065a18ca94823c4d21f5bd5e66be5580426ed49a694c969360c46c4c",
+  "paper_source_lock_sha256": "01aabed8332315c3d12a4dca979679245fcb2262346d5b90ee803bdb721b1887",
+  "protocol_id": "igstgnn_table4_official_v1",
+  "region_count": 3,
+  "row_count": 39,
+  "schema_version": 1,
+  "status": "verified_reproduction_table",
+  "validity_label": "official_protocol_with_known_overlap"
+}
