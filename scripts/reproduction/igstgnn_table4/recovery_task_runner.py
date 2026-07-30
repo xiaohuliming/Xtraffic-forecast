@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import hashlib
+import json
 import os
 import tempfile
 from dataclasses import replace
@@ -36,7 +37,7 @@ from .task_runner import (
 
 _STGCN_ADAPTER = "stgcn-idempotent-self-loop-removal"
 _MULTI_GPU_ADAPTER = "multi-gpu-full-batch"
-_MULTI_GPU_METHODS = frozenset({"dgcrn", "d2stgnn", "igstgnn"})
+_MULTI_GPU_METHODS = frozenset({"sttn", "dgcrn", "d2stgnn", "igstgnn"})
 _ADAPTERS = (_STGCN_ADAPTER, _MULTI_GPU_ADAPTER)
 
 
@@ -247,6 +248,46 @@ def _warm_up_replica_linalg(device_ids: list[int]) -> None:
             torch.cuda.synchronize(device)
 
 
+def probe_base_engine_training_step(*, engine: Any) -> dict[str, Any]:
+    engine.model.train()
+    try:
+        x_data, label_data = next(
+            engine._dataloader["train_loader"].get_iterator()
+        )
+    except StopIteration as error:
+        raise ValueError("Recovery probe train loader produced no batches") from error
+    engine._optimizer.zero_grad()
+    model_input, label = engine._to_device(
+        engine._to_tensor([x_data, label_data])
+    )
+    prediction = engine.model(model_input, label)
+    prediction, label = engine._inverse_transform([prediction, label])
+    if not torch.isfinite(prediction).all() or not torch.isfinite(label).all():
+        raise ValueError("Recovery probe produced non-finite values")
+    mask_value = torch.tensor(0.0, device=label.device)
+    if label.min() < 1:
+        mask_value = label.min()
+    loss = engine._loss_fn(prediction, label, mask_value)
+    if loss.ndim != 0 or not torch.isfinite(loss):
+        raise ValueError("Recovery probe loss is not a finite scalar")
+    loss.backward()
+    gradient_clips = 0
+    if engine._clip_grad_value != 0:
+        torch.nn.utils.clip_grad_norm_(
+            engine.model.parameters(),
+            engine._clip_grad_value,
+        )
+        gradient_clips = 1
+    engine._optimizer.step()
+    return {
+        "batch_size": int(prediction.shape[0]),
+        "loss": float(loss.detach().item()),
+        "prediction_shape": list(prediction.shape),
+        "optimizer_steps": 1,
+        "gradient_clips": gradient_clips,
+    }
+
+
 def _d2stgnn_microbatch_train_batch(engine: Any) -> tuple[float, float, float]:
     engine.model.train()
     train_loss: list[float] = []
@@ -449,6 +490,83 @@ def _controller_sha256() -> str:
     return digest.hexdigest()
 
 
+def probe_recovery_task(
+    *,
+    manifest_path: Path | str,
+    manifest_sha256: str,
+    task_id: str,
+    splits_root: Path | str,
+    device: str,
+    adapter: str,
+) -> dict[str, Any]:
+    spec = load_table4_task_spec(
+        manifest_path=manifest_path,
+        manifest_sha256=manifest_sha256,
+        task_id=task_id,
+    )
+    method = spec.task["method"]
+    if adapter != _MULTI_GPU_ADAPTER or method not in _MULTI_GPU_METHODS:
+        raise ValueError(
+            "The smoke probe requires the STTN, DGCRN, D2STGNN, or IGSTGNN "
+            "multi-GPU recovery adapter"
+        )
+    device_value = _resolve_device(device)
+    runtime = _load_verified_runtime_bundle(
+        splits_root=splits_root,
+        region=spec.task["region"],
+        expected_manifest_sha256=spec.task["split_bundle_manifest_sha256"],
+        profile_effective=spec.profile["effective"],
+        task_seed=spec.task["seed"],
+        include_incident=method == "igstgnn",
+    )
+    with tempfile.TemporaryDirectory(
+        prefix=f"{task_id}.recovery-probe.",
+    ) as scratch_name:
+        scratch = Path(scratch_name)
+        train_log = scratch / "probe.log"
+        with train_log.open("x", encoding="utf-8") as log_handle:
+            logger = _TaskLogger(log_handle)
+            with contextlib.redirect_stdout(log_handle):
+                with contextlib.redirect_stderr(log_handle):
+                    factory = _build_factory(
+                        spec=spec,
+                        runtime=runtime,
+                        device=device_value,
+                        logger=logger,
+                        output_dir=scratch,
+                    )
+                    _, execution_adapter = wrap_model_for_recovery(
+                        method=method,
+                        model=factory.model,
+                        engine=factory.engine,
+                        device=device_value,
+                        adapter=adapter,
+                    )
+                    device_ids = execution_adapter["device_ids"]
+                    for device_id in device_ids:
+                        torch.cuda.reset_peak_memory_stats(device_id)
+                    report = probe_base_engine_training_step(engine=factory.engine)
+                    for device_id in device_ids:
+                        torch.cuda.synchronize(device_id)
+                    peak_allocated_bytes = {
+                        str(device_id): int(
+                            torch.cuda.max_memory_allocated(device_id)
+                        )
+                        for device_id in device_ids
+                    }
+            log_handle.flush()
+            os.fsync(log_handle.fileno())
+    return {
+        "status": "verified",
+        "task_id": task_id,
+        "method": method,
+        "adapter": adapter,
+        "device_ids": execution_adapter["device_ids"],
+        "peak_allocated_bytes": peak_allocated_bytes,
+        **report,
+    }
+
+
 def run_recovery_task(
     *,
     manifest_path: Path | str,
@@ -470,7 +588,8 @@ def run_recovery_task(
         raise ValueError("The STGCN recovery adapter requires an STGCN task")
     if adapter == _MULTI_GPU_ADAPTER and method not in _MULTI_GPU_METHODS:
         raise ValueError(
-            "The multi-GPU recovery adapter requires DGCRN, D2STGNN, or IGSTGNN"
+            "The multi-GPU recovery adapter requires STTN, DGCRN, D2STGNN, "
+            "or IGSTGNN"
         )
     if (
         isinstance(microbatches, bool)
@@ -612,15 +731,30 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--manifest-sha256", required=True)
     parser.add_argument("--task-id", required=True)
     parser.add_argument("--splits-root", required=True, type=Path)
-    parser.add_argument("--results-root", required=True, type=Path)
+    parser.add_argument("--results-root", type=Path)
     parser.add_argument("--device", required=True)
     parser.add_argument("--adapter", required=True, choices=_ADAPTERS)
     parser.add_argument("--microbatches", type=int, default=1)
+    parser.add_argument("--smoke", action="store_true")
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    arguments = _build_parser().parse_args(argv)
+    parser = _build_parser()
+    arguments = parser.parse_args(argv)
+    if arguments.smoke:
+        report = probe_recovery_task(
+            manifest_path=arguments.manifest,
+            manifest_sha256=arguments.manifest_sha256,
+            task_id=arguments.task_id,
+            splits_root=arguments.splits_root,
+            device=arguments.device,
+            adapter=arguments.adapter,
+        )
+        print(json.dumps(report, sort_keys=True))
+        return 0
+    if arguments.results_root is None:
+        parser.error("--results-root is required unless --smoke is selected")
     target = run_recovery_task(
         manifest_path=arguments.manifest,
         manifest_sha256=arguments.manifest_sha256,

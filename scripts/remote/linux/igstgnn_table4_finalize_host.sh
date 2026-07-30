@@ -8,6 +8,8 @@ PLAN=${PLAN:-$REPO/config/reproduction/igstgnn_table4/distributed_4090d_9gpu_v1.
 MANIFEST=${MANIFEST:-$REPO/config/reproduction/igstgnn_table4/matrix.public_material_v2.json}
 MANIFEST_SHA256=${MANIFEST_SHA256:-d0c7fb88e24c6026d670a4a6d571357eb5320393417a83d344adb05151023a78}
 HOST_ID=${HOST_ID:?HOST_ID is required}
+EXPECTED_PLAN_ID=${EXPECTED_PLAN_ID:-igstgnn_table4_4090d_9gpu_v1}
+EXPECTED_EXECUTION_LAYOUT=${EXPECTED_EXECUTION_LAYOUT:-dual_host_gpu_sku_homogeneous}
 POSTFLIGHT_REPORT=${POSTFLIGHT_REPORT:-/root/autodl-tmp/table4/control/$HOST_ID/postflight.json}
 POSTFLIGHT_CMD=${POSTFLIGHT_CMD:-}
 TRANSFER_FILE_LIST=${TRANSFER_FILE_LIST:-/root/autodl-tmp/table4/control/$HOST_ID/transfer.files}
@@ -69,6 +71,10 @@ finish_successfully() {
 
 [[ "$HOST_ID" =~ ^[A-Za-z0-9._-]+$ ]] || fail "unsafe HOST_ID"
 [[ "$REMOTE_NAME" =~ ^[A-Za-z0-9._-]+$ ]] || fail "unsafe REMOTE_NAME"
+[[ "$EXPECTED_PLAN_ID" =~ ^[A-Za-z0-9._-]+$ ]] \
+  || fail "unsafe EXPECTED_PLAN_ID"
+[[ "$EXPECTED_EXECUTION_LAYOUT" =~ ^[A-Za-z0-9._-]+$ ]] \
+  || fail "unsafe EXPECTED_EXECUTION_LAYOUT"
 [[ "$RELAY_BASE" =~ ^/[A-Za-z0-9._/-]+$ ]] || fail "unsafe RELAY_BASE"
 [[ -d "$RESULTS_BASE" ]] || fail "results base is missing"
 [[ -f "$PLAN" && ! -L "$PLAN" ]] || fail "plan is missing or unsafe"
@@ -107,7 +113,9 @@ log "POSTFLIGHT_OK host=$HOST_ID"
   "$RESULTS_BASE" \
   "$TRANSFER_FILE_LIST" \
   "$TRANSFER_MANIFEST" \
-  "$TRANSFER_MARKER" <<'PY'
+  "$TRANSFER_MARKER" \
+  "$EXPECTED_PLAN_ID" \
+  "$EXPECTED_EXECUTION_LAYOUT" <<'PY'
 import hashlib
 import json
 import os
@@ -124,6 +132,8 @@ from pathlib import Path, PurePosixPath
     file_list_name,
     transfer_manifest_name,
     marker_name,
+    expected_plan_id,
+    expected_execution_layout,
 ) = sys.argv[1:]
 report_path = Path(report_name)
 plan_path = Path(plan_name)
@@ -148,12 +158,12 @@ if (
     or report.get("status") != "verified"
     or report.get("protocol_id") != "igstgnn_table4_official_v1"
     or report.get("matrix_id") != "igstgnn_table4_public_repro_39_v2"
-    or report.get("plan_id") != "igstgnn_table4_4090d_9gpu_v1"
+    or report.get("plan_id") != expected_plan_id
     or report.get("plan_sha256") != plan_digest
     or report.get("manifest_sha256") != manifest_sha256
     or report.get("host_id") != host_id
     or report.get("gpu_sku") != "NVIDIA GeForce RTX 4090 D"
-    or report.get("execution_layout") != "dual_host_gpu_sku_homogeneous"
+    or report.get("execution_layout") != expected_execution_layout
 ):
     raise SystemExit("invalid postflight report identity")
 validated_shards = report.get("validated_shards")

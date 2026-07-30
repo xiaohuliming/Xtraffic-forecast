@@ -75,14 +75,20 @@ report_path.write_text(
             "status": "verified",
             "protocol_id": "igstgnn_table4_official_v1",
             "matrix_id": "igstgnn_table4_public_repro_39_v2",
-            "plan_id": "igstgnn_table4_4090d_9gpu_v1",
+            "plan_id": os.environ.get(
+                "REPORT_PLAN_ID",
+                "igstgnn_table4_4090d_9gpu_v1",
+            ),
             "plan_sha256": hashlib.sha256(
                 Path(os.environ["PLAN"]).read_bytes()
             ).hexdigest(),
             "manifest_sha256": "d0c7fb88e24c6026d670a4a6d571357eb5320393417a83d344adb05151023a78",
             "host_id": os.environ["HOST_ID"],
             "gpu_sku": "NVIDIA GeForce RTX 4090 D",
-            "execution_layout": "dual_host_gpu_sku_homogeneous",
+            "execution_layout": os.environ.get(
+                "REPORT_EXECUTION_LAYOUT",
+                "dual_host_gpu_sku_homogeneous",
+            ),
             "verified_at": "2026-07-28T12:00:00Z",
             "runtime_host_identity": {"hostname": "test"},
             "validated_shards": 1,
@@ -150,6 +156,16 @@ grep -q '^shutdown -h now$' "$tmp_root/success/actions.log"
 grep -q 'sha256sum -c' "$tmp_root/success/actions.log"
 grep -q 'FINALIZE_SUCCESS' "$tmp_root/success/finalizer.log"
 printf '%s\n' "PASS verified transfer shuts the host down"
+
+make_case custom_identity
+REPORT_PLAN_ID=igstgnn_table4_task034_4gpu_recovery_v1 \
+REPORT_EXECUTION_LAYOUT=cross_host_single_task_recovery \
+EXPECTED_PLAN_ID=igstgnn_table4_task034_4gpu_recovery_v1 \
+EXPECTED_EXECUTION_LAYOUT=cross_host_single_task_recovery \
+run_finalizer custom_identity
+test -f "$tmp_root/custom_identity/shutdown.called"
+grep -q 'FINALIZE_SUCCESS' "$tmp_root/custom_identity/finalizer.log"
+printf '%s\n' "PASS explicit recovery identity can use the strict finalizer"
 
 make_case deferred_shutdown
 root="$tmp_root/deferred_shutdown"

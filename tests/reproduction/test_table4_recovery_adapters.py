@@ -11,6 +11,7 @@ from scripts.reproduction.igstgnn_table4.recovery_task_runner import (
     install_d2stgnn_microbatch_training,
     main,
     primary_light_chunk_sizes,
+    probe_base_engine_training_step,
     wrap_model_for_recovery,
 )
 
@@ -101,6 +102,53 @@ def test_multi_gpu_recovery_preserves_the_declared_full_batch(monkeypatch) -> No
     }
 
 
+def test_sttn_multi_gpu_recovery_preserves_full_batch_on_four_devices(
+    monkeypatch,
+) -> None:
+    class _Model(torch.nn.Module):
+        horizon = 12
+
+        def param_num(self) -> int:
+            return 789
+
+    class _Engine:
+        def __init__(self, model: torch.nn.Module) -> None:
+            self.model = model
+
+    class _FakeDataParallel:
+        def __init__(self, module, *, device_ids, output_device):
+            self.module = module
+            self.device_ids = device_ids
+            self.output_device = output_device
+
+    monkeypatch.setattr(torch.cuda, "device_count", lambda: 4)
+    monkeypatch.setattr(
+        "scripts.reproduction.igstgnn_table4.recovery_task_runner."
+        "RecoveryDataParallel",
+        _FakeDataParallel,
+    )
+    model = _Model()
+    engine = _Engine(model)
+
+    wrapped, provenance = wrap_model_for_recovery(
+        method="sttn",
+        model=model,
+        engine=engine,
+        device=torch.device("cuda:0"),
+        adapter="multi-gpu-full-batch",
+    )
+
+    assert engine.model is wrapped
+    assert wrapped.module is model
+    assert wrapped.device_ids == [0, 1, 2, 3]
+    assert wrapped.output_device == 0
+    assert provenance["full_batch_preserved"] is True
+    assert provenance["optimizer_step_contract_preserved"] is True
+    assert provenance["unregistered_tensor_policy"] == "replica_device_copy"
+    assert provenance["device_ids"] == [0, 1, 2, 3]
+    assert provenance["replica_linalg_warmup"] is False
+
+
 def test_primary_gpu_receives_the_smallest_remainder_chunk() -> None:
     assert primary_light_chunk_sizes(batch_size=64, device_count=5) == [
         12,
@@ -109,6 +157,62 @@ def test_primary_gpu_receives_the_smallest_remainder_chunk() -> None:
         13,
         13,
     ]
+
+
+def test_base_engine_probe_executes_one_complete_optimizer_step() -> None:
+    class _Loader:
+        def get_iterator(self):
+            x = np.asarray([1.0, 2.0], dtype=np.float32).reshape(2, 1, 1, 1)
+            y = np.asarray([2.0, 4.0], dtype=np.float32).reshape(2, 1, 1, 1)
+            return iter([(x, y)])
+
+    class _Model(torch.nn.Module):
+        horizon = 1
+
+        def __init__(self) -> None:
+            super().__init__()
+            self.weight = torch.nn.Parameter(torch.tensor(0.5))
+
+        def forward(self, value, label=None):
+            return value * self.weight
+
+    class _Engine:
+        def __init__(self) -> None:
+            self.model = _Model()
+            self._dataloader = {"train_loader": _Loader()}
+            self._optimizer = torch.optim.SGD(self.model.parameters(), lr=0.1)
+            self._clip_grad_value = 5.0
+
+        @staticmethod
+        def _to_tensor(values):
+            return [torch.as_tensor(value, dtype=torch.float32) for value in values]
+
+        @staticmethod
+        def _to_device(values):
+            return values
+
+        @staticmethod
+        def _inverse_transform(values):
+            return values
+
+        @staticmethod
+        def _loss_fn(prediction, label, mask_value):
+            del mask_value
+            return torch.abs(prediction - label).mean()
+
+    engine = _Engine()
+    initial_weight = engine.model.weight.detach().clone()
+
+    report = probe_base_engine_training_step(engine=engine)
+
+    assert report == {
+        "batch_size": 2,
+        "loss": 2.25,
+        "prediction_shape": [2, 1, 1, 1],
+        "optimizer_steps": 1,
+        "gradient_clips": 1,
+    }
+    assert engine.model.weight.detach() > initial_weight
 
 
 def test_d2stgnn_microbatches_match_one_full_masked_optimizer_step() -> None:
@@ -276,4 +380,55 @@ def test_recovery_cli_forwards_the_selected_adapter(
         "device": "cuda:0",
         "adapter": "stgcn-idempotent-self-loop-removal",
         "microbatches": 1,
+    }
+
+
+def test_recovery_cli_smoke_runs_without_a_results_root(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    observed = {}
+
+    def _probe_recovery_task(**kwargs):
+        observed.update(kwargs)
+        return {
+            "batch_size": 64,
+            "loss": 12.5,
+            "prediction_shape": [64, 12, 990, 1],
+            "optimizer_steps": 1,
+            "gradient_clips": 1,
+        }
+
+    monkeypatch.setattr(
+        "scripts.reproduction.igstgnn_table4.recovery_task_runner."
+        "probe_recovery_task",
+        _probe_recovery_task,
+    )
+
+    exit_code = main(
+        [
+            "--manifest",
+            str(tmp_path / "matrix.json"),
+            "--manifest-sha256",
+            "a" * 64,
+            "--task-id",
+            "034_orange_sttn",
+            "--splits-root",
+            str(tmp_path / "splits"),
+            "--device",
+            "cuda:0",
+            "--adapter",
+            "multi-gpu-full-batch",
+            "--smoke",
+        ]
+    )
+
+    assert exit_code == 0
+    assert observed == {
+        "manifest_path": tmp_path / "matrix.json",
+        "manifest_sha256": "a" * 64,
+        "task_id": "034_orange_sttn",
+        "splits_root": tmp_path / "splits",
+        "device": "cuda:0",
+        "adapter": "multi-gpu-full-batch",
     }

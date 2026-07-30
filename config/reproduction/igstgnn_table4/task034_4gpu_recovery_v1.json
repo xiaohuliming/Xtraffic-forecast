@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "plan_id": "igstgnn_table4_task034_4gpu_recovery_v1",
+  "protocol_id": "igstgnn_table4_official_v1",
+  "matrix_id": "igstgnn_table4_public_repro_39_v2",
+  "manifest_sha256": "d0c7fb88e24c6026d670a4a6d571357eb5320393417a83d344adb05151023a78",
+  "base_plan_id": "igstgnn_table4_4090d_9gpu_v1",
+  "base_plan_sha256": "d6eec02c9935a5699cdd814d72be85317575e361fe8f244ff7cb47e4e67fffcc",
+  "task_id": "034_orange_sttn",
+  "source_host_id": "table4_4090d5",
+  "source_shard_id": "table4_4090d5_gpu0",
+  "recovery_host_id": "table4_4090d4",
+  "recovery_hostname": "autodl-container-51fa4087de-14120c99",
+  "gpu_sku": "NVIDIA GeForce RTX 4090 D",
+  "gpu_count": 4,
+  "gpu_uuids": [
+    "GPU-c12dfe6a-f3b4-2056-8a0c-1b0a629feb36",
+    "GPU-70077372-d84a-eeb9-7ffc-ff3f33f25653",
+    "GPU-af61ffd0-be5f-a346-ec99-1a6dd755b670",
+    "GPU-f89fbd8b-93b0-65dd-ca38-386cbf894bb8"
+  ],
+  "execution_layout": "cross_host_single_task_recovery",
+  "adapter": "multi-gpu-full-batch",
+  "results_root": "shards/task034_4gpu_recovery",
+  "relay_base": "/root/xtraffic_results/igstgnn_table4_official_v1/task034_4gpu_recovery_v1/hosts"
+}
