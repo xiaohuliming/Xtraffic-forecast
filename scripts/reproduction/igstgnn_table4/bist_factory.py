@@ -126,6 +126,7 @@ def build_bist_factory(
     scaler: Any,
     logger: Any,
     output_dir: Path | str,
+    max_epochs_override: int | None = None,
 ) -> BiSTFactoryResult:
     profile_set, effective = _validate_inputs(
         profile_effective=profile_effective,
@@ -145,6 +146,21 @@ def build_bist_factory(
         or effective.get("seed_policy") != "upstream_runtime_random_draw"
     ):
         raise ValueError("Locked BiST profile seed policy is invalid")
+    effective_overrides: dict[str, dict[str, int]] = {}
+    runtime_effective = copy.deepcopy(effective)
+    if max_epochs_override is not None:
+        if (
+            isinstance(max_epochs_override, bool)
+            or not isinstance(max_epochs_override, int)
+        ):
+            raise TypeError("max_epochs_override must be an integer")
+        if not 1 <= max_epochs_override <= effective["max_epochs"]:
+            raise ValueError("max_epochs_override must be within the native cap")
+        effective_overrides["max_epochs"] = {
+            "from": effective["max_epochs"],
+            "to": max_epochs_override,
+        }
+        runtime_effective["max_epochs"] = max_epochs_override
     upstream_provenance = verify_pristine_upstream_checkout(
         source_id=BIST_SOURCE_ID,
         checkout=BIST_CHECKOUT,
@@ -219,7 +235,7 @@ def build_bist_factory(
         optimizer=optimizer,
         scheduler=scheduler,
         clip_grad_value=optimizer_config["gradient_clip"],
-        max_epochs=effective["max_epochs"],
+        max_epochs=runtime_effective["max_epochs"],
         patience=effective["patience"],
         log_dir=str(Path(output_dir)),
         logger=logger,
@@ -234,6 +250,7 @@ def build_bist_factory(
         "engine_class": (f"{engine.__class__.__module__}.{engine.__class__.__name__}"),
         "seed_policy": "upstream_runtime_random_draw_frozen_in_manifest",
         "manifest_frozen_seed": manifest_frozen_seed,
+        "effective_overrides": effective_overrides,
         "runtime_contract": {
             "torch_num_threads": 3,
             "cuda_deterministic": False,
@@ -255,6 +272,6 @@ def build_bist_factory(
         engine=engine,
         optimizer=optimizer,
         scheduler=scheduler,
-        effective_config=effective,
+        effective_config=runtime_effective,
         provenance=provenance,
     )

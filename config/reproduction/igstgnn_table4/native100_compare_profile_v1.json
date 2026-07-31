@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "protocol_id": "igstgnn_table4_official_v1",
+  "profile_id": "bist_ndr_native100_compare_v1",
+  "reported_columns": [
+    "H3",
+    "H6",
+    "H12",
+    "Average"
+  ],
+  "seeds": [
+    42,
+    1,
+    2
+  ],
+  "methods": {
+    "bist": {
+      "source_id": "bist_dd94adf_native100",
+      "base_profile_id": "bist_public_material_v2",
+      "base_config_sha256": "e7e9ba0a81b0b5d334ba0827b9037bef684492796022437ce24dea97b9830f12",
+      "override": {
+        "max_epochs": {
+          "from": 500,
+          "to": 100
+        }
+      },
+      "effective": {
+        "max_epochs": 100,
+        "patience": 20,
+        "batch_size_by_region": {
+          "Alameda": 64,
+          "Contra_Costa": 64,
+          "Orange": 64
+        },
+        "loader_contract": {
+          "training_shuffle": "global_numpy_permutation",
+          "partial_batch": "drop"
+        },
+        "optimizer": {
+          "name": "Adam",
+          "learning_rate": 0.002,
+          "weight_decay": 0.00001,
+          "epsilon": 1e-08,
+          "gradient_clip": 5.0,
+          "scheduler": {
+            "name": "MultiStepLR",
+            "milestones": [
+              30,
+              60,
+              80,
+              100
+            ],
+            "gamma": 0.5
+          }
+        },
+        "checkpoint_selection": "upstream_early_stopping_best_validation_mae"
+      }
+    },
+    "ndr_net": {
+      "source_id": "xtraffic_ndr_s0g_native100",
+      "base_profile_id": "ndr_net_table4_extension_v1",
+      "base_config_sha256": "6ca46be0fb76543a61a8bd32996c7598ac674bbe239b701d1a92481f63be9422",
+      "override": {
+        "max_epochs": {
+          "from": 30,
+          "to": 100
+        }
+      },
+      "effective": {
+        "max_epochs": 100,
+        "early_stopping": false,
+        "batch_size_by_region": {
+          "Alameda": 16,
+          "Contra_Costa": 16,
+          "Orange": 16
+        },
+        "loader_contract": {
+          "training_shuffle": "global_numpy_permutation",
+          "partial_batch": "retain"
+        },
+        "optimizer": {
+          "name": "Adam",
+          "learning_rate": 0.001,
+          "weight_decay": 0.0001,
+          "gradient_clip": 5.0,
+          "scheduler": {
+            "name": "CosineAnnealingLR",
+            "t_max": "max_epochs_times_training_batches",
+            "eta_min": 0.00001
+          }
+        },
+        "checkpoint_selection": "lowest_validation_masked_mae_across_all_valid_points"
+      }
+    }
+  },
+  "evaluation": {
+    "metric_semantics": "upstream_masked_metrics",
+    "mape_scale": 100.0,
+    "reported_horizons": [
+      3,
+      6,
+      12
+    ],
+    "average": "arithmetic_mean_of_12_per_horizon_metrics"
+  },
+  "authority": {
+    "split_and_metrics": "igstgnn_table4_official_v1",
+    "training_recipes": "method_native_public_profiles_with_only_max_epochs_overridden_to_100",
+    "seeds": "xtraffic_standard_multiseed_42_1_2"
+  },
+  "known_limitations": [
+    "the_official_table4_split_retains_known_forecast_origin_overlap",
+    "method_native_batch_loader_optimizer_and_early_stopping_recipes_remain_different",
+    "the_rows_are_a_100_epoch_supplement_and_do_not_replace_the_original_native_budget_rows"
+  ]
+}

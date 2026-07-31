@@ -100,6 +100,31 @@ def test_bist_factory_maps_locked_public_profile_and_forward_shape(tmp_path):
     assert prediction.shape == (2, 12, 4, 1)
 
 
+def test_bist_factory_native100_override_changes_only_epoch_cap(tmp_path):
+    profile_set = load_profile_set(PROFILE_PATH)
+    effective = profile_set["profiles"]["bist"]["effective"]
+    result = build_bist_factory(
+        profile_effective=effective,
+        manifest_frozen_seed=MANIFEST_FROZEN_SEED,
+        node_num=4,
+        device="cpu",
+        dataloader=_dataloader(),
+        scaler=_IdentityScaler(),
+        logger=logging.getLogger("test_table4_bist_factory.native100"),
+        output_dir=tmp_path / "bist_native100",
+        max_epochs_override=100,
+    )
+
+    assert effective["max_epochs"] == 500
+    assert result.effective_config["max_epochs"] == 100
+    assert result.effective_config["patience"] == effective["patience"] == 20
+    assert result.engine._max_epochs == 100
+    assert result.engine._patience == 20
+    assert result.provenance["effective_overrides"] == {
+        "max_epochs": {"from": 500, "to": 100}
+    }
+
+
 def test_bist_factory_manifest_frozen_runtime_seed_is_reproducible(
     tmp_path,
 ):

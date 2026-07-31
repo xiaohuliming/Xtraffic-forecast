@@ -29,6 +29,7 @@ _ALLOWED_CLAIM_SCOPES = frozenset(
     {
         _DEFAULT_CLAIM_SCOPE,
         "same_protocol_project_method_extension",
+        "same_table_native_recipe_100_epoch_supplement",
     }
 )
 _ALLOWLIST = frozenset(

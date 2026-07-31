@@ -12,7 +12,7 @@ import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 from collections.abc import Sequence
 
 import numpy as np
@@ -703,6 +703,7 @@ def _runtime_provenance(
     training_code_files: Mapping[str, str],
     best_validation_mae: float,
     best_epoch: int,
+    claim_scope: str = _CLAIM_SCOPE,
 ) -> dict[str, Any]:
     import torch
 
@@ -727,7 +728,7 @@ def _runtime_provenance(
         "matrix_manifest_sha256": spec.manifest["manifest_sha256"],
         "base_matrix_id": spec.manifest["base_matrix_id"],
         "base_manifest_sha256": spec.manifest["base_manifest_sha256"],
-        "claim_scope": _CLAIM_SCOPE,
+        "claim_scope": claim_scope,
         "validity_label": spec.manifest["validity_label"],
         "training_code_sha256": training_code_sha256,
         "training_code_files": dict(training_code_files),
@@ -815,28 +816,22 @@ def _runtime_provenance(
     }
 
 
-def run_ndr_extension_task(
+def run_ndr_task_spec(
     *,
-    manifest_path: Path | str,
-    manifest_sha256: str,
-    base_manifest_path: Path | str,
-    base_manifest_sha256: str,
-    task_id: str,
+    spec: NDRTable4TaskSpec,
     splits_root: Path | str,
     results_root: Path | str,
     device: str,
+    claim_scope: str = _CLAIM_SCOPE,
+    training_code_identity_fn: Callable[
+        [], tuple[str, dict[str, str]]
+    ] = _training_code_identity,
 ) -> Path:
     import torch
     from torch.optim import Adam
     from torch.optim.lr_scheduler import CosineAnnealingLR
 
-    spec = load_ndr_table4_task_spec(
-        manifest_path=manifest_path,
-        manifest_sha256=manifest_sha256,
-        base_manifest_path=base_manifest_path,
-        base_manifest_sha256=base_manifest_sha256,
-        task_id=task_id,
-    )
+    manifest_sha256 = spec.manifest["manifest_sha256"]
     root, target = _prepare_result_target(
         results_root=results_root,
         task=spec.task,
@@ -851,7 +846,7 @@ def run_ndr_extension_task(
         source_normalization_mean=runtime.source_normalization_mean,
         source_normalization_std=runtime.source_normalization_std,
     )
-    initial_code_sha256, initial_code_files = _training_code_identity()
+    initial_code_sha256, initial_code_files = training_code_identity_fn()
     effective = spec.profile["effective"]
     optimizer_config = effective["optimizer"]
     loss_args = SimpleNamespace(
@@ -1016,7 +1011,7 @@ def run_ndr_extension_task(
                     )
             log_handle.flush()
             os.fsync(log_handle.fileno())
-        final_code_sha256, final_code_files = _training_code_identity()
+        final_code_sha256, final_code_files = training_code_identity_fn()
         if (
             final_code_sha256 != initial_code_sha256
             or final_code_files != initial_code_files
@@ -1031,6 +1026,7 @@ def run_ndr_extension_task(
             training_code_files=final_code_files,
             best_validation_mae=best_validation_mae,
             best_epoch=best_epoch,
+            claim_scope=claim_scope,
         )
         return write_completed_task_artifacts(
             target_dir=target,
@@ -1040,11 +1036,11 @@ def run_ndr_extension_task(
             checkpoint_source=checkpoint,
             train_log_source=train_log,
             provenance=provenance,
-            claim_scope=_CLAIM_SCOPE,
+            claim_scope=claim_scope,
         )
 
 
-def probe_ndr_extension_task(
+def run_ndr_extension_task(
     *,
     manifest_path: Path | str,
     manifest_sha256: str,
@@ -1052,10 +1048,9 @@ def probe_ndr_extension_task(
     base_manifest_sha256: str,
     task_id: str,
     splits_root: Path | str,
+    results_root: Path | str,
     device: str,
-) -> None:
-    import torch
-
+) -> Path:
     spec = load_ndr_table4_task_spec(
         manifest_path=manifest_path,
         manifest_sha256=manifest_sha256,
@@ -1063,6 +1058,23 @@ def probe_ndr_extension_task(
         base_manifest_sha256=base_manifest_sha256,
         task_id=task_id,
     )
+    return run_ndr_task_spec(
+        spec=spec,
+        splits_root=splits_root,
+        results_root=results_root,
+        device=device,
+    )
+
+
+def probe_ndr_task_spec(
+    *,
+    spec: NDRTable4TaskSpec,
+    splits_root: Path | str,
+    device: str,
+) -> None:
+    import torch
+
+    task_id = spec.task["task_id"]
     device_value = _resolve_device(device)
     _set_seed(spec.task["seed"])
     runtime = _load_runtime_bundle(spec=spec, splits_root=splits_root)
@@ -1114,6 +1126,30 @@ def probe_ndr_extension_task(
         f"loss={loss_value:.8f} microbatches={microbatch_count} "
         f"peak_allocated_bytes={peak_bytes}",
         flush=True,
+    )
+
+
+def probe_ndr_extension_task(
+    *,
+    manifest_path: Path | str,
+    manifest_sha256: str,
+    base_manifest_path: Path | str,
+    base_manifest_sha256: str,
+    task_id: str,
+    splits_root: Path | str,
+    device: str,
+) -> None:
+    spec = load_ndr_table4_task_spec(
+        manifest_path=manifest_path,
+        manifest_sha256=manifest_sha256,
+        base_manifest_path=base_manifest_path,
+        base_manifest_sha256=base_manifest_sha256,
+        task_id=task_id,
+    )
+    probe_ndr_task_spec(
+        spec=spec,
+        splits_root=splits_root,
+        device=device,
     )
 
 
