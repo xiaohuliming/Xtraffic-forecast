@@ -31,6 +31,8 @@
 - Orange 5080 真实 CUDA 完整优化步探针：BiST loss 为 `148.53871155`，峰值分配显存为 `3064998912` bytes。NDR-Net loss 为 `42.43656731`，峰值分配显存为 `12633100800` bytes，使用两次 microbatch 8 保持有效 batch 16。
 - 5080 生产文件与 Mac 逐文件 SHA-256 一致。
 
+启动后新增的专用入表器将本地全仓回归更新为 489 passed 和 2 个既有 warning。该入表器要求 18 项全部通过五文件复验，之后保留既有 42 行并追加 6 个地区方法行，输出 CSV、Markdown、LaTeX 和可追溯 manifest。
+
 ## 5080 启动状态
 
 - 独立 checkout：`D:\t4\native100_repo`

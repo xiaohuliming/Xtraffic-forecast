@@ -179,7 +179,9 @@ BiST-NDR 通过外部适配器复用 BiST 编码、backcast residual 和自适�
 
 BiST 保留原生 batch 64、drop partial batch、Adam 0.002、MultiStepLR 和 patience 20，只把上限从 500 epoch 改为 100。NDR-Net 保留原生 batch 16、retain partial batch、Adam 0.001、CosineAnnealingLR、全局验证 masked MAE 和无 early stopping 契约，只把上限从 30 epoch 改为 100。评测列仍为 H3、H6、H12 与 Average，每组报告 MAE、RMSE 与 MAPE。
 
-Mac 全仓回归为 487 passed 和 2 个既有 warning，5080 Windows 专项门为 25 passed。Orange 最大地区真实 CUDA 完整优化步探针均通过，BiST 与 NDR-Net 峰值分配显存为 `3064998912` 与 `12633100800` bytes。5080 于 2026-08-01 00:02:23 新加坡时间在 `D:\t4\native100_repo` 启动计划任务 `XTraffic_Table4_Native100_v1`，执行时限为 `PT0S`。启动复验时队列为 0/18，失败数为 0，正在执行 `n100001_bist_alameda_seed42`，GPU 利用率为 70%。完整记录见 `docs/audits/igstgnn_table4_native100_launch_2026-08-01.md`。
+Mac 全仓回归为 489 passed 和 2 个既有 warning，5080 Windows 专项门为 25 passed。Orange 最大地区真实 CUDA 完整优化步探针均通过，BiST 与 NDR-Net 峰值分配显存为 `3064998912` 与 `12633100800` bytes。5080 于 2026-08-01 00:02:23 新加坡时间在 `D:\t4\native100_repo` 启动计划任务 `XTraffic_Table4_Native100_v1`，执行时限为 `PT0S`。启动复验时队列为 0/18，失败数为 0，正在执行 `n100001_bist_alameda_seed42`，GPU 利用率为 70%。完整记录见 `docs/audits/igstgnn_table4_native100_launch_2026-08-01.md`。
+
+`scripts/reproduction/igstgnn_table4/native100_compare_report.py` 已锁定最终入表路径。它只在 18 项全部通过五文件复验后生成报告，保留既有 42 行，追加 6 个 BiST 100ep 与 NDR-Net 100ep 的地区行，输出同结构 CSV、Markdown、LaTeX 和 manifest。
 
 该矩阵仍使用 `igstgnn_table4_official_v1` 与 `official_protocol_with_known_overlap` 标签。在 18 项全部落盘和验收前，不报告 100 epoch 性能结论，不覆盖既有 BiST 500 epoch 单次结果或 NDR-Net 30 epoch 三种子结果，也不得与 v3 无泄露结果混合。
 

@@ -20,7 +20,7 @@
 
 当前 XTraffic 协议为 `protocol_v3_noleak_dedup`，cache schema 为 3。正式缓存构建代码 SHA 为 clean commit `29159f626494de52c69b36fe5bba9854f13cb56c`，最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。v3 正式缓存已通过本地两次、5080 一次和 5090 一次严格复验。runner 层 45/45 已完成或重新验收，5080 分片为 27/27，5090 分片为 18/18。只读 composite index 已于 2026-07-27 18:28:27 新加坡时间验证成功，矩阵有效性状态为 `verified_host_stratified_45`，index SHA-256 为 `8cf92dc2e931e3e9c3ca18cafb81a794fe68fbd0556dec3401b8650f827899fe`。同机配对、多种子统计与窗口级显著性分析已经完成。是否恢复论文主张仍由用户根据落盘证据决定。
 
-IGSTGNN Table 4 使用独立协议 `igstgnn_table4_official_v1`，不得与 v3 无泄露结果混合。原 39 项已经完成三源回传和两次完整只读 composite 复验。正式 index SHA-256 为 `3e5f6bee6eb0cd667f28c287f9538136b31c4312652673453e3f56e446edbbe2`。NDR-Net 独立 9 项扩展也已验证，index SHA-256 为 `8f4666c45b7708c47d1ee90f3a81444eaf46fee5ba1011bc0242f96c20e0983a`。最终 Markdown、CSV 与 LaTeX 表位于 `../outputs/reproduction/igstgnn_table4_official_v1/`。BiST 与 BiST-NDR 的统一 30 epoch 配对队列已完成 runner 层 18/18，尚待配对分析。BiST 与原 NDR-Net 的原生配方 100 epoch 矩阵已在 5080 启动。本地全仓回归为 487 passed 和 2 个既有 warning。完整身份、哈希和历史 incident 见对应启动报告。
+IGSTGNN Table 4 使用独立协议 `igstgnn_table4_official_v1`，不得与 v3 无泄露结果混合。原 39 项已经完成三源回传和两次完整只读 composite 复验。正式 index SHA-256 为 `3e5f6bee6eb0cd667f28c287f9538136b31c4312652673453e3f56e446edbbe2`。NDR-Net 独立 9 项扩展也已验证，index SHA-256 为 `8f4666c45b7708c47d1ee90f3a81444eaf46fee5ba1011bc0242f96c20e0983a`。最终 Markdown、CSV 与 LaTeX 表位于 `../outputs/reproduction/igstgnn_table4_official_v1/`。BiST 与 BiST-NDR 的统一 30 epoch 配对队列已完成 runner 层 18/18，尚待配对分析。BiST 与原 NDR-Net 的原生配方 100 epoch 矩阵已在 5080 启动。本地全仓回归为 489 passed 和 2 个既有 warning。完整身份、哈希和历史 incident 见对应启动报告。
 
 ## 当前方法说明
 

@@ -315,7 +315,9 @@ NDR 在 Orange 的 Average MAE 比单次 BiST 低 0.123177。在 Alameda 和 Con
 
 本次不统一两个方法的优化器和 early stopping，而是保留每个方法的原生配方。BiST 保留 batch 64、drop partial batch、Adam 0.002、MultiStepLR 和 patience 20，只把最大 epoch 从 500 改为 100。NDR-Net 保留 batch 16、retain partial batch、Adam 0.001、CosineAnnealingLR、全局验证 masked MAE 和无 early stopping 契约，只把最大 epoch 从 30 改为 100。所有结果继续报告 H3、H6、H12 与 12 步 Average 下的 MAE、RMSE 与 MAPE。
 
-Mac 全仓回归为 487 passed 和 2 个既有 warning，5080 Windows 专项门为 25 passed。Orange 最大地区的两个真实 CUDA 完整优化步探针均通过。BiST 峰值分配显存为 3,064,998,912 bytes，NDR-Net 为 12,633,100,800 bytes。5080 计划任务 `XTraffic_Table4_Native100_v1` 于 2026-08-01 00:02:23 新加坡时间启动，执行时限为 `PT0S`。启动复验时队列为 0/18，失败数为 0，正在执行 `n100001_bist_alameda_seed42`。
+Mac 全仓回归为 489 passed 和 2 个既有 warning，5080 Windows 专项门为 25 passed。Orange 最大地区的两个真实 CUDA 完整优化步探针均通过。BiST 峰值分配显存为 3,064,998,912 bytes，NDR-Net 为 12,633,100,800 bytes。5080 计划任务 `XTraffic_Table4_Native100_v1` 于 2026-08-01 00:02:23 新加坡时间启动，执行时限为 `PT0S`。启动复验时队列为 0/18，失败数为 0，正在执行 `n100001_bist_alameda_seed42`。
+
+专用入表器 `native100_compare_report.py` 已通过完整与缺项矩阵回归。它会逐项复算 18 份结果，缺少任意一项就拒绝出表。完整时保留既有 42 行并追加 6 个地区方法行，自动生成同结构 CSV、Markdown、LaTeX 与 manifest。
 
 这组补跑继承 Table 4 官方切分的已知重合，有效性标签仍为 `official_protocol_with_known_overlap`。18 项全部落盘和验收前，不得报告 100 epoch 下的性能结论，不覆盖已有 BiST 500 epoch 单次结果或 NDR-Net 30 epoch 三种子结果，也不得与 v3 无泄露矩阵混合。完整启动记录见 `docs/audits/igstgnn_table4_native100_launch_2026-08-01.md`。
 
@@ -842,7 +844,8 @@ runner 层现已完成或重新验收 45/45。5090 新分片为 18/18，5080 新
 76. 首项 `pair001_bist_aligned_alameda_seed42` 于 10:14 完成 30 个 epoch，并通过五文件验收，best validation MAE 为 `11.69943708`。H3、H6、H12 与 Average MAE 为 `11.205525`、`11.784402`、`12.675788` 与 `11.740657`。队列完成数为 1/18，失败数为 0，正在执行 `pair002_bist_aligned_alameda_seed1`。该单项结果不能形成 BiST-NDR 性能结论。
 77. BiST 与 BiST-NDR 配对队列于 2026-07-31 13:41:13 新加坡时间完成。runner 为 completed，18/18 任务全部验收，失败和 skipped 均为 0，正式任务树含 18 个目录与 90 个文件。这是统一 30 epoch 训练控制下的结构配对实验，与用于填回原 Table 4 的原生配方 100 epoch 补充矩阵分开管理。当前尚未生成配对性能结论。
 78. 建立 BiST 与原 STAEformer 版 NDR-Net 的 100 epoch 补充对比矩阵 `igstgnn_table4_bist_ndr_native100_18_v1`。它保留各自原生 batch、optimizer、scheduler、partial batch 和 early stopping 契约，只把两者最大 epoch 设为 100。矩阵为两方法乘三地区乘三种子，共 18 项，并使用原 Table 4 的指标列。
-79. 通过 Mac 全仓 487 项回归、5080 Windows 25 项专项门与 Orange 两种方法真实 CUDA 完整优化步探针。计划任务 `XTraffic_Table4_Native100_v1` 于 2026-08-01 00:02:23 新加坡时间启动。启动复验时队列为 0/18，失败数为 0，正在执行 `n100001_bist_alameda_seed42`。
+79. 通过 Mac 全仓 489 项回归、5080 Windows 25 项专项门与 Orange 两种方法真实 CUDA 完整优化步探针。计划任务 `XTraffic_Table4_Native100_v1` 于 2026-08-01 00:02:23 新加坡时间启动。启动复验时队列为 0/18，失败数为 0，正在执行 `n100001_bist_alameda_seed42`。
+80. 增加 100 epoch 专用入表器。它仅在 18 项均通过五文件复验时产生 48 行最终表，保留原 42 行并追加 6 行 BiST 100ep 与 NDR-Net 100ep 三种子汇总。输出包含 CSV、Markdown、LaTeX 和可追溯 manifest。
 
 当前待执行事项按优先级排列。
 
