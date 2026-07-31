@@ -828,7 +828,8 @@ runner 层现已完成或重新验收 45/45。5090 新分片为 18/18，5080 新
 72. task034 于 10:38:24 完成。提交 `a9511d5` 与 `51148f1` 修复两个 fail-closed 收尾问题，没有重训或 artifact 改写。task034 的 5 个文件和 170,575,062 bytes 在结果服务器完成逐文件复验、原子提升和正式树二次复验，transfer marker SHA-256 为 `e393e8238b25677b55e7f1ae00813c3f0a9eb46f7a532c0eb7bba21ee4758d68`。四卡机自动关机，原 39 项任务结果层达到 39/39。
 73. 完成原 39 项三源 composite 与 NDR 9 项独立索引。原矩阵状态为 `verified_official_protocol_with_known_overlap_39`，正式 index SHA-256 为 `3e5f6bee6eb0cd667f28c287f9538136b31c4312652673453e3f56e446edbbe2`。NDR 扩展 index SHA-256 为 `8f4666c45b7708c47d1ee90f3a81444eaf46fee5ba1011bc0242f96c20e0983a`。论文同结构 39 项表与 NDR 三种子汇总表均已生成并保留协议限制。
 74. 建立 BiST 与 BiST-NDR 严格配对矩阵 `igstgnn_table4_bist_ndr_pair_18_v1`。矩阵为两种方法乘三地区乘种子 42、1、2，共 18 项。矩阵 SHA-256 为 `90f5ceb4a0e1306d3f1ff11268b76220a289a37a922c6926665825a56c9cdeab`，配置 SHA-256 为 `b763fb35b392e265a410325efa0ef34afa3b0d16c7c2e56c71bc3243844e8764`。两个方法使用相同训练控制、`partial_batch: retain`、全局验证 masked MAE 和测试观测集合。
-75. 通过 Mac 全仓 480 项回归、5080 Windows 5 项专项门、Alameda 两种方法 CPU 探针和 Orange 两种方法 CUDA 完整优化步探针。5080 在独立 checkout `D:\t4\bist_ndr_repo` 启动正式队列。第一次 SYSTEM 启动因 site-packages 没有传给子进程而在训练前退出，没有正式结果。修复后计划任务 `XTraffic_BiST_NDR_Pair_v1` 于 2026-07-31 10:06:03 新加坡时间重启。截至 10:07，首项已完成 4 个 epoch，最近验证 MAE 为 `13.87203209`。
+75. 通过 Mac 全仓 480 项回归、5080 Windows 5 项专项门、Alameda 两种方法 CPU 探针和 Orange 两种方法 CUDA 完整优化步探针。5080 在独立 checkout `D:\t4\bist_ndr_repo` 启动正式队列。第一次 SYSTEM 启动因 site-packages 没有传给子进程而在训练前退出，没有正式结果。修复后计划任务 `XTraffic_BiST_NDR_Pair_v1` 于 2026-07-31 10:06:03 新加坡时间重启。
+76. 首项 `pair001_bist_aligned_alameda_seed42` 于 10:14 完成 30 个 epoch，并通过五文件验收，best validation MAE 为 `11.69943708`。H3、H6、H12 与 Average MAE 为 `11.205525`、`11.784402`、`12.675788` 与 `11.740657`。队列完成数为 1/18，失败数为 0，正在执行 `pair002_bist_aligned_alameda_seed1`。该单项结果不能形成 BiST-NDR 性能结论。
 
 当前待执行事项按优先级排列。
 

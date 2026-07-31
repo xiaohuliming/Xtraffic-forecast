@@ -48,7 +48,7 @@ IGSTGNN Table 4 使用独立协议 `igstgnn_table4_official_v1`。该协议沿�
 
 NDR-Net 的 Average MAE 为 Alameda `10.759524 ± 0.040862`、Contra Costa `11.413717 ± 0.024537`、Orange `11.569331 ± 0.031664`。baseline 是单次运行，NDR 是三种子均值和样本标准差，因此目前只支持描述性比较。
 
-为消除单次 BiST、三种子 NDR 和测试尾批处理不一致的问题，仓库新增独立的 18 项 BiST 与 BiST-NDR 严格配对矩阵。两个方法使用相同的三地区、种子 42、1、2、训练控制和完整测试观测集合。5080 队列已启动，当前没有完成任务或性能结论。协议、探针和启动状态见 [配对实验启动记录](docs/audits/igstgnn_table4_bist_ndr_pair_launch_2026-07-31.md)。
+为消除单次 BiST、三种子 NDR 和测试尾批处理不一致的问题，仓库新增独立的 18 项 BiST 与 BiST-NDR 严格配对矩阵。两个方法使用相同的三地区、种子 42、1、2、训练控制和完整测试观测集合。5080 队列已启动并完成 1/18，当前单项结果不能形成性能结论。协议、探针和启动状态见 [配对实验启动记录](docs/audits/igstgnn_table4_bist_ndr_pair_launch_2026-07-31.md)。
 
 ## 已确认的数据问题
 

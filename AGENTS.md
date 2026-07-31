@@ -98,4 +98,4 @@ NDR 9 项正式树的结果服务器复验回执 SHA-256 为 `dbd9dcb355a3324707
 
 BiST 与 BiST-NDR 使用独立配对矩阵 `igstgnn_table4_bist_ndr_pair_18_v1`。矩阵 SHA-256 为 `90f5ceb4a0e1306d3f1ff11268b76220a289a37a922c6926665825a56c9cdeab`，配置 SHA-256 为 `b763fb35b392e265a410325efa0ef34afa3b0d16c7c2e56c71bc3243844e8764`。矩阵包含两种方法、三地区和种子 42、1、2，共 18 项。两个方法必须使用相同的 `partial_batch: retain`、测试观测集合、训练控制和全局验证 masked MAE。
 
-Mac 全仓回归为 480 passed 和 2 个既有 warning，5080 Windows 专项门为 5 passed。Orange 最大地区的两个真实 CUDA 完整优化步探针均通过。5080 正式队列于 2026-07-31 10:06:03 新加坡时间在独立 `D:\t4\bist_ndr_repo` 启动，计划任务名为 `XTraffic_BiST_NDR_Pair_v1`。截至 10:07，首项 `pair001_bist_aligned_alameda_seed42` 已完成 4 个 epoch，最近验证 MAE 为 `13.87203209`。当前没有完成任务或有效性能结论。该矩阵不得写成 IGSTGNN 原论文方法，也不得与 v3 无泄露矩阵混合。
+Mac 全仓回归为 480 passed 和 2 个既有 warning，5080 Windows 专项门为 5 passed。Orange 最大地区的两个真实 CUDA 完整优化步探针均通过。5080 正式队列于 2026-07-31 10:06:03 新加坡时间在独立 `D:\t4\bist_ndr_repo` 启动，计划任务名为 `XTraffic_BiST_NDR_Pair_v1`。首项 `pair001_bist_aligned_alameda_seed42` 已于 10:14 完成并通过五文件验收，H3、H6、H12 与 Average MAE 为 `11.205525`、`11.784402`、`12.675788` 与 `11.740657`。队列为 1/18，正在执行 `pair002_bist_aligned_alameda_seed1`。单项结果不能形成 BiST-NDR 性能结论。该矩阵不得写成 IGSTGNN 原论文方法，也不得与 v3 无泄露矩阵混合。

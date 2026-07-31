@@ -169,7 +169,7 @@ NDR 扩展的正式树也已完成独立复验。结果服务器逐文件回执 
 
 BiST-NDR 通过外部适配器复用 BiST 编码、backcast residual 和自适应残差图传播，并增加正常残差头、扰动残差头与 NDR gate。BiST pristine checkout 没有被修改或复制。Mac 全仓回归现为 480 passed 和 2 个既有 warning，5080 Windows 专项门为 5 passed。Orange 最大地区的两个真实 CUDA 完整优化步探针均通过，`bist_aligned` 与 `bist_ndr` 的峰值分配显存分别为 `439906816` 与 `457959424` bytes。
 
-5080 使用独立 checkout `D:\t4\bist_ndr_repo` 和结果根 `D:\t4\bist_ndr_pair\results`。第一次 SYSTEM 计划任务因子进程没有继承 ASUS 用户 site-packages 而在 NumPy 导入阶段退出，没有任务目录或正式结果。修复启动脚本与子进程 `PYTHONPATH` 后，计划任务 `XTraffic_BiST_NDR_Pair_v1` 于 2026-07-31 10:06:03 新加坡时间正式重启，执行时限为 `PT0S`。截至 10:07，`pair001_bist_aligned_alameda_seed42` 已完成 4 个 epoch，最近训练 MAE 为 `14.19464472`，验证 MAE 为 `13.87203209`。当前没有已完成任务，不得报告 BiST-NDR 性能结论。完整记录见 `docs/audits/igstgnn_table4_bist_ndr_pair_launch_2026-07-31.md`。
+5080 使用独立 checkout `D:\t4\bist_ndr_repo` 和结果根 `D:\t4\bist_ndr_pair\results`。第一次 SYSTEM 计划任务因子进程没有继承 ASUS 用户 site-packages 而在 NumPy 导入阶段退出，没有任务目录或正式结果。修复启动脚本与子进程 `PYTHONPATH` 后，计划任务 `XTraffic_BiST_NDR_Pair_v1` 于 2026-07-31 10:06:03 新加坡时间正式重启，执行时限为 `PT0S`。首项 `pair001_bist_aligned_alameda_seed42` 已于 10:14 完成 30 个 epoch，并通过五文件验收，best validation MAE 为 `11.69943708`。H3、H6、H12 与 Average MAE 为 `11.205525`、`11.784402`、`12.675788` 与 `11.740657`。队列为 1/18，正在执行 `pair002_bist_aligned_alameda_seed1`。单项结果不得用于报告 BiST-NDR 性能结论。完整记录见 `docs/audits/igstgnn_table4_bist_ndr_pair_launch_2026-07-31.md`。
 
 ## v2 冻结记录
 
