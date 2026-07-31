@@ -99,3 +99,9 @@ NDR 9 项正式树的结果服务器复验回执 SHA-256 为 `dbd9dcb355a3324707
 BiST 与 BiST-NDR 使用独立配对矩阵 `igstgnn_table4_bist_ndr_pair_18_v1`。矩阵 SHA-256 为 `90f5ceb4a0e1306d3f1ff11268b76220a289a37a922c6926665825a56c9cdeab`，配置 SHA-256 为 `b763fb35b392e265a410325efa0ef34afa3b0d16c7c2e56c71bc3243844e8764`。矩阵包含两种方法、三地区和种子 42、1、2，共 18 项。两个方法必须使用相同的 `partial_batch: retain`、测试观测集合、训练控制和全局验证 masked MAE。
 
 Mac 全仓回归为 480 passed 和 2 个既有 warning，5080 Windows 专项门为 5 passed。Orange 最大地区的两个真实 CUDA 完整优化步探针均通过。5080 正式队列于 2026-07-31 10:06:03 新加坡时间在独立 `D:\t4\bist_ndr_repo` 启动，计划任务名为 `XTraffic_BiST_NDR_Pair_v1`。首项 `pair001_bist_aligned_alameda_seed42` 已于 10:14 完成并通过五文件验收，H3、H6、H12 与 Average MAE 为 `11.205525`、`11.784402`、`12.675788` 与 `11.740657`。队列为 1/18，正在执行 `pair002_bist_aligned_alameda_seed1`。单项结果不能形成 BiST-NDR 性能结论。该矩阵不得写成 IGSTGNN 原论文方法，也不得与 v3 无泄露矩阵混合。
+
+BiST 与 BiST-NDR 配对队列已于 2026-07-31 13:41:13 新加坡时间完成。runner 为 completed，18/18 任务全部验收，失败和 skipped 均为 0，正式任务树含 18 个目录与 90 个文件。它是统一 30 epoch 训练控制下的结构配对实验，不是填回原 Table 4 的原生配方补跑。当前只确认 runner 完整性，尚未生成配对性能结论。
+
+BiST 与原 STAEformer 版 NDR-Net 的 100 epoch 补充对比使用独立矩阵 `igstgnn_table4_bist_ndr_native100_18_v1`。矩阵 SHA-256 为 `e4fe8a6987e06dd573212f88665b181b03b83e9fbad43b9f08781ecbedcf8246`，配方 SHA-256 为 `37ebcb574f516bc1b662ade0d5264deda96a20d017d20edc7a57253daab5e66b`，实现提交为 `53f4b3a`。矩阵包含两种方法、三地区和种子 42、1、2，共 18 项。BiST 保留原生 batch 64、drop partial batch、Adam 0.002、MultiStepLR 和 patience 20，仅把上限从 500 epoch 改为 100。NDR-Net 保留原生 batch 16、retain partial batch、Adam 0.001、CosineAnnealingLR、全局验证 masked MAE 和无 early stopping 契约，仅把上限从 30 epoch 改为 100。
+
+Mac 全仓回归为 487 passed 和 2 个既有 warning，5080 Windows 专项门为 25 passed。Orange 最大地区真实 CUDA 完整优化步探针均通过，BiST 与 NDR-Net 峰值分配显存为 `3064998912` 与 `12633100800` bytes。5080 计划任务 `XTraffic_Table4_Native100_v1` 于 2026-08-01 00:02:23 新加坡时间在独立 `D:\t4\native100_repo` 启动，执行时限为 `PT0S`。启动复验时为 0/18 完成、0 失败，正在执行 `n100001_bist_alameda_seed42`。该矩阵沿用 Table 4 的 H3、H6、H12 与 Average 指标列，当前不得形成性能结论，不得覆盖原有结果，也不得与 v3 无泄露矩阵混合。

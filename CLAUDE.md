@@ -171,6 +171,18 @@ BiST-NDR 通过外部适配器复用 BiST 编码、backcast residual 和自适�
 
 5080 使用独立 checkout `D:\t4\bist_ndr_repo` 和结果根 `D:\t4\bist_ndr_pair\results`。第一次 SYSTEM 计划任务因子进程没有继承 ASUS 用户 site-packages 而在 NumPy 导入阶段退出，没有任务目录或正式结果。修复启动脚本与子进程 `PYTHONPATH` 后，计划任务 `XTraffic_BiST_NDR_Pair_v1` 于 2026-07-31 10:06:03 新加坡时间正式重启，执行时限为 `PT0S`。首项 `pair001_bist_aligned_alameda_seed42` 已于 10:14 完成 30 个 epoch，并通过五文件验收，best validation MAE 为 `11.69943708`。H3、H6、H12 与 Average MAE 为 `11.205525`、`11.784402`、`12.675788` 与 `11.740657`。队列为 1/18，正在执行 `pair002_bist_aligned_alameda_seed1`。单项结果不得用于报告 BiST-NDR 性能结论。完整记录见 `docs/audits/igstgnn_table4_bist_ndr_pair_launch_2026-07-31.md`。
 
+该配对队列已于 2026-07-31 13:41:13 新加坡时间完成。runner 状态为 completed，18/18 任务全部验收，失败和 skipped 均为 0，正式任务树含 18 个目录与 90 个文件。这条实验线是统一 30 epoch 训练控制下的 BiST 与 BiST-NDR 结构配对，与下方用于填回原 Table 4 的 BiST 与原 NDR-Net 100 epoch 补充矩阵彼此独立。当前只确认 runner 完整性，尚未生成配对性能结论。
+
+## BiST 与 NDR-Net 原生配方 100 epoch 补充对比
+
+2026-08-01 建立独立矩阵 `igstgnn_table4_bist_ndr_native100_18_v1`，用于生成可直接填入既有 Table 4 的 BiST 与 NDR-Net 100 epoch 补充行。矩阵为两种方法乘三地区乘种子 42、1、2，共 18 项。矩阵 SHA-256 为 `e4fe8a6987e06dd573212f88665b181b03b83e9fbad43b9f08781ecbedcf8246`，配方 SHA-256 为 `37ebcb574f516bc1b662ade0d5264deda96a20d017d20edc7a57253daab5e66b`，实现提交为 `53f4b3a`。
+
+BiST 保留原生 batch 64、drop partial batch、Adam 0.002、MultiStepLR 和 patience 20，只把上限从 500 epoch 改为 100。NDR-Net 保留原生 batch 16、retain partial batch、Adam 0.001、CosineAnnealingLR、全局验证 masked MAE 和无 early stopping 契约，只把上限从 30 epoch 改为 100。评测列仍为 H3、H6、H12 与 Average，每组报告 MAE、RMSE 与 MAPE。
+
+Mac 全仓回归为 487 passed 和 2 个既有 warning，5080 Windows 专项门为 25 passed。Orange 最大地区真实 CUDA 完整优化步探针均通过，BiST 与 NDR-Net 峰值分配显存为 `3064998912` 与 `12633100800` bytes。5080 于 2026-08-01 00:02:23 新加坡时间在 `D:\t4\native100_repo` 启动计划任务 `XTraffic_Table4_Native100_v1`，执行时限为 `PT0S`。启动复验时队列为 0/18，失败数为 0，正在执行 `n100001_bist_alameda_seed42`，GPU 利用率为 70%。完整记录见 `docs/audits/igstgnn_table4_native100_launch_2026-08-01.md`。
+
+该矩阵仍使用 `igstgnn_table4_official_v1` 与 `official_protocol_with_known_overlap` 标签。在 18 项全部落盘和验收前，不报告 100 epoch 性能结论，不覆盖既有 BiST 500 epoch 单次结果或 NDR-Net 30 epoch 三种子结果，也不得与 v3 无泄露结果混合。
+
 ## v2 冻结记录
 
 2026-07-19 曾从提交 `bf3045ac` 构建 v2 三地区缓存。事件样本 train、val、test 数分别为 Alameda 43973、9450、9366，ContraCosta 19159、4026、4040，Orange 75395、15727、14368。full-window 三地区曾记录为 73561、10501、21013，远端曾有 28 项测试通过。45 项队列于 00:39 启动，启动判活时 GPU 利用率为 91%，显存使用约 6.0 GiB。

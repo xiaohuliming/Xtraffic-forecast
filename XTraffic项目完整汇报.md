@@ -309,6 +309,16 @@ NDR 在 Orange 的 Average MAE 比单次 BiST 低 0.123177。在 Alameda 和 Con
 
 最终 39 行加 3 个 NDR 汇总行的 CSV、Markdown 与 LaTeX SHA-256 分别为 `057e0fa94bbea24d834ed16ed00b94b0599a9e9081321cc205643793c47f34c1`、`1097b82ed71ec26d9657ff28cebcefd5c3455a179b3ef8ad6ba68529b7a118d8` 与 `33047e4d0e11929ae1c8c4e3121dd6aad9bb8684769713d58c3621fb961e22ce`。本地全仓回归为 474 passed 和 2 个既有 warning。IGSTGNN Table 4 复现线现已完成训练、回传、三源 composite、论文值差异表、NDR 三种子扩展和数字追溯。它仍不得与 `protocol_v3_noleak_dedup` 的无泄露研究结论混合。
 
+### 最新进展，2026-08-01，BiST 与 NDR-Net 原生配方 100 epoch 补跑启动
+
+为了让补跑结果能够直接放入既有 Table 4，新建独立矩阵 `igstgnn_table4_bist_ndr_native100_18_v1`。它包含 BiST 与原 STAEformer 版 NDR-Net、Alameda、Contra Costa、Orange 三地区、种子 42、1、2，共 18 项。矩阵 SHA-256 为 `e4fe8a6987e06dd573212f88665b181b03b83e9fbad43b9f08781ecbedcf8246`，配方 SHA-256 为 `37ebcb574f516bc1b662ade0d5264deda96a20d017d20edc7a57253daab5e66b`，实现提交为 `53f4b3a`。
+
+本次不统一两个方法的优化器和 early stopping，而是保留每个方法的原生配方。BiST 保留 batch 64、drop partial batch、Adam 0.002、MultiStepLR 和 patience 20，只把最大 epoch 从 500 改为 100。NDR-Net 保留 batch 16、retain partial batch、Adam 0.001、CosineAnnealingLR、全局验证 masked MAE 和无 early stopping 契约，只把最大 epoch 从 30 改为 100。所有结果继续报告 H3、H6、H12 与 12 步 Average 下的 MAE、RMSE 与 MAPE。
+
+Mac 全仓回归为 487 passed 和 2 个既有 warning，5080 Windows 专项门为 25 passed。Orange 最大地区的两个真实 CUDA 完整优化步探针均通过。BiST 峰值分配显存为 3,064,998,912 bytes，NDR-Net 为 12,633,100,800 bytes。5080 计划任务 `XTraffic_Table4_Native100_v1` 于 2026-08-01 00:02:23 新加坡时间启动，执行时限为 `PT0S`。启动复验时队列为 0/18，失败数为 0，正在执行 `n100001_bist_alameda_seed42`。
+
+这组补跑继承 Table 4 官方切分的已知重合，有效性标签仍为 `official_protocol_with_known_overlap`。18 项全部落盘和验收前，不得报告 100 epoch 下的性能结论，不覆盖已有 BiST 500 epoch 单次结果或 NDR-Net 30 epoch 三种子结果，也不得与 v3 无泄露矩阵混合。完整启动记录见 `docs/audits/igstgnn_table4_native100_launch_2026-08-01.md`。
+
 ---
 
 ## 第二部分：研究目标与演进路径
@@ -830,12 +840,15 @@ runner 层现已完成或重新验收 45/45。5090 新分片为 18/18，5080 新
 74. 建立 BiST 与 BiST-NDR 严格配对矩阵 `igstgnn_table4_bist_ndr_pair_18_v1`。矩阵为两种方法乘三地区乘种子 42、1、2，共 18 项。矩阵 SHA-256 为 `90f5ceb4a0e1306d3f1ff11268b76220a289a37a922c6926665825a56c9cdeab`，配置 SHA-256 为 `b763fb35b392e265a410325efa0ef34afa3b0d16c7c2e56c71bc3243844e8764`。两个方法使用相同训练控制、`partial_batch: retain`、全局验证 masked MAE 和测试观测集合。
 75. 通过 Mac 全仓 480 项回归、5080 Windows 5 项专项门、Alameda 两种方法 CPU 探针和 Orange 两种方法 CUDA 完整优化步探针。5080 在独立 checkout `D:\t4\bist_ndr_repo` 启动正式队列。第一次 SYSTEM 启动因 site-packages 没有传给子进程而在训练前退出，没有正式结果。修复后计划任务 `XTraffic_BiST_NDR_Pair_v1` 于 2026-07-31 10:06:03 新加坡时间重启。
 76. 首项 `pair001_bist_aligned_alameda_seed42` 于 10:14 完成 30 个 epoch，并通过五文件验收，best validation MAE 为 `11.69943708`。H3、H6、H12 与 Average MAE 为 `11.205525`、`11.784402`、`12.675788` 与 `11.740657`。队列完成数为 1/18，失败数为 0，正在执行 `pair002_bist_aligned_alameda_seed1`。该单项结果不能形成 BiST-NDR 性能结论。
+77. BiST 与 BiST-NDR 配对队列于 2026-07-31 13:41:13 新加坡时间完成。runner 为 completed，18/18 任务全部验收，失败和 skipped 均为 0，正式任务树含 18 个目录与 90 个文件。这是统一 30 epoch 训练控制下的结构配对实验，与用于填回原 Table 4 的原生配方 100 epoch 补充矩阵分开管理。当前尚未生成配对性能结论。
+78. 建立 BiST 与原 STAEformer 版 NDR-Net 的 100 epoch 补充对比矩阵 `igstgnn_table4_bist_ndr_native100_18_v1`。它保留各自原生 batch、optimizer、scheduler、partial batch 和 early stopping 契约，只把两者最大 epoch 设为 100。矩阵为两方法乘三地区乘三种子，共 18 项，并使用原 Table 4 的指标列。
+79. 通过 Mac 全仓 487 项回归、5080 Windows 25 项专项门与 Orange 两种方法真实 CUDA 完整优化步探针。计划任务 `XTraffic_Table4_Native100_v1` 于 2026-08-01 00:02:23 新加坡时间启动。启动复验时队列为 0/18，失败数为 0，正在执行 `n100001_bist_alameda_seed42`。
 
 当前待执行事项按优先级排列。
 
-1. 完成 BiST 与 BiST-NDR 的 18 项严格配对矩阵，并逐任务验收五文件 artifact。
-2. 对同地区同种子的 9 组配对结果进行多种子汇总和窗口级配对分析。
-3. 在完整 18 项完成前，不报告 BiST-NDR 优于或劣于 BiST 的性能结论。
+1. 完成 BiST 与 NDR-Net 的 18 项原生配方 100 epoch 补充矩阵，并逐任务验收五文件 artifact。
+2. 在完整 18 项落盘后按 H3、H6、H12 和 Average 生成同结构对比表，同时保留三种子均值和样本标准差。
+3. 保留已有 BiST 500 epoch 单次行、NDR-Net 30 epoch 三种子行和新的 100 epoch 补充行，不互相覆盖。
 
 ---
 
@@ -852,6 +865,7 @@ runner 层现已完成或重新验收 45/45。5090 新分片为 18/18，5080 新
 | docs/audits/result_validity.csv | 各实验族的机器可读有效性状态 |
 | docs/audits/igstgnn_table4_4090d_launch_2026-07-29.md | Table 4 双机九卡部署、incident、双卡恢复、自动回传与关机状态 |
 | docs/audits/igstgnn_table4_bist_ndr_pair_launch_2026-07-31.md | BiST 与 BiST-NDR 18 项严格配对协议、探针、启动 incident 与 5080 队列状态 |
+| docs/audits/igstgnn_table4_native100_launch_2026-08-01.md | BiST 与 NDR-Net 原生配方 100 epoch 矩阵、探针、身份与 5080 启动状态 |
 | docs/archive/项目总结报告_2026-06-10.md | 已归档，止于 06-10 的全部结果、13 节审计实验、14 节决策、复现命令，详情已并入本文 |
 | docs/archive/去季节化方向_交接_2026-06-26.md | 已归档，去季节化方向的会话交接，核心已并入本文第 4.8 与第十二部分 |
 | dist_net/protocol.py | 无泄露 v3 的因果填充、窗口、切分、事件身份与共享协议 |

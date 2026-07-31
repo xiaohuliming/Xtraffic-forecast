@@ -48,3 +48,9 @@ BiST 上游目录保持 pristine。由于该上游 checkout 没有许可证文�
 正式队列于 2026-07-31 10:06:03 新加坡时间重新启动。首项 `pair001_bist_aligned_alameda_seed42` 已于 10:14 完成 30 个 epoch，并通过五文件验收。best validation MAE 为 `11.69943708`。H3、H6、H12 与 Average MAE 为 `11.205525`、`11.784402`、`12.675788` 与 `11.740657`。prediction shape 为 `2204 × 12 × 521`，有效观测点数为 `10989142`。队列完成数为 1/18，失败数为 0，正在执行 `pair002_bist_aligned_alameda_seed1`。
 
 首项只是 Alameda BiST seed 42 的单项结果，不得用于报告 BiST-NDR 性能结论。当前控制链只负责本机持久训练与五文件任务验收，没有配置自动关机或结果服务器发布。
+
+## 队列完成更新
+
+队列已于 2026-07-31 13:41:13 新加坡时间完成。`queue_status.json` 记录的 runner 状态为 completed，18/18 任务全部通过任务级五文件验收，失败数为 0，skipped 数为 0。正式任务树包含 18 个任务目录和 90 个文件。
+
+这一状态只证明 runner 层的任务完整性。完成多种子汇总和窗口级配对分析前，不报告 BiST-NDR 优于或劣于 BiST 的性能结论。该统一 30 epoch 结构配对实验与 `igstgnn_table4_bist_ndr_native100_18_v1` 原生配方 100 epoch 补充矩阵彼此独立。
