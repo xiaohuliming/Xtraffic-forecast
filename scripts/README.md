@@ -40,6 +40,10 @@ v2 已因重复 forecast origin、active event 跨 split、验证累计和训练
 | `reproduction/igstgnn_table4/composite_report.py` | 已验证 | 从精确哈希绑定的 composite index 生成 39 项 CSV、Markdown、LaTeX 和论文值差异表 |
 | `reproduction/igstgnn_table4/ndr_extension_report.py` | 已验证 | 核对 NDR 的 49 文件远端回执、9 个任务 provenance，并生成三种子均值和样本标准差 |
 | `reproduction/igstgnn_table4/ndr_extension_merge.py` | 已验证 | 将原 39 项与三个 NDR 地区汇总行合并为最终展示表 |
+| `reproduction/igstgnn_table4/bist_ndr_pair_manifest.py` | 运行中 | 固定 BiST 与 BiST-NDR 的 18 项三地区三种子配对矩阵 |
+| `reproduction/igstgnn_table4/bist_ndr_pair_model.py` | 运行中 | 在不修改 BiST pristine checkout 的前提下提供 BiST 对照与 BiST-NDR 双头适配 |
+| `reproduction/igstgnn_table4/bist_ndr_pair_runner.py` | 运行中 | 执行单项配对训练、全局验证 masked MAE、完整测试尾批与五文件结果写入 |
+| `reproduction/igstgnn_table4/bist_ndr_pair_matrix_runner.py` | 运行中 | 幂等执行 18 项队列并逐项验收正式 artifact |
 
 原 39 项 composite index SHA-256 为 `3e5f6bee6eb0cd667f28c287f9538136b31c4312652673453e3f56e446edbbe2`。NDR 扩展 index SHA-256 为 `8f4666c45b7708c47d1ee90f3a81444eaf46fee5ba1011bc0242f96c20e0983a`。最终报告位于 `outputs/reproduction/igstgnn_table4_official_v1/`。该协议保留已知重叠，不能与 v3 无泄露结果混用。
 

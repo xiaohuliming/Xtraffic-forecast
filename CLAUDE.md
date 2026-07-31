@@ -163,6 +163,14 @@ NDR 扩展的正式树也已完成独立复验。结果服务器逐文件回执 
 
 最终 39 行加 3 个 NDR 汇总行的 CSV、Markdown 与 LaTeX 已生成，SHA-256 分别为 `057e0fa94bbea24d834ed16ed00b94b0599a9e9081321cc205643793c47f34c1`、`1097b82ed71ec26d9657ff28cebcefd5c3455a179b3ef8ad6ba68529b7a118d8` 与 `33047e4d0e11929ae1c8c4e3121dd6aad9bb8684769713d58c3621fb961e22ce`。NDR 的 Average MAE 在 Orange 低于所有单次 baseline，在 Alameda 与 Contra Costa 略高于 BiST。该比较仅为描述性展示，因为 baseline 是单次运行，NDR 是三种子均值。当前本地全仓为 474 passed 和 2 个既有 warning。
 
+## BiST 与 BiST-NDR 严格配对实验
+
+2026-07-31 建立独立矩阵 `igstgnn_table4_bist_ndr_pair_18_v1`，用于判断 BiST 骨干是否能改善 NDR。矩阵为 2 个方法乘 3 个地区乘种子 42、1、2，共 18 项。矩阵 SHA-256 为 `90f5ceb4a0e1306d3f1ff11268b76220a289a37a922c6926665825a56c9cdeab`，配置 SHA-256 为 `b763fb35b392e265a410325efa0ef34afa3b0d16c7c2e56c71bc3243844e8764`。两个方法统一使用 batch 16、30 个 epoch、相同优化器、全局验证 masked MAE 和 `partial_batch: retain`，测试观测集合严格一致。
+
+BiST-NDR 通过外部适配器复用 BiST 编码、backcast residual 和自适应残差图传播，并增加正常残差头、扰动残差头与 NDR gate。BiST pristine checkout 没有被修改或复制。Mac 全仓回归现为 480 passed 和 2 个既有 warning，5080 Windows 专项门为 5 passed。Orange 最大地区的两个真实 CUDA 完整优化步探针均通过，`bist_aligned` 与 `bist_ndr` 的峰值分配显存分别为 `439906816` 与 `457959424` bytes。
+
+5080 使用独立 checkout `D:\t4\bist_ndr_repo` 和结果根 `D:\t4\bist_ndr_pair\results`。第一次 SYSTEM 计划任务因子进程没有继承 ASUS 用户 site-packages 而在 NumPy 导入阶段退出，没有任务目录或正式结果。修复启动脚本与子进程 `PYTHONPATH` 后，计划任务 `XTraffic_BiST_NDR_Pair_v1` 于 2026-07-31 10:06:03 新加坡时间正式重启，执行时限为 `PT0S`。截至 10:07，`pair001_bist_aligned_alameda_seed42` 已完成 4 个 epoch，最近训练 MAE 为 `14.19464472`，验证 MAE 为 `13.87203209`。当前没有已完成任务，不得报告 BiST-NDR 性能结论。完整记录见 `docs/audits/igstgnn_table4_bist_ndr_pair_launch_2026-07-31.md`。
+
 ## v2 冻结记录
 
 2026-07-19 曾从提交 `bf3045ac` 构建 v2 三地区缓存。事件样本 train、val、test 数分别为 Alameda 43973、9450、9366，ContraCosta 19159、4026、4040，Orange 75395、15727、14368。full-window 三地区曾记录为 73561、10501、21013，远端曾有 28 项测试通过。45 项队列于 00:39 启动，启动判活时 GPU 利用率为 91%，显存使用约 6.0 GiB。

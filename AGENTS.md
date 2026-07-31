@@ -95,3 +95,7 @@ NDR 9 项正式树的结果服务器复验回执 SHA-256 为 `dbd9dcb355a3324707
 所有数字必须来自落盘文件。保留诚实负结果。种子约定为 42、1、2。指标采用 masked MAE。
 
 实验室共享主机、地址和密码统一明文维护在 `config/lab_hosts.env`，脚本直接加载该文件。私钥、个人令牌和个人账号凭据仍不得进入仓库。
+
+BiST 与 BiST-NDR 使用独立配对矩阵 `igstgnn_table4_bist_ndr_pair_18_v1`。矩阵 SHA-256 为 `90f5ceb4a0e1306d3f1ff11268b76220a289a37a922c6926665825a56c9cdeab`，配置 SHA-256 为 `b763fb35b392e265a410325efa0ef34afa3b0d16c7c2e56c71bc3243844e8764`。矩阵包含两种方法、三地区和种子 42、1、2，共 18 项。两个方法必须使用相同的 `partial_batch: retain`、测试观测集合、训练控制和全局验证 masked MAE。
+
+Mac 全仓回归为 480 passed 和 2 个既有 warning，5080 Windows 专项门为 5 passed。Orange 最大地区的两个真实 CUDA 完整优化步探针均通过。5080 正式队列于 2026-07-31 10:06:03 新加坡时间在独立 `D:\t4\bist_ndr_repo` 启动，计划任务名为 `XTraffic_BiST_NDR_Pair_v1`。截至 10:07，首项 `pair001_bist_aligned_alameda_seed42` 已完成 4 个 epoch，最近验证 MAE 为 `13.87203209`。当前没有完成任务或有效性能结论。该矩阵不得写成 IGSTGNN 原论文方法，也不得与 v3 无泄露矩阵混合。
