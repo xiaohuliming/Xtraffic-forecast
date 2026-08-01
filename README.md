@@ -50,7 +50,7 @@ NDR-Net 的 Average MAE 为 Alameda `10.759524 ± 0.040862`、Contra Costa `11.4
 
 为消除单次 BiST、三种子 NDR 和测试尾批处理不一致的问题，仓库已完成独立的 18 项 BiST 与 BiST-NDR 严格配对队列。该矩阵使用统一 30 epoch 训练控制，runner 已验收 18/18，尚待多种子与窗口级配对分析。协议、探针和完成状态见 [配对实验启动记录](docs/audits/igstgnn_table4_bist_ndr_pair_launch_2026-07-31.md)。
 
-为直接填入原 Table 4，仓库另建了 BiST 与原 STAEformer 版 NDR-Net 的 18 项原生配方 100 epoch 补充矩阵。两个方法保留各自原生 batch、optimizer、scheduler、partial batch 和 early stopping 契约，只把最大 epoch 设为 100。5080 持久队列已于 2026-08-01 00:02:23 新加坡时间启动。完整身份、探针和启动状态见 [100 epoch 补充对比启动记录](docs/audits/igstgnn_table4_native100_launch_2026-08-01.md)。
+为直接填入原 Table 4，仓库另建了 BiST 与原 STAEformer 版 NDR-Net 的 18 项原生配方 100 epoch 补充矩阵。两个方法保留各自原生 batch、optimizer、scheduler、partial batch 和 early stopping 契约，只把最大 epoch 设为 100。2026-08-01 12:18 新加坡时间起，矩阵改为按地区分层的 RTX 5080 与 RTX 5090 双机执行。5080 负责 Alameda 与 Contra Costa 的 12 项，5090 负责 Orange 的 6 项。完整身份、探针和原始启动状态见 [100 epoch 补充对比启动记录](docs/audits/igstgnn_table4_native100_launch_2026-08-01.md)，双机切换与当前状态见 [双机重分片记录](docs/audits/igstgnn_table4_native100_dual_host_rebalance_2026-08-01.md)。
 
 18 项完成后，专用报告器会逐任务复算并验收五文件 artifact，然后把 BiST 100ep 和 NDR-Net 100ep 的三种子均值与样本标准差自动合并到既有 42 行表。输出保持原表的 H3、H6、H12 与 Average 指标列，同时生成 CSV、Markdown、LaTeX 和可追溯 manifest。
 

@@ -44,3 +44,11 @@
 - 启动后 GPU 状态：显存使用 3965 MiB，利用率 70%，温度 53 摄氏度
 
 完整 18 项落盘前，不报告 BiST 与 NDR-Net 的 100 epoch 性能结论，也不覆盖已有 BiST 500 epoch 单次结果或 NDR-Net 30 epoch 三种子结果。
+
+## 双机重分片
+
+2026-08-01 12:18 新加坡时间起，执行布局切换为按地区分层的 RTX 5080 与 RTX 5090 双机矩阵。5080 只跑 Alameda 与 Contra Costa 的 12 项，5090 重跑 Orange 的 BiST 与 NDR-Net 共 6 项。两分片交集为空，并集严格为 18 项，同一地区的直接比较保持同机。计划 SHA-256 为 `d66b47c1e4c31e42a4704002e6c98d673b1c2d19f5762684c67d049ce5a7ad6e`。
+
+5090 的 Orange 九个数据文件已逐文件复验。BiST 与 NDR-Net 的真实 CUDA 完整优化步探针均通过，峰值分配显存分别为 `3142229504` 与 `12682121728` bytes。5090 持久队列于 12:38:57 启动，初始状态为 0/6 完成、0 失败，正在执行 `n100007_bist_orange_seed42`。Mac 全仓回归更新为 493 passed 和 2 个既有 warning。
+
+5080 结果根内切换前完成的 Orange BiST 三项保持只读，但不进入最终选择。最终必须按双机计划生成只读 composite，选择 5080 声明的 12 项与 5090 声明的 6 项。详细记录见 `docs/audits/igstgnn_table4_native100_dual_host_rebalance_2026-08-01.md`。

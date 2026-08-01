@@ -185,6 +185,12 @@ Mac 全仓回归为 489 passed 和 2 个既有 warning，5080 Windows 专项门�
 
 该矩阵仍使用 `igstgnn_table4_official_v1` 与 `official_protocol_with_known_overlap` 标签。在 18 项全部落盘和验收前，不报告 100 epoch 性能结论，不覆盖既有 BiST 500 epoch 单次结果或 NDR-Net 30 epoch 三种子结果，也不得与 v3 无泄露结果混合。
 
+2026-08-01 12:18 新加坡时间起，原生配方 100 epoch 补充矩阵改为按地区分层的双机执行。计划 `igstgnn_table4_native100_5080_5090_v1` SHA-256 为 `d66b47c1e4c31e42a4704002e6c98d673b1c2d19f5762684c67d049ce5a7ad6e`。5080 只选择 Alameda 与 Contra Costa 的 12 项，5090 只选择 Orange 的 6 项。两分片互斥且并集为 canonical 18，同一地区的 BiST 与 NDR-Net 保持同机。最终布局只能称为 `dual_host_region_stratified`。
+
+5080 的旧 18 项计划任务已停止并禁用。被中断的 task013 没有正式任务目录，incident 的 `files.sha256` 摘要为 `94802ea874935de3db70eb3d5b730ec14e978662ebeada4014bc7eb09f34be23`。新计划任务 `XTraffic_Table4_Native100_5080_CC_v1` 于 12:18 启动，跳过 9 个已验证的正式任务，重新执行 task013。12:40 前 task013 已完成 epoch 17。5080 结果根内已有的 Orange BiST tasks007-009 保持只读，但必须从最终 composite 选择中排除。
+
+5090 使用训练归档提交 `ace318b`，Orange 九个数据文件已与 Mac 逐文件校验一致，split manifest SHA-256 为 `c37b78f19766fec9ac57d28d6a7becd8a3b334261cef4e7863f29b0bbcc7b019`。BiST 与 NDR-Net 的真实 CUDA 完整优化步探针均通过，峰值分配显存为 `3142229504` 与 `12682121728` bytes。5090 持久队列于 12:38:57 启动，选择 Orange 六项，初始状态为 0/6、0 失败，当前为 task007。12:40 时 task007 已完成 epoch 6。当前 Mac 全仓为 493 passed 和 2 个既有 warning。完整重分片记录见 `docs/audits/igstgnn_table4_native100_dual_host_rebalance_2026-08-01.md`。
+
 ## v2 冻结记录
 
 2026-07-19 曾从提交 `bf3045ac` 构建 v2 三地区缓存。事件样本 train、val、test 数分别为 Alameda 43973、9450、9366，ContraCosta 19159、4026、4040，Orange 75395、15727、14368。full-window 三地区曾记录为 73561、10501、21013，远端曾有 28 项测试通过。45 项队列于 00:39 启动，启动判活时 GPU 利用率为 91%，显存使用约 6.0 GiB。

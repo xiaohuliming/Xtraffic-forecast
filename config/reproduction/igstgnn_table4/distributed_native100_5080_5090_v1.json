@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "plan_id": "igstgnn_table4_native100_5080_5090_v1",
+  "protocol_id": "igstgnn_table4_official_v1",
+  "matrix_id": "igstgnn_table4_bist_ndr_native100_18_v1",
+  "manifest_sha256": "e4fe8a6987e06dd573212f88665b181b03b83e9fbad43b9f08781ecbedcf8246",
+  "base_manifest_sha256": "d0c7fb88e24c6026d670a4a6d571357eb5320393417a83d344adb05151023a78",
+  "profile_sha256": "37ebcb574f516bc1b662ade0d5264deda96a20d017d20edc7a57253daab5e66b",
+  "source_commit": "ace318b",
+  "execution_layout": "dual_host_region_stratified",
+  "claim_scope": "same_table_native_recipe_100_epoch_supplement",
+  "validity_label": "official_protocol_with_known_overlap",
+  "hosts": [
+    {
+      "host_id": "native100_rtx5080_alameda_contra",
+      "gpu_sku": "NVIDIA GeForce RTX 5080",
+      "regions": [
+        "Alameda",
+        "Contra_Costa"
+      ],
+      "launcher": "scripts/remote/windows/igstgnn_table4_native100_5080_cc_only.cmd",
+      "launcher_sha256": "eecb23803e25455eb6cd7cd66df29e44fd2111669a43f5a81f93795ddaf9dbac",
+      "result_selection": "declared_task_ids_only",
+      "task_ids": [
+        "n100001_bist_alameda_seed42",
+        "n100002_bist_alameda_seed1",
+        "n100003_bist_alameda_seed2",
+        "n100004_bist_contra_costa_seed42",
+        "n100005_bist_contra_costa_seed1",
+        "n100006_bist_contra_costa_seed2",
+        "n100010_ndr_net_alameda_seed42",
+        "n100011_ndr_net_alameda_seed1",
+        "n100012_ndr_net_alameda_seed2",
+        "n100013_ndr_net_contra_costa_seed42",
+        "n100014_ndr_net_contra_costa_seed1",
+        "n100015_ndr_net_contra_costa_seed2"
+      ],
+      "excluded_existing_task_ids": [
+        "n100007_bist_orange_seed42",
+        "n100008_bist_orange_seed1",
+        "n100009_bist_orange_seed2"
+      ],
+      "rebalance_incident_files_sha256": "94802ea874935de3db70eb3d5b730ec14e978662ebeada4014bc7eb09f34be23"
+    },
+    {
+      "host_id": "native100_rtx5090_orange",
+      "gpu_sku": "NVIDIA GeForce RTX 5090",
+      "regions": [
+        "Orange"
+      ],
+      "launcher": "scripts/remote/linux/igstgnn_table4_native100_5090_orange.sh",
+      "launcher_sha256": "862d6e05221bfad46e3ee02692bf375db113cabb785559031c4e4835a2758d94",
+      "result_selection": "declared_task_ids_only",
+      "task_ids": [
+        "n100007_bist_orange_seed42",
+        "n100008_bist_orange_seed1",
+        "n100009_bist_orange_seed2",
+        "n100016_ndr_net_orange_seed42",
+        "n100017_ndr_net_orange_seed1",
+        "n100018_ndr_net_orange_seed2"
+      ],
+      "excluded_existing_task_ids": [],
+      "rebalance_incident_files_sha256": null
+    }
+  ],
+  "finalization": {
+    "mode": "read_only_composite",
+    "require_source_host_postflight": true,
+    "require_result_server_file_verification": true,
+    "allow_duplicate_task_selection": false,
+    "allow_source_artifact_mutation": false
+  }
+}

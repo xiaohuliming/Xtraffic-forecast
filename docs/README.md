@@ -15,6 +15,7 @@
 | `audits/igstgnn_table4_4090d_launch_2026-07-29.md` | IGSTGNN Table 4 双机九卡启动、显存恢复、回传和关机状态 |
 | `audits/igstgnn_table4_bist_ndr_pair_launch_2026-07-31.md` | BiST 与 BiST-NDR 18 项严格配对协议、探针和 5080 队列状态 |
 | `audits/igstgnn_table4_native100_launch_2026-08-01.md` | BiST 与 NDR-Net 原生配方 100 epoch 补充矩阵、探针和 5080 启动状态 |
+| `audits/igstgnn_table4_native100_dual_host_rebalance_2026-08-01.md` | 原生配方 100 epoch 矩阵的 5080 与 5090 地区分层重分片、数据复验、探针和启动状态 |
 
 `XTraffic项目完整汇报.md` 仍是研究历史和数字出处的权威文档，但其中的 XTraffic 数值在 v3 复跑前均属于历史结果。当前是否可用于论文，以 v3 协议复审、数据泄露审计和有效性清单为准。
 

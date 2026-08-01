@@ -321,6 +321,16 @@ Mac 全仓回归为 489 passed 和 2 个既有 warning，5080 Windows 专项门�
 
 这组补跑继承 Table 4 官方切分的已知重合，有效性标签仍为 `official_protocol_with_known_overlap`。18 项全部落盘和验收前，不得报告 100 epoch 下的性能结论，不覆盖已有 BiST 500 epoch 单次结果或 NDR-Net 30 epoch 三种子结果，也不得与 v3 无泄露矩阵混合。完整启动记录见 `docs/audits/igstgnn_table4_native100_launch_2026-08-01.md`。
 
+### 最新进展，2026-08-01，RTX 5080 与 RTX 5090 双机重分片
+
+为了缩短剩余训练时间，100 epoch 补充矩阵已切换为按地区分层的双机执行。固定计划 `igstgnn_table4_native100_5080_5090_v1` 的 SHA-256 为 `d66b47c1e4c31e42a4704002e6c98d673b1c2d19f5762684c67d049ce5a7ad6e`。RTX 5080 只选择 Alameda 与 Contra Costa 的 12 项，RTX 5090 只选择 Orange 的 6 项。两分片交集为空，并集严格为 18 项。同一地区内 BiST 与 NDR-Net 的三个种子保持在同一台机器，因此地区内直接比较没有跨主机。
+
+5080 切换时 task013 只有临时训练目录，没有正式结果。现场清单摘要为 `94802ea874935de3db70eb3d5b730ec14e978662ebeada4014bc7eb09f34be23`。旧 18 项计划任务已禁用，新任务 `XTraffic_Table4_Native100_5080_CC_v1` 从 9 个已验证的声明内结果继续。12:40 前 task013 已完成 epoch 17。结果根中切换前完成的 Orange BiST 三项保持只读，但最终 composite 明确排除它们。
+
+5090 的 Orange 九个数据文件均已与 Mac 原件逐文件复验。split manifest SHA-256 为 `c37b78f19766fec9ac57d28d6a7becd8a3b334261cef4e7863f29b0bbcc7b019`。BiST 与 NDR-Net 的真实 CUDA 完整优化步探针均通过，峰值分配显存为 3,142,229,504 与 12,682,121,728 bytes。5090 持久队列于 12:38:57 启动，选择 6 项，初始失败数为 0。12:40 时首项 Orange BiST seed 42 已完成 epoch 6。Mac 全仓回归更新为 493 passed 和 2 个既有 warning。
+
+最终结果必须标记为 `dual_host_region_stratified`。双机训练结束后仍需分别完成 source-host postflight、结果服务器逐文件复验与只读 composite。完成这些门禁前不生成 18 项最终表。详细记录见 `docs/audits/igstgnn_table4_native100_dual_host_rebalance_2026-08-01.md`。
+
 ---
 
 ## 第二部分：研究目标与演进路径
@@ -846,6 +856,9 @@ runner 层现已完成或重新验收 45/45。5090 新分片为 18/18，5080 新
 78. 建立 BiST 与原 STAEformer 版 NDR-Net 的 100 epoch 补充对比矩阵 `igstgnn_table4_bist_ndr_native100_18_v1`。它保留各自原生 batch、optimizer、scheduler、partial batch 和 early stopping 契约，只把两者最大 epoch 设为 100。矩阵为两方法乘三地区乘三种子，共 18 项，并使用原 Table 4 的指标列。
 79. 通过 Mac 全仓 489 项回归、5080 Windows 25 项专项门与 Orange 两种方法真实 CUDA 完整优化步探针。计划任务 `XTraffic_Table4_Native100_v1` 于 2026-08-01 00:02:23 新加坡时间启动。启动复验时队列为 0/18，失败数为 0，正在执行 `n100001_bist_alameda_seed42`。
 80. 增加 100 epoch 专用入表器。它仅在 18 项均通过五文件复验时产生 48 行最终表，保留原 42 行并追加 6 行 BiST 100ep 与 NDR-Net 100ep 三种子汇总。输出包含 CSV、Markdown、LaTeX 和可追溯 manifest。
+81. 固化双机地区分层计划 `igstgnn_table4_native100_5080_5090_v1`。5080 选择 Alameda 与 Contra Costa 的 12 项，5090 选择 Orange 的 6 项。两分片互斥且并集为 canonical 18，同地区的 BiST 与 NDR-Net 保持同机。计划 SHA-256 为 `d66b47c1e4c31e42a4704002e6c98d673b1c2d19f5762684c67d049ce5a7ad6e`。
+82. 安全切换 5080 队列。task013 中断时没有正式任务目录，incident 清单摘要为 `94802ea874935de3db70eb3d5b730ec14e978662ebeada4014bc7eb09f34be23`。新计划任务从 9 个已验证结果继续。5080 结果根内既有 Orange BiST 三项保持只读，但被最终选择规则排除。
+83. 5090 完成 Orange 九个数据文件的逐文件复验、25 项训练门禁与两种方法真实 CUDA 完整优化步探针。持久 Orange 六项队列于 12:38:57 启动，初始状态为 0/6 完成和 0 失败。Mac 全仓回归为 493 passed 和 2 个既有 warning。
 
 当前待执行事项按优先级排列。
 
@@ -869,6 +882,7 @@ runner 层现已完成或重新验收 45/45。5090 新分片为 18/18，5080 新
 | docs/audits/igstgnn_table4_4090d_launch_2026-07-29.md | Table 4 双机九卡部署、incident、双卡恢复、自动回传与关机状态 |
 | docs/audits/igstgnn_table4_bist_ndr_pair_launch_2026-07-31.md | BiST 与 BiST-NDR 18 项严格配对协议、探针、启动 incident 与 5080 队列状态 |
 | docs/audits/igstgnn_table4_native100_launch_2026-08-01.md | BiST 与 NDR-Net 原生配方 100 epoch 矩阵、探针、身份与 5080 启动状态 |
+| docs/audits/igstgnn_table4_native100_dual_host_rebalance_2026-08-01.md | 原生配方 100 epoch 矩阵的 5080 与 5090 地区分层计划、数据复验、探针和双机启动状态 |
 | docs/archive/项目总结报告_2026-06-10.md | 已归档，止于 06-10 的全部结果、13 节审计实验、14 节决策、复现命令，详情已并入本文 |
 | docs/archive/去季节化方向_交接_2026-06-26.md | 已归档，去季节化方向的会话交接，核心已并入本文第 4.8 与第十二部分 |
 | dist_net/protocol.py | 无泄露 v3 的因果填充、窗口、切分、事件身份与共享协议 |

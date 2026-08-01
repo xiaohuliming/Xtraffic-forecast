@@ -47,6 +47,8 @@ v2 已因重复 forecast origin、active event 跨 split、验证累计和训练
 | `reproduction/igstgnn_table4/native100_compare_runner.py` | 运行中 | 保留 BiST 与原 NDR-Net 各自原生配方，只将最大 epoch 设为 100 |
 | `reproduction/igstgnn_table4/native100_compare_matrix_runner.py` | 运行中 | 幂等执行 18 项 100 epoch 补充矩阵并逐项验收 |
 | `reproduction/igstgnn_table4/native100_compare_report.py` | 待结果 | 复验 18 项后保留既有 42 行，追加 6 行并生成同结构 CSV、Markdown、LaTeX 和 manifest |
+| `remote/windows/igstgnn_table4_native100_5080_cc_only.cmd` | 运行中 | 在 5080 上只选择 Alameda 与 Contra Costa 的 12 个原生配方 100 epoch 任务 |
+| `remote/linux/igstgnn_table4_native100_5090_orange.sh` | 运行中 | 在 5090 上只选择 Orange 的 6 个原生配方 100 epoch 任务 |
 
 原 39 项 composite index SHA-256 为 `3e5f6bee6eb0cd667f28c287f9538136b31c4312652673453e3f56e446edbbe2`。NDR 扩展 index SHA-256 为 `8f4666c45b7708c47d1ee90f3a81444eaf46fee5ba1011bc0242f96c20e0983a`。最终报告位于 `outputs/reproduction/igstgnn_table4_official_v1/`。该协议保留已知重叠，不能与 v3 无泄露结果混用。
 
