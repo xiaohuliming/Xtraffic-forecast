@@ -38,6 +38,8 @@ RTX 5090 分片共 6 项：
 
 5080 结果根内保留了切换前已完成的 Orange BiST `n100007` 至 `n100009`。这些目录没有被改写，但最终 composite 必须按计划的 `declared_task_ids_only` 规则排除它们，只选择 5090 重跑的 Orange 六项。
 
+5080 分片已于 2026-08-01 15:52:38 新加坡时间完成。queue state 为 completed，声明内 12/12 全部通过 runner 验收，失败数为 0。用户报告主机随后断电。23:37 局域网 SSH 恢复后复验确认 completed 状态与 12 个已验证任务仍在，GPU 空闲，因此断电没有中断训练或导致重跑。
+
 ## RTX 5090 部署与验证
 
 5090 为单卡 RTX 5090，显存 32,607 MiB。独立代码根为 `/root/autodl-tmp/native100_repo`，独立数据根为 `/root/autodl-tmp/native100_data/official_splits`，独立结果根为 `/root/autodl-tmp/native100_orange/results`。
@@ -62,4 +64,10 @@ Orange 数据目录严格包含 9 个允许文件。三个 split 的 SHA-256 为
 
 5090 启动脚本 SHA-256 为 `862d6e05221bfad46e3ee02692bf375db113cabb785559031c4e4835a2758d94`。持久控制进程于 2026-08-01 12:38:57 新加坡时间启动，launcher PID 为 `3072`，matrix runner PID 为 `3075`。启动后的 queue state 为 running，选择任务 6 项，完成 0 项，失败 0 项，当前任务为 `n100007_bist_orange_seed42`。12:40 时该任务已完成 epoch 6，GPU 显存使用 3,870 MiB，利用率 56%，温度 56 摄氏度。
 
-当前 Mac 全仓回归为 493 passed 和 2 个既有 warning。双机训练完成后仍需分别执行 source-host postflight，回传结果服务器后逐文件复验，再生成只读 composite index。完成 composite 前不得生成或发布最终 18 项表。本轮 5090 没有配置自动关机。
+当前 Mac 全仓回归为 493 passed 和 2 个既有 warning。双机训练完成后仍需分别执行 source-host postflight，回传结果服务器后逐文件复验，再生成只读 composite index。完成 composite 前不得生成或发布最终 18 项表。
+
+## RTX 5090 自动关机守护
+
+2026-08-01 23:45 新加坡时间，用户明确要求 5090 在训练完成后关机。守护脚本 `scripts/remote/linux/igstgnn_table4_native100_5090_shutdown_waiter.sh` 的 SHA-256 为 `d0168a7f1b3b2b1b5386de1cebb52681fc1319babe8df1eddb5344228706bbb1`。本地与 5090 真实环境测试均通过三种情形：队列未完成时保持开机，六项完整复验且 runner 零退出时执行关机，runner 非零退出时保持开机。
+
+远端持久守护 PID 为 `20225`，父进程为 PID 1，每 60 秒检查一次。关机前会重新验证矩阵、基础清单、双机计划、queue status、runner exit code、六个精确任务目录以及每项五文件 artifact，并确认没有残留训练进程。只有全部通过才调用 `/usr/bin/shutdown -h now`。任何缺项、哈希错误、非零退出或残留训练进程都会 fail closed 并保持机器开机。启动守护时 5090 为 4/6 完成、0 失败，task017 已完成 epoch 82。完整矩阵当时为 16/18 已验收。

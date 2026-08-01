@@ -113,3 +113,7 @@ Mac 全仓回归为 489 passed 和 2 个既有 warning，5080 Windows 专项门�
 5080 的旧 18 项计划任务已停止并禁用。task013 中断时没有正式任务目录，incident `files.sha256` 摘要为 `94802ea874935de3db70eb3d5b730ec14e978662ebeada4014bc7eb09f34be23`。新计划任务 `XTraffic_Table4_Native100_5080_CC_v1` 从 9 个已验证结果继续，12:40 前 task013 已完成 epoch 17。5080 结果根内已有 Orange BiST tasks007-009 不得进入最终 composite。
 
 5090 使用训练归档提交 `ace318b`。Orange 九个数据文件已逐文件复验，split manifest SHA-256 为 `c37b78f19766fec9ac57d28d6a7becd8a3b334261cef4e7863f29b0bbcc7b019`。5090 专项门为 25 passed。Orange BiST 与 NDR-Net 真实 CUDA 完整优化步探针峰值分配显存为 `3142229504` 与 `12682121728` bytes。5090 持久队列于 12:38:57 启动，选择 6 项，初始状态为 0/6、0 失败，执行 task007。12:40 时 task007 已完成 epoch 6。Mac 全仓为 493 passed 和 2 个既有 warning。最终必须在双机 postflight、结果服务器逐文件复验和只读 composite 完成后才能生成 18 项表。
+
+用户已明确要求 5090 训练完成后关机。失败关闭守护脚本 `igstgnn_table4_native100_5090_shutdown_waiter.sh` SHA-256 为 `d0168a7f1b3b2b1b5386de1cebb52681fc1319babe8df1eddb5344228706bbb1`，远端持久 PID 为 `20225`。它每 60 秒检查一次，只在 Orange 6/6 逐任务五文件复验、queue completed、0 失败、runner 退出码 0 且没有残留训练进程时调用 `/usr/bin/shutdown -h now`。异常时保持开机。守护启动时 5090 为 4/6 完成，task017 已到 epoch 82。
+
+5080 地区分片已于 2026-08-01 15:52:38 新加坡时间完成，声明内 12/12 全部通过 runner 验收，失败数为 0。用户报告主机随后断电。23:37 局域网 SSH 恢复后复验确认 completed 状态、12 个已验证任务和空闲 GPU，断电没有造成训练中断或重跑。结合 5090 的 4/6，完整矩阵当时为 16/18 已验收。

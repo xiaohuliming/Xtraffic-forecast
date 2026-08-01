@@ -331,6 +331,10 @@ Mac 全仓回归为 489 passed 和 2 个既有 warning，5080 Windows 专项门�
 
 最终结果必须标记为 `dual_host_region_stratified`。双机训练结束后仍需分别完成 source-host postflight、结果服务器逐文件复验与只读 composite。完成这些门禁前不生成 18 项最终表。详细记录见 `docs/audits/igstgnn_table4_native100_dual_host_rebalance_2026-08-01.md`。
 
+23:45，新加坡时间，用户要求 5090 在训练完成后自动关机。新增失败关闭守护脚本，SHA-256 为 `d0168a7f1b3b2b1b5386de1cebb52681fc1319babe8df1eddb5344228706bbb1`。守护会重新验证 Orange 六项的矩阵身份、双机计划、queue status、runner exit code 和每项五文件 artifact，并确认训练进程完全退出。只有全部通过才执行 `/usr/bin/shutdown -h now`，任何异常都会保持开机。远端持久 PID 为 `20225`。启动守护时 5090 为 4/6 完成、0 失败，task017 已完成 epoch 82。
+
+5080 分片已在当天 15:52:38 完成，声明内 12/12 全部通过 runner 验收，失败数为 0。用户报告主机随后断电。23:37 局域网连接恢复后，completed queue、12 个已验证任务和空闲 GPU 均已复验。断电没有造成训练中断或重跑。结合 5090 的 4/6，完整矩阵当时为 16/18 已验收。
+
 ---
 
 ## 第二部分：研究目标与演进路径
@@ -859,6 +863,8 @@ runner 层现已完成或重新验收 45/45。5090 新分片为 18/18，5080 新
 81. 固化双机地区分层计划 `igstgnn_table4_native100_5080_5090_v1`。5080 选择 Alameda 与 Contra Costa 的 12 项，5090 选择 Orange 的 6 项。两分片互斥且并集为 canonical 18，同地区的 BiST 与 NDR-Net 保持同机。计划 SHA-256 为 `d66b47c1e4c31e42a4704002e6c98d673b1c2d19f5762684c67d049ce5a7ad6e`。
 82. 安全切换 5080 队列。task013 中断时没有正式任务目录，incident 清单摘要为 `94802ea874935de3db70eb3d5b730ec14e978662ebeada4014bc7eb09f34be23`。新计划任务从 9 个已验证结果继续。5080 结果根内既有 Orange BiST 三项保持只读，但被最终选择规则排除。
 83. 5090 完成 Orange 九个数据文件的逐文件复验、25 项训练门禁与两种方法真实 CUDA 完整优化步探针。持久 Orange 六项队列于 12:38:57 启动，初始状态为 0/6 完成和 0 失败。Mac 全仓回归为 493 passed 和 2 个既有 warning。
+84. 根据用户要求部署 5090 训练完成自动关机守护。守护脚本 SHA-256 为 `d0168a7f1b3b2b1b5386de1cebb52681fc1319babe8df1eddb5344228706bbb1`，远端持久 PID 为 `20225`。它只在 Orange 6/6 逐任务五文件复验、queue completed、runner 零退出且训练进程完全结束后关机，任何异常都会保持开机。
+85. 5080 地区分片于 15:52:38 完成并验收 12/12，失败数为 0。主机随后断电，23:37 恢复局域网连接后确认结果与 completed 状态完整，GPU 空闲。完整矩阵当时为 16/18 已验收。
 
 当前待执行事项按优先级排列。
 

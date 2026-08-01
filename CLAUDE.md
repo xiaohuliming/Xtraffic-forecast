@@ -191,6 +191,10 @@ Mac 全仓回归为 489 passed 和 2 个既有 warning，5080 Windows 专项门�
 
 5090 使用训练归档提交 `ace318b`，Orange 九个数据文件已与 Mac 逐文件校验一致，split manifest SHA-256 为 `c37b78f19766fec9ac57d28d6a7becd8a3b334261cef4e7863f29b0bbcc7b019`。BiST 与 NDR-Net 的真实 CUDA 完整优化步探针均通过，峰值分配显存为 `3142229504` 与 `12682121728` bytes。5090 持久队列于 12:38:57 启动，选择 Orange 六项，初始状态为 0/6、0 失败，当前为 task007。12:40 时 task007 已完成 epoch 6。当前 Mac 全仓为 493 passed 和 2 个既有 warning。完整重分片记录见 `docs/audits/igstgnn_table4_native100_dual_host_rebalance_2026-08-01.md`。
 
+2026-08-01 23:45，新加坡时间，用户要求 5090 在训练完成后自动关机。失败关闭守护脚本 SHA-256 为 `d0168a7f1b3b2b1b5386de1cebb52681fc1319babe8df1eddb5344228706bbb1`，远端持久 PID 为 `20225`。它只在 Orange 六项逐任务五文件复验、queue completed、0 失败、runner 退出码 0 且没有残留训练进程时调用 `/usr/bin/shutdown -h now`。任何异常都会保持机器开机。守护启动时 5090 为 4/6 完成，task017 已到 epoch 82。
+
+5080 分片已于 2026-08-01 15:52:38 新加坡时间完成，声明内 12/12 全部通过 runner 验收，失败数为 0。用户报告随后发生断电。23:37 局域网 SSH 恢复后，completed queue、12 个已验证任务和空闲 GPU 均已确认，断电没有造成训练中断或重跑。结合 5090 的 4/6，完整矩阵当时为 16/18 已验收。
+
 ## v2 冻结记录
 
 2026-07-19 曾从提交 `bf3045ac` 构建 v2 三地区缓存。事件样本 train、val、test 数分别为 Alameda 43973、9450、9366，ContraCosta 19159、4026、4040，Orange 75395、15727、14368。full-window 三地区曾记录为 73561、10501、21013，远端曾有 28 项测试通过。45 项队列于 00:39 启动，启动判活时 GPU 利用率为 91%，显存使用约 6.0 GiB。
