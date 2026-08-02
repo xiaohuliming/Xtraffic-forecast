@@ -71,3 +71,31 @@ Orange 数据目录严格包含 9 个允许文件。三个 split 的 SHA-256 为
 2026-08-01 23:45 新加坡时间，用户明确要求 5090 在训练完成后关机。守护脚本 `scripts/remote/linux/igstgnn_table4_native100_5090_shutdown_waiter.sh` 的 SHA-256 为 `d0168a7f1b3b2b1b5386de1cebb52681fc1319babe8df1eddb5344228706bbb1`。本地与 5090 真实环境测试均通过三种情形：队列未完成时保持开机，六项完整复验且 runner 零退出时执行关机，runner 非零退出时保持开机。
 
 远端持久守护 PID 为 `20225`，父进程为 PID 1，每 60 秒检查一次。关机前会重新验证矩阵、基础清单、双机计划、queue status、runner exit code、六个精确任务目录以及每项五文件 artifact，并确认没有残留训练进程。只有全部通过才调用 `/usr/bin/shutdown -h now`。任何缺项、哈希错误、非零退出或残留训练进程都会 fail closed 并保持机器开机。启动守护时 5090 为 4/6 完成、0 失败，task017 已完成 epoch 82。完整矩阵当时为 16/18 已验收。
+
+## RTX 5090 供应商停机与替代主机重跑
+
+2026-08-02，旧 5090 端口 52464 持续不可达。用户认为可能是余额不足。新端口 13647 可以连接，但对应容器为 `autodl-container-dbf949bc7b-086867e4`，其 `/root/autodl-tmp` 初始为空，旧机的结果根、控制日志与 task017 临时 checkpoint 均不存在。旧守护在最后一次可观测状态仅为 4/6 且 task017 epoch 82，不可能通过 6/6 本地关机门，因此旧机离线不能认定为自动关机成功。供应商停机原因尚未由账单或平台事件记录证实，审计只保留“疑似余额或供应商停机”表述。
+
+旧机结果没有回传结果服务器，也没有出现在新容器数据盘。它们不进入正式 composite。替代主机从头重跑 Orange 六项，仍把 Orange 的 BiST 与 NDR-Net 三种子保持在同一台 32 GB RTX 5090 上。执行布局仍为按地区双机分层，但最终 provenance 必须记录替代容器，不得伪装成旧 5090 续跑。
+
+替代主机重新部署训练归档提交 `ace318b`。BiST pristine checkout 的 commit 为 `dd94adf7721fcbb9e3feb5d1b44040305199a4cc`，tree 为 `1dc3c4de312ec8cb2eaf2aafc7b680aa247d19be`，工作树为空。Orange 九个数据文件从 Mac 重新传输并逐文件 SHA-256 复验，split manifest SHA-256 仍为 `c37b78f19766fec9ac57d28d6a7becd8a3b334261cef4e7863f29b0bbcc7b019`。替代环境为 Python 3.12.3、PyTorch 2.12.1+cu130 与 NVIDIA GeForce RTX 5090。
+
+两个真实 CUDA 完整优化步探针再次通过：
+
+- BiST seed 42，loss `148.53358459`，峰值分配显存 `3142229504` bytes
+- NDR-Net seed 42，loss `42.48369026`，两次 microbatch，峰值分配显存 `12682121728` bytes
+
+探针数值与旧 5090 完全一致。替代主机的持久 Orange 六项队列于 2026-08-02 09:48:50 新加坡时间从 0/6 启动。launcher PID 为 `2314`，matrix runner PID 为 `2318`。09:59:56 时队列为 0/6、0 失败，正在执行 `n100007_bist_orange_seed42` epoch 70。本地全仓回归为 496 passed 和 2 个既有 warning。
+
+旧守护只完成本机复验后关机，不满足当前结果服务器回传要求。新增 `scripts/remote/linux/igstgnn_table4_native100_5090_finalize.sh`，SHA-256 为 `a1c85fc95b5af92b51dcd44e209cc132a93a1b7bf7459d4552fcfe42fa892597`。替代主机使用专用受限 SSH 身份连接结果服务器，公钥指纹为 `SHA256:LpNIDomLiv0Vm6YHvJvN5miilCwUSSXSPXnRNhAt5hg`。finalizer 持久 PID 为 `2815`。它按以下顺序 fail closed：
+
+1. 等待 runner 写出退出码。
+2. 复用已测试的六任务本地五文件验收。
+3. 确认没有残留训练进程。
+4. 生成精确 31 文件 allowlist、逐文件 SHA-256 和 source-host postflight。
+5. 执行结果服务器容量门并上传到 incoming 目录。
+6. 在结果服务器逐文件验哈希并比对精确文件集合。
+7. 原子提升正式目录并再次复验。
+8. 仅在以上全部成功后调用 `/usr/bin/shutdown -h now`。
+
+任何本地验收、容量、传输、哈希、allowlist、原子提升或最终复验失败都会保持主机开机。完成结果服务器正式发布前，矩阵状态仍为运行中，不得生成 18 项最终表。

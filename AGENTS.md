@@ -117,3 +117,9 @@ Mac 全仓回归为 489 passed 和 2 个既有 warning，5080 Windows 专项门�
 用户已明确要求 5090 训练完成后关机。失败关闭守护脚本 `igstgnn_table4_native100_5090_shutdown_waiter.sh` SHA-256 为 `d0168a7f1b3b2b1b5386de1cebb52681fc1319babe8df1eddb5344228706bbb1`，远端持久 PID 为 `20225`。它每 60 秒检查一次，只在 Orange 6/6 逐任务五文件复验、queue completed、0 失败、runner 退出码 0 且没有残留训练进程时调用 `/usr/bin/shutdown -h now`。异常时保持开机。守护启动时 5090 为 4/6 完成，task017 已到 epoch 82。
 
 5080 地区分片已于 2026-08-01 15:52:38 新加坡时间完成，声明内 12/12 全部通过 runner 验收，失败数为 0。用户报告主机随后断电。23:37 局域网 SSH 恢复后复验确认 completed 状态、12 个已验证任务和空闲 GPU，断电没有造成训练中断或重跑。结合 5090 的 4/6，完整矩阵当时为 16/18 已验收。
+
+2026-08-02，旧 5090 端口仍不可达。新端口 13647 对应全新容器 `autodl-container-dbf949bc7b-086867e4`，数据盘为空，旧机的 4/6 正式结果与 task017 epoch 82 临时状态均未恢复。旧守护当时不满足 6/6 关机条件，因此离线不能认定为成功收尾。当前只记录为疑似余额或供应商停机，旧机未回传结果不得进入 composite。
+
+替代 5090 已重新部署训练归档提交 `ace318b`、BiST pristine commit `dd94adf7721fcbb9e3feb5d1b44040305199a4cc` 与 Orange 九个正式文件。数据逐文件 SHA-256 复验通过。BiST 和 NDR-Net 完整优化步探针 loss 为 `148.53358459` 与 `42.48369026`，峰值显存为 `3142229504` 与 `12682121728` bytes，与旧机一致。Orange 六项队列于 2026-08-02 09:48:50 新加坡时间从 0/6 重启，launcher PID 为 `2314`，matrix runner PID 为 `2318`。09:56:35 时 task007 到 epoch 48，队列为 0/6、0 失败。
+
+替代主机使用专用受限结果服务器 SSH 身份，公钥指纹为 `SHA256:LpNIDomLiv0Vm6YHvJvN5miilCwUSSXSPXnRNhAt5hg`。fail-closed finalizer SHA-256 为 `a1c85fc95b5af92b51dcd44e209cc132a93a1b7bf7459d4552fcfe42fa892597`，持久 PID 为 `2815`。它只在六项本地五文件复验、runner 零退出、无训练进程、结果服务器容量门、逐文件 SHA-256、精确 allowlist 和原子提升全部通过后执行关机。任何失败都会保留机器开机。本地全仓回归现为 496 passed 和 2 个既有 warning。
