@@ -99,3 +99,13 @@ Orange 数据目录严格包含 9 个允许文件。三个 split 的 SHA-256 为
 8. 仅在以上全部成功后调用 `/usr/bin/shutdown -h now`。
 
 任何本地验收、容量、传输、哈希、allowlist、原子提升或最终复验失败都会保持主机开机。完成结果服务器正式发布前，矩阵状态仍为运行中，不得生成 18 项最终表。
+
+## RTX 5080 辅助分片测速与否决
+
+2026-08-02 11:11 新加坡时间，替代 5090 已完成 Orange BiST 三种子 3/6，正在执行 `n100016_ndr_net_orange_seed42`。5080 此时 GPU 空闲，原 Alameda 与 Contra Costa 分片仍为 completed 12/12。为判断空闲 5080 能否缩短剩余训练，先在 5080 对 `n100017_ndr_net_orange_seed1` 执行真实 CUDA 完整优化步探针。探针通过，loss 为 `42.24521446`，使用两次 microbatch，峰值分配显存为 `12633100800` bytes。
+
+随后启动隔离的候选恢复根 `D:\t4\native100_orange_5080_recovery`，只选择 `n100017` 与 `n100018`。正式 5090 队列、结果根和 finalizer 均未改动。5080 的 live speed gate 从 11:17:18 运行 292 秒仍未完成首个 epoch，期间 GPU 利用率约为 95% 至 100%，显存约为 12,923 MiB。同期 5090 的 `n100016` 从 10:37:43 启动，11:23 前完成 13 个 epoch，真实速度约为每 epoch 3.5 分钟。5080 即使继续运行，预计节省也很小，无法抵消变更已锁定分片、结果服务器来源规范和自动关机 finalizer 的审计成本。
+
+候选计划因此标记为 `rejected_after_live_speed_gate`。5080 计划任务 `XTraffic_Table4_Native100_5080_Orange_Seeds1_2_v2` 已停止并禁用，GPU 恢复空闲。runner 的受控终止退出码为 2，没有任何正式任务目录或可接受结果。现场移入 `D:\t4\native100_orange_5080_recovery\incidents\seed_rebalance_no_speedup_20260802T032250Z`，包含 4 个文件，`files.sha256` 摘要为 `4ce4bf5402c69d3f11adb95a711fe8f2df3e18161a3e81dcec1410ef592e45ed`。当时部署的候选计划 SHA-256 为 `6af289c0c189a61bf2af565d43d2a9dd3ebe552d23e16a639ce249b5e2690a1a`。最终拒绝记录 `config/reproduction/igstgnn_table4/distributed_native100_seed_rebalance_v2.json` 的 SHA-256 为 `c62609e2651bf0373648c05a9769e169952a589651a1b88c6e6b80e7ab72df72`，禁用启动脚本的 SHA-256 为 `72ef8a012645ba1d78f4b75451c94944c39d6d32e1f6d0c5acfd25f07d9d9241`。
+
+原计划 `igstgnn_table4_native100_5080_5090_v1` 继续生效，执行布局仍为 `dual_host_region_stratified`。截至 11:25:57，5090 为 3/6 完成、0 失败，`n100016` 已完成 epoch 14，GPU 利用率为 88%，显存使用为 20,340 MiB，finalizer PID `2815` 仍在等待。完整矩阵为 15/18 已验收。5080 的测速 incident 不进入 composite，也不改变 5090 训练完成后严格回传并自动关机的契约。本地全仓回归为 498 passed 和 2 个既有 warning。

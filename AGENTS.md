@@ -118,6 +118,10 @@ Mac 全仓回归为 489 passed 和 2 个既有 warning，5080 Windows 专项门�
 
 5080 地区分片已于 2026-08-01 15:52:38 新加坡时间完成，声明内 12/12 全部通过 runner 验收，失败数为 0。用户报告主机随后断电。23:37 局域网 SSH 恢复后复验确认 completed 状态、12 个已验证任务和空闲 GPU，断电没有造成训练中断或重跑。结合 5090 的 4/6，完整矩阵当时为 16/18 已验收。
 
+2026-08-02 11:11，新替代 5090 从头重跑后已完成 Orange BiST 三种子 3/6，正在 `n100016_ndr_net_orange_seed42`。空闲 5080 先通过 `n100017` 真实 CUDA 完整优化步探针，loss 为 `42.24521446`，峰值分配显存为 `12633100800` bytes。随后隔离 live speed gate 运行 292 秒仍未完成首个 epoch。同期 5090 的 `n100016` 真实速度约为每 epoch 3.5 分钟。预计收益不足以抵消修改正式分片、来源规范和 finalizer 的风险，候选计划 `igstgnn_table4_native100_seed_rebalance_v2` 已标记为 `rejected_after_live_speed_gate`。
+
+5080 辅助计划任务已停止并禁用，没有正式任务目录。incident 位于 `D:\t4\native100_orange_5080_recovery\incidents\seed_rebalance_no_speedup_20260802T032250Z`，清单摘要为 `4ce4bf5402c69d3f11adb95a711fe8f2df3e18161a3e81dcec1410ef592e45ed`。原按地区双机计划继续生效。11:25:57 时 5090 为 3/6 完成、0 失败，task016 完成 epoch 14，完整矩阵为 15/18，finalizer PID `2815` 正常等待。5080 保持空闲，测速 incident 不得进入最终 composite。本地全仓回归为 498 passed 和 2 个既有 warning。
+
 2026-08-02，旧 5090 端口仍不可达。新端口 13647 对应全新容器 `autodl-container-dbf949bc7b-086867e4`，数据盘为空，旧机的 4/6 正式结果与 task017 epoch 82 临时状态均未恢复。旧守护当时不满足 6/6 关机条件，因此离线不能认定为成功收尾。当前只记录为疑似余额或供应商停机，旧机未回传结果不得进入 composite。
 
 替代 5090 已重新部署训练归档提交 `ace318b`、BiST pristine commit `dd94adf7721fcbb9e3feb5d1b44040305199a4cc` 与 Orange 九个正式文件。数据逐文件 SHA-256 复验通过。BiST 和 NDR-Net 完整优化步探针 loss 为 `148.53358459` 与 `42.48369026`，峰值显存为 `3142229504` 与 `12682121728` bytes，与旧机一致。Orange 六项队列于 2026-08-02 09:48:50 新加坡时间从 0/6 重启，launcher PID 为 `2314`，matrix runner PID 为 `2318`。09:56:35 时 task007 到 epoch 48，队列为 0/6、0 失败。

@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "status": "rejected_after_live_speed_gate",
+  "plan_id": "igstgnn_table4_native100_seed_rebalance_v2",
+  "would_supersede_plan_id": "igstgnn_table4_native100_5080_5090_v1",
+  "active_plan_id_after_rejection": "igstgnn_table4_native100_5080_5090_v1",
+  "protocol_id": "igstgnn_table4_official_v1",
+  "matrix_id": "igstgnn_table4_bist_ndr_native100_18_v1",
+  "manifest_sha256": "e4fe8a6987e06dd573212f88665b181b03b83e9fbad43b9f08781ecbedcf8246",
+  "base_manifest_sha256": "d0c7fb88e24c6026d670a4a6d571357eb5320393417a83d344adb05151023a78",
+  "profile_sha256": "37ebcb574f516bc1b662ade0d5264deda96a20d017d20edc7a57253daab5e66b",
+  "source_commit": "ace318b",
+  "execution_layout": "dual_host_region_seed_pair_stratified",
+  "active_execution_layout_after_rejection": "dual_host_region_stratified",
+  "claim_scope": "same_table_native_recipe_100_epoch_supplement",
+  "validity_label": "official_protocol_with_known_overlap",
+  "reason": "Use the idle RTX 5080 for the two remaining Orange seed-paired NDR tasks after the replacement RTX 5090 lost access to the old instance disk.",
+  "rejection_reason": "The RTX 5080 produced no completed epoch in a 292 second live run. The replacement RTX 5090 reached task016 epoch 13 in about 45 minutes. The small projected saving did not justify changing the accepted shard and finalizer.",
+  "hosts": [
+    {
+      "host_id": "native100_rtx5080_alameda_contra_orange_seeds1_2",
+      "gpu_sku": "NVIDIA GeForce RTX 5080",
+      "result_selection": "declared_task_ids_only_across_bound_roots",
+      "result_roots": [
+        "D:\\t4\\native100_compare\\results",
+        "D:\\t4\\native100_orange_5080_recovery\\results"
+      ],
+      "launcher": "scripts/remote/windows/igstgnn_table4_native100_5080_orange_seeds1_2.cmd",
+      "preexisting_task_ids": [
+        "n100001_bist_alameda_seed42",
+        "n100002_bist_alameda_seed1",
+        "n100003_bist_alameda_seed2",
+        "n100004_bist_contra_costa_seed42",
+        "n100005_bist_contra_costa_seed1",
+        "n100006_bist_contra_costa_seed2",
+        "n100008_bist_orange_seed1",
+        "n100009_bist_orange_seed2",
+        "n100010_ndr_net_alameda_seed42",
+        "n100011_ndr_net_alameda_seed1",
+        "n100012_ndr_net_alameda_seed2",
+        "n100013_ndr_net_contra_costa_seed42",
+        "n100014_ndr_net_contra_costa_seed1",
+        "n100015_ndr_net_contra_costa_seed2"
+      ],
+      "new_task_ids": [
+        "n100017_ndr_net_orange_seed1",
+        "n100018_ndr_net_orange_seed2"
+      ],
+      "excluded_existing_task_ids": [
+        "n100007_bist_orange_seed42"
+      ],
+      "task_ids": [
+        "n100001_bist_alameda_seed42",
+        "n100002_bist_alameda_seed1",
+        "n100003_bist_alameda_seed2",
+        "n100004_bist_contra_costa_seed42",
+        "n100005_bist_contra_costa_seed1",
+        "n100006_bist_contra_costa_seed2",
+        "n100008_bist_orange_seed1",
+        "n100009_bist_orange_seed2",
+        "n100010_ndr_net_alameda_seed42",
+        "n100011_ndr_net_alameda_seed1",
+        "n100012_ndr_net_alameda_seed2",
+        "n100013_ndr_net_contra_costa_seed42",
+        "n100014_ndr_net_contra_costa_seed1",
+        "n100015_ndr_net_contra_costa_seed2",
+        "n100017_ndr_net_orange_seed1",
+        "n100018_ndr_net_orange_seed2"
+      ]
+    },
+    {
+      "host_id": "native100_rtx5090_orange_seed42",
+      "gpu_sku": "NVIDIA GeForce RTX 5090",
+      "runtime_hostname": "autodl-container-dbf949bc7b-086867e4",
+      "result_selection": "declared_task_ids_only",
+      "result_roots": [
+        "/root/autodl-tmp/native100_orange/results"
+      ],
+      "preexisting_task_ids": [
+        "n100007_bist_orange_seed42"
+      ],
+      "new_task_ids": [
+        "n100016_ndr_net_orange_seed42"
+      ],
+      "excluded_existing_task_ids": [
+        "n100008_bist_orange_seed1",
+        "n100009_bist_orange_seed2"
+      ],
+      "task_ids": [
+        "n100007_bist_orange_seed42",
+        "n100016_ndr_net_orange_seed42"
+      ]
+    }
+  ],
+  "incidents": [
+    {
+      "host": "old_rtx5090_port_52464",
+      "status": "unreachable_unexported",
+      "last_observed": "4_of_6_completed_task017_epoch82",
+      "accepted_task_ids": []
+    },
+    {
+      "host": "native100_rtx5080_orange_seeds1_2",
+      "status": "stopped_no_speedup",
+      "task_id": "n100017_ndr_net_orange_seed1",
+      "runner_returncode": 2,
+      "formal_task_dirs": 0,
+      "staged_plan_sha256": "6af289c0c189a61bf2af565d43d2a9dd3ebe552d23e16a639ce249b5e2690a1a",
+      "incident_files_sha256": "4ce4bf5402c69d3f11adb95a711fe8f2df3e18161a3e81dcec1410ef592e45ed",
+      "accepted_task_ids": []
+    }
+  ],
+  "finalization": {
+    "mode": "read_only_composite",
+    "require_source_host_postflight": true,
+    "require_result_server_file_verification": true,
+    "require_method_pair_same_host_per_region_seed": true,
+    "allow_duplicate_unselected_results": true,
+    "allow_duplicate_task_selection": false,
+    "allow_source_artifact_mutation": false
+  }
+}

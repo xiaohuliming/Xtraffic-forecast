@@ -248,3 +248,9 @@ Mac 全仓回归为 489 passed 和 2 个既有 warning，5080 Windows 专项门�
 ## 凭据与远程运行
 
 实验室共享主机、地址和密码集中明文维护在 `config/lab_hosts.env`。运行脚本可以直接 `source` 该文件，也允许环境变量覆盖。私钥、个人令牌和个人账号凭据仍不进入仓库。
+
+## 最新状态，2026-08-02 5080 辅助测速
+
+替代 5090 的 Orange 队列截至 11:25:57 为 3/6 完成、0 失败，正在执行 `n100016_ndr_net_orange_seed42`，已完成 epoch 14。完整 18 项矩阵为 15/18 已验收。finalizer PID `2815` 保持活动，只会在 Orange 6/6、结果服务器逐文件复验和原子提升全部成功后关机。
+
+空闲 5080 已对 `n100017` 做真实 CUDA 探针和 292 秒隔离 live speed gate。探针通过，但正式测速没有完成首个 epoch，不能有效缩短 5090 剩余队列。候选分片被标记为 `rejected_after_live_speed_gate`，计划任务已停止并禁用，没有正式任务目录。incident 清单摘要为 `4ce4bf5402c69d3f11adb95a711fe8f2df3e18161a3e81dcec1410ef592e45ed`。原 `dual_host_region_stratified` 计划继续生效，5080 保持空闲，测速结果不得进入 composite。本地全仓回归为 498 passed 和 2 个既有 warning。

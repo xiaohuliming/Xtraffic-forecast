@@ -51,6 +51,7 @@ v2 已因重复 forecast origin、active event 跨 split、验证累计和训练
 | `remote/linux/igstgnn_table4_native100_5090_orange.sh` | 运行中 | 在 5090 上只选择 Orange 的 6 个原生配方 100 epoch 任务 |
 | `remote/linux/igstgnn_table4_native100_5090_shutdown_waiter.sh` | 验收组件 | 严格复验 Orange 六项、runner 退出码和残留训练进程，供 finalizer 复用 |
 | `remote/linux/igstgnn_table4_native100_5090_finalize.sh` | 运行中 | 替代 5090 完成六项后执行本地验收、结果服务器逐文件复验、原子发布和成功后关机 |
+| `remote/windows/igstgnn_table4_native100_5080_orange_seeds1_2.cmd` | 已拒绝，禁用 | 5080 Orange 剩余种子隔离测速入口。live speed gate 未通过，脚本入口硬性返回 90，仅保留审计 |
 
 原 39 项 composite index SHA-256 为 `3e5f6bee6eb0cd667f28c287f9538136b31c4312652673453e3f56e446edbbe2`。NDR 扩展 index SHA-256 为 `8f4666c45b7708c47d1ee90f3a81444eaf46fee5ba1011bc0242f96c20e0983a`。最终报告位于 `outputs/reproduction/igstgnn_table4_official_v1/`。该协议保留已知重叠，不能与 v3 无泄露结果混用。
 
@@ -106,6 +107,8 @@ posthoc
 后续控制提交补齐精度契约、staging recovery、Windows 长路径与 finalizer 引号修复。提交 `5f3113b` 降低 composite 复验内存，同时保持 float32 producer 与 2 ULP 契约不变。控制提交 `93038ec` 跳过 full-window 中未使用的事件分组归约，同时完整保留 `all` 指标校验。composite 于 2026-07-27 18:28:27 新加坡时间验证成功，共含 45 个任务和 2 个分片，5080 为 27 项，5090 为 18 项，canonical tasks001-045 各出现一次。首次使用 `c48f232` 的无输出尝试已作为 incident 保留，incident SHA-256 为 `166923ef9a63b80ecbc065f6e455eb393341e526ef6411c8c5ccd16ebfa2c70a`。最终服务退出码为 0，内存峰值为 2.1G，swap 峰值为 15.1M，没有改写 summary 或 artifact。同机配对、多种子和窗口级显著性分析已经完成，composite 完成仍不自动恢复论文结论。
 
 `cleanup_dead_outputs.sh` 是历史输出清理辅助脚本。执行前必须先使用其 dry-run 模式核对候选，不能把它当成仓库整理的默认步骤。
+
+原生配方 100 epoch 补充矩阵曾评估把 Orange seeds 1 与 2 迁移到空闲 5080。5080 真实 CUDA 探针通过，但 292 秒 live speed gate 未完成首个 epoch。候选计划 `distributed_native100_seed_rebalance_v2.json` 状态为 `rejected_after_live_speed_gate`，没有正式任务目录。原 `distributed_native100_5080_5090_v1.json` 继续是当前有效计划。
 
 ## 新脚本约定
 
