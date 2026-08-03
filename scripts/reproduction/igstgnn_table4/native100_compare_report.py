@@ -21,7 +21,6 @@ from .native100_compare_manifest import (
     load_native100_compare_manifest,
 )
 from .paper_reference import METRIC_COLUMNS
-from .result_artifacts import validate_completed_task_artifacts
 from .secure_io import read_verified_regular_file
 
 
@@ -190,42 +189,89 @@ def _task_metric_row(metrics: dict[str, Any]) -> dict[str, float]:
     return values
 
 
+def _load_composite_summary(
+    *,
+    path: Path,
+    expected_sha256: str,
+    expected_task: dict[str, Any],
+) -> tuple[dict[str, Any], bytes]:
+    payload = _read_bytes(
+        path,
+        purpose="native 100 composite task summary",
+        expected_sha256=expected_sha256,
+        max_bytes=1024 * 1024,
+    )
+    try:
+        summary = json.loads(
+            payload.decode("utf-8"),
+            object_pairs_hook=_strict_json_object,
+            parse_constant=_reject_json_constant,
+        )
+    except Native100ReportError:
+        raise
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise Native100ReportError("native 100 task summary is invalid") from error
+    if (
+        not isinstance(summary, dict)
+        or summary.get("schema_version") != 1
+        or summary.get("status") != "completed"
+        or summary.get("protocol_id") != "igstgnn_table4_official_v1"
+        or summary.get("validity_label") != "official_protocol_with_known_overlap"
+        or summary.get("claim_scope") != NATIVE100_CLAIM_SCOPE
+        or summary.get("task") != expected_task
+        or not isinstance(summary.get("metrics"), dict)
+    ):
+        raise Native100ReportError("native 100 task summary identity mismatch")
+    return summary, payload
+
+
 def _load_supplement_rows(
     *,
     manifest: dict[str, Any],
     results_root: Path | None,
-    task_dirs: dict[str, Path] | None = None,
+    task_dirs: dict[str, tuple[Path, str]] | None = None,
 ) -> tuple[list[dict[str, str]], list[dict[str, Any]]]:
     grouped: dict[tuple[str, str], list[tuple[int, dict[str, float]]]] = {}
     task_records: list[dict[str, Any]] = []
     for task in manifest["tasks"]:
         if task_dirs is not None:
-            task_dir = task_dirs[task["task_id"]]
+            task_dir, expected_summary_sha256 = task_dirs[task["task_id"]]
         elif results_root is not None:
             task_dir = results_root / task["output_dir"]
         else:
             raise Native100ReportError("native 100 result source is missing")
         try:
-            validation = validate_completed_task_artifacts(
-                task_dir,
-                expected_task=task,
-                expected_claim_scope=NATIVE100_CLAIM_SCOPE,
-            )
-            summary_payload = bytes(
-                read_verified_regular_file(
-                    task_dir / "summary.json",
-                    purpose="native 100 task summary",
-                    max_bytes=1024 * 1024,
-                    require_nonempty=True,
+            if task_dirs is not None:
+                summary, summary_payload = _load_composite_summary(
+                    path=task_dir / "summary.json",
+                    expected_sha256=expected_summary_sha256,
+                    expected_task=task,
                 )
-            )
+                metrics = summary["metrics"]
+            else:
+                from .result_artifacts import validate_completed_task_artifacts
+
+                validation = validate_completed_task_artifacts(
+                    task_dir,
+                    expected_task=task,
+                    expected_claim_scope=NATIVE100_CLAIM_SCOPE,
+                )
+                metrics = validation["metrics"]
+                summary_payload = bytes(
+                    read_verified_regular_file(
+                        task_dir / "summary.json",
+                        purpose="native 100 task summary",
+                        max_bytes=1024 * 1024,
+                        require_nonempty=True,
+                    )
+                )
         except (OSError, ValueError, RuntimeError) as error:
             raise Native100ReportError(
                 "native 100 report requires a complete 18-task matrix"
             ) from error
         key = (task["region"], task["method"])
         grouped.setdefault(key, []).append(
-            (task["seed"], _task_metric_row(validation["metrics"]))
+            (task["seed"], _task_metric_row(metrics))
         )
         task_records.append(
             {
@@ -265,7 +311,7 @@ def _load_composite_task_dirs(
     expected_index_sha256: str,
     composite_root: Path,
     manifest: dict[str, Any],
-) -> dict[str, Path]:
+) -> dict[str, tuple[Path, str]]:
     payload = _read_bytes(
         index_path,
         purpose="native100 composite index",
@@ -298,11 +344,18 @@ def _load_composite_task_dirs(
     if [item.get("task_id") for item in index["tasks"]] != expected_ids:
         raise Native100ReportError("native100 composite task order mismatch")
     root = composite_root.resolve(strict=True)
-    task_dirs: dict[str, Path] = {}
+    task_dirs: dict[str, tuple[Path, str]] = {}
     for record in index["tasks"]:
         source_relative = record.get("source_root_relative")
         task_relative = record.get("task_relative")
-        if not isinstance(source_relative, str) or not isinstance(task_relative, str):
+        summary_sha256 = record.get("summary_sha256")
+        if (
+            not isinstance(source_relative, str)
+            or not isinstance(task_relative, str)
+            or not isinstance(summary_sha256, str)
+            or len(summary_sha256) != 64
+            or any(character not in "0123456789abcdef" for character in summary_sha256)
+        ):
             raise Native100ReportError("native100 composite task path is invalid")
         source_pure = Path(source_relative)
         task_pure = Path(task_relative)
@@ -320,7 +373,7 @@ def _load_composite_task_dirs(
             raise Native100ReportError(
                 "native100 composite task escapes the source root"
             ) from error
-        task_dirs[record["task_id"]] = task_dir
+        task_dirs[record["task_id"]] = (task_dir, summary_sha256)
     return task_dirs
 
 
