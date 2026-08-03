@@ -47,6 +47,14 @@ def _write_task(root: Path, task: dict, *, gpu: str, hostname: str) -> None:
             "protocol_id": "igstgnn_table4_official_v1",
             "matrix_id": "igstgnn_table4_bist_ndr_native100_18_v1",
             "claim_scope": "same_table_native_recipe_100_epoch_supplement",
+            "task_id": task["task_id"],
+            "method": task["method"],
+            "region": task["region"],
+            "seed": task["seed"],
+            "config_sha256": task["config_sha256"],
+            "split_bundle_manifest_sha256": task[
+                "split_bundle_manifest_sha256"
+            ],
             "training_code_sha256": "3" * 64,
             "host": {
                 "hostname": hostname,

@@ -11,12 +11,11 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+import numpy as np
+
 from scripts.reproduction.igstgnn_table4.native100_compare_manifest import (
     NATIVE100_CLAIM_SCOPE,
     load_native100_compare_manifest,
-)
-from scripts.reproduction.igstgnn_table4.result_artifacts import (
-    validate_completed_task_artifacts,
 )
 from scripts.reproduction.igstgnn_table4.secure_io import (
     open_verified_regular_file,
@@ -25,6 +24,23 @@ from scripts.reproduction.igstgnn_table4.secure_io import (
 
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_TASK_ARTIFACT_FILES = frozenset(
+    {
+        "checkpoint.pt",
+        "predictions.npz",
+        "provenance.json",
+        "summary.json",
+        "train.log",
+    }
+)
+_ARTIFACT_ENTRIES = {
+    "checkpoint": "checkpoint.pt",
+    "predictions": "predictions.npz",
+    "provenance": "provenance.json",
+    "train_log": "train.log",
+}
+_METRIC_NAMES = ("mae", "rmse", "mape_percent")
+_METRIC_ULP_LIMIT = 16
 _METADATA_FILES = frozenset(
     {
         "_TRANSFER_COMPLETE.json",
@@ -122,6 +138,208 @@ def _safe_relative(value: Any, *, label: str) -> str:
     if pure.is_absolute() or ".." in pure.parts or str(pure) != value:
         raise Native100CompositeError(f"{label} is unsafe: {value!r}")
     return value
+
+
+def _finite_metric(value: Any, *, label: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise Native100CompositeError(f"{label} is not numeric")
+    number = float(value)
+    if not np.isfinite(number) or number < 0:
+        raise Native100CompositeError(f"{label} is not finite and nonnegative")
+    return number
+
+
+def _metric_close(actual: float, expected: float) -> bool:
+    spacing = abs(float(np.spacing(np.float32(expected))))
+    tolerance = _METRIC_ULP_LIMIT * max(spacing, float(np.finfo(np.float32).tiny))
+    return abs(actual - expected) <= tolerance
+
+
+def _numpy_official_metrics(
+    predictions: np.ndarray,
+    labels: np.ndarray,
+) -> dict[str, Any]:
+    null_value = np.float32(labels.min()) if labels.min() < 1 else np.float32(0)
+    per_horizon: list[dict[str, float]] = []
+    for horizon in range(12):
+        prediction = predictions[:, horizon, ...]
+        label = labels[:, horizon, ...]
+        mask = np.asarray(label != null_value, dtype=np.float32)
+        mask = mask / mask.mean(dtype=np.float32)
+        mask = np.where(np.isnan(mask), np.zeros_like(mask), mask)
+        with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+            absolute = np.abs(prediction - label)
+            squared = (prediction - label) ** 2
+            percentage = absolute / label
+            absolute = np.where(
+                np.isnan(absolute * mask), np.zeros_like(absolute), absolute * mask
+            )
+            squared = np.where(
+                np.isnan(squared * mask), np.zeros_like(squared), squared * mask
+            )
+            percentage = np.where(
+                np.isnan(percentage * mask),
+                np.zeros_like(percentage),
+                percentage * mask,
+            )
+        per_horizon.append(
+            {
+                "mae": float(absolute.mean(dtype=np.float32)),
+                "rmse": float(np.sqrt(squared.mean(dtype=np.float32))),
+                "mape_percent": float(percentage.mean(dtype=np.float32)) * 100.0,
+            }
+        )
+    average = {
+        name: float(np.mean([row[name] for row in per_horizon]))
+        for name in _METRIC_NAMES
+    }
+    return {
+        "h3": per_horizon[2],
+        "h6": per_horizon[5],
+        "h12": per_horizon[11],
+        "average": average,
+        "per_horizon": per_horizon,
+        "null_value": float(null_value),
+    }
+
+
+def _validate_metric_contract(summary_metrics: Any, recomputed: dict[str, Any]) -> None:
+    if not isinstance(summary_metrics, dict) or set(summary_metrics) != {
+        "h3",
+        "h6",
+        "h12",
+        "average",
+        "per_horizon",
+        "null_value",
+    }:
+        raise Native100CompositeError("task metric schema mismatch")
+    per_horizon = summary_metrics["per_horizon"]
+    if not isinstance(per_horizon, list) or len(per_horizon) != 12:
+        raise Native100CompositeError("task per-horizon metric schema mismatch")
+    for index, row in enumerate(per_horizon):
+        if not isinstance(row, dict) or set(row) != set(_METRIC_NAMES):
+            raise Native100CompositeError("task horizon metric schema mismatch")
+        for name in _METRIC_NAMES:
+            expected = _finite_metric(row[name], label=f"summary horizon {index} {name}")
+            actual = recomputed["per_horizon"][index][name]
+            if not _metric_close(actual, expected):
+                raise Native100CompositeError(
+                    f"recomputed task metric exceeds {_METRIC_ULP_LIMIT} float32 ULP: "
+                    f"horizon={index + 1} metric={name}"
+                )
+    for label, index in (("h3", 2), ("h6", 5), ("h12", 11)):
+        if summary_metrics[label] != per_horizon[index]:
+            raise Native100CompositeError(f"task {label} metric is internally inconsistent")
+    average = summary_metrics["average"]
+    if not isinstance(average, dict) or set(average) != set(_METRIC_NAMES):
+        raise Native100CompositeError("task average metric schema mismatch")
+    for name in _METRIC_NAMES:
+        expected = _finite_metric(average[name], label=f"summary average {name}")
+        internal = float(np.mean([float(row[name]) for row in per_horizon]))
+        if expected != internal:
+            raise Native100CompositeError("task average metric is internally inconsistent")
+        if not _metric_close(recomputed["average"][name], expected):
+            raise Native100CompositeError(
+                f"recomputed average metric exceeds {_METRIC_ULP_LIMIT} float32 ULP: {name}"
+            )
+    if summary_metrics["null_value"] != recomputed["null_value"]:
+        raise Native100CompositeError("task null value is inconsistent")
+
+
+def _validate_published_task(task_dir: Path, task: dict[str, Any]) -> None:
+    if _actual_files(task_dir) != _TASK_ARTIFACT_FILES:
+        raise Native100CompositeError(f"task artifact allowlist mismatch: {task['task_id']}")
+    summary = _read_json(
+        task_dir / "summary.json",
+        purpose="native100 task summary",
+        max_bytes=1024 * 1024,
+    )
+    if (
+        summary.get("schema_version") != 1
+        or summary.get("status") != "completed"
+        or summary.get("protocol_id") != "igstgnn_table4_official_v1"
+        or summary.get("validity_label") != "official_protocol_with_known_overlap"
+        or summary.get("claim_scope") != NATIVE100_CLAIM_SCOPE
+        or summary.get("task") != task
+        or summary.get("artifact_allowlist") != sorted(_TASK_ARTIFACT_FILES)
+        or summary.get("prediction_dtype") != "float32"
+        or summary.get("label_dtype") != "float32"
+    ):
+        raise Native100CompositeError(f"task summary identity mismatch: {task['task_id']}")
+    artifacts = summary.get("artifacts")
+    if not isinstance(artifacts, dict) or set(artifacts) != set(_ARTIFACT_ENTRIES):
+        raise Native100CompositeError(f"task artifact schema mismatch: {task['task_id']}")
+    for name, filename in _ARTIFACT_ENTRIES.items():
+        entry = artifacts[name]
+        if (
+            not isinstance(entry, dict)
+            or set(entry) != {"bytes", "sha256"}
+            or isinstance(entry["bytes"], bool)
+            or not isinstance(entry["bytes"], int)
+            or entry["bytes"] <= 0
+            or not isinstance(entry["sha256"], str)
+            or _SHA256.fullmatch(entry["sha256"]) is None
+        ):
+            raise Native100CompositeError(f"task artifact entry mismatch: {filename}")
+        size, digest = _hash_file(task_dir / filename, purpose="native100 task artifact")
+        if size != entry["bytes"] or digest != entry["sha256"]:
+            raise Native100CompositeError(f"task artifact changed: {filename}")
+    provenance = _read_json(
+        task_dir / "provenance.json",
+        purpose="native100 task provenance",
+        max_bytes=1024 * 1024,
+    )
+    if (
+        provenance.get("protocol_id") != "igstgnn_table4_official_v1"
+        or provenance.get("matrix_id") != "igstgnn_table4_bist_ndr_native100_18_v1"
+        or provenance.get("claim_scope") != NATIVE100_CLAIM_SCOPE
+        or provenance.get("task_id") != task["task_id"]
+        or provenance.get("method") != task["method"]
+        or provenance.get("region") != task["region"]
+        or provenance.get("seed") != task["seed"]
+        or provenance.get("config_sha256") != task["config_sha256"]
+        or provenance.get("split_bundle_manifest_sha256")
+        != task["split_bundle_manifest_sha256"]
+        or not isinstance(provenance.get("training_code_sha256"), str)
+        or _SHA256.fullmatch(provenance["training_code_sha256"]) is None
+    ):
+        raise Native100CompositeError(f"task provenance mismatch: {task['task_id']}")
+    with open_verified_regular_file(
+        task_dir / "predictions.npz",
+        purpose="native100 prediction artifact",
+        require_nonempty=True,
+    ) as opened:
+        with np.load(opened.handle, allow_pickle=False) as archive:
+            if set(archive.files) != {"predictions", "labels", "valid_mask"}:
+                raise Native100CompositeError("prediction archive members mismatch")
+            predictions = archive["predictions"]
+            labels = archive["labels"]
+            stored_valid_mask = archive["valid_mask"]
+    if (
+        predictions.dtype != np.dtype("float32")
+        or labels.dtype != np.dtype("float32")
+        or predictions.shape != labels.shape
+        or predictions.ndim < 2
+        or predictions.shape[1] != 12
+        or predictions.size == 0
+        or not np.isfinite(predictions).all()
+        or not np.isfinite(labels).all()
+    ):
+        raise Native100CompositeError(f"prediction array contract mismatch: {task['task_id']}")
+    null_value = np.float32(labels.min()) if labels.min() < 1 else np.float32(0)
+    expected_valid_mask = np.asarray(labels != null_value, dtype=np.bool_)
+    if (
+        stored_valid_mask.dtype != np.dtype("bool")
+        or stored_valid_mask.shape != labels.shape
+        or not np.array_equal(stored_valid_mask, expected_valid_mask)
+        or summary.get("prediction_shape") != list(predictions.shape)
+        or summary.get("valid_count") != int(expected_valid_mask.sum())
+    ):
+        raise Native100CompositeError(f"prediction mask contract mismatch: {task['task_id']}")
+    _validate_metric_contract(
+        summary.get("metrics"),
+        _numpy_official_metrics(predictions, labels),
+    )
 
 
 def _actual_files(root: Path) -> set[str]:
@@ -332,11 +550,7 @@ def _validate_source(
         task = task_by_id[task_id]
         task_dir = results / task["output_dir"]
         try:
-            validate_completed_task_artifacts(
-                task_dir,
-                expected_task=task,
-                expected_claim_scope=NATIVE100_CLAIM_SCOPE,
-            )
+            _validate_published_task(task_dir, task)
         except (OSError, ValueError, RuntimeError) as error:
             raise Native100CompositeError(
                 f"published task validation failed: {task_id}"
