@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import json
 from pathlib import Path
 
 import numpy as np
@@ -128,3 +129,59 @@ def test_native100_report_refuses_an_incomplete_matrix(tmp_path: Path) -> None:
 
     with pytest.raises(Native100ReportError, match="complete 18-task matrix"):
         _build(results_root, tmp_path / "report")
+
+
+def test_native100_report_reads_verified_composite_index(tmp_path: Path) -> None:
+    combined = tmp_path / "combined"
+    _write_results(combined)
+    manifest = load_native100_compare_manifest(
+        MANIFEST,
+        expected_sha256=_sha256(MANIFEST),
+        base_manifest_path=BASE_MANIFEST,
+        expected_base_manifest_sha256=BASE_MANIFEST_SHA256,
+    )
+    composite_root = tmp_path / "hosts"
+    records = []
+    for task in manifest["tasks"]:
+        host_id = "orange" if task["region"] == "Orange" else "non_orange"
+        target = composite_root / host_id / "results" / task["output_dir"]
+        target.parent.mkdir(parents=True, exist_ok=True)
+        (combined / task["output_dir"]).rename(target)
+        records.append(
+            {
+                "task_id": task["task_id"],
+                "host_id": host_id,
+                "source_root_relative": host_id,
+                "task_relative": f"results/{task['output_dir']}",
+                "summary_sha256": _sha256(target / "summary.json"),
+            }
+        )
+    index = {
+        "schema_version": 1,
+        "status": "verified_native100_dual_host_18",
+        "protocol_id": manifest["protocol_id"],
+        "matrix_id": manifest["matrix_id"],
+        "manifest_sha256": _sha256(MANIFEST),
+        "claim_scope": "same_table_native_recipe_100_epoch_supplement",
+        "task_count": 18,
+        "tasks": records,
+    }
+    index_path = tmp_path / "index.json"
+    index_path.write_text(json.dumps(index), encoding="utf-8")
+
+    report = build_native100_table_report(
+        manifest_path=MANIFEST,
+        expected_manifest_sha256=_sha256(MANIFEST),
+        base_manifest_path=BASE_MANIFEST,
+        expected_base_manifest_sha256=BASE_MANIFEST_SHA256,
+        results_root=None,
+        base_table_csv=BASE_TABLE,
+        expected_base_table_sha256=_sha256(BASE_TABLE),
+        output_dir=tmp_path / "report",
+        composite_index_path=index_path,
+        expected_composite_index_sha256=_sha256(index_path),
+        composite_root=composite_root,
+    )
+
+    assert report["task_count"] == 18
+    assert report["composite_index_sha256"] == _sha256(index_path)

@@ -76,6 +76,19 @@ class Native100ReportError(ValueError):
     """Raised when the native-recipe 100 epoch matrix is not reportable."""
 
 
+def _strict_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    value: dict[str, Any] = {}
+    for key, item in pairs:
+        if key in value:
+            raise Native100ReportError(f"duplicate JSON key: {key}")
+        value[key] = item
+    return value
+
+
+def _reject_json_constant(value: str) -> None:
+    raise Native100ReportError(f"non-finite JSON constant: {value}")
+
+
 def _sha256(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
 
@@ -180,12 +193,18 @@ def _task_metric_row(metrics: dict[str, Any]) -> dict[str, float]:
 def _load_supplement_rows(
     *,
     manifest: dict[str, Any],
-    results_root: Path,
+    results_root: Path | None,
+    task_dirs: dict[str, Path] | None = None,
 ) -> tuple[list[dict[str, str]], list[dict[str, Any]]]:
     grouped: dict[tuple[str, str], list[tuple[int, dict[str, float]]]] = {}
     task_records: list[dict[str, Any]] = []
     for task in manifest["tasks"]:
-        task_dir = results_root / task["output_dir"]
+        if task_dirs is not None:
+            task_dir = task_dirs[task["task_id"]]
+        elif results_root is not None:
+            task_dir = results_root / task["output_dir"]
+        else:
+            raise Native100ReportError("native 100 result source is missing")
         try:
             validation = validate_completed_task_artifacts(
                 task_dir,
@@ -238,6 +257,71 @@ def _load_supplement_rows(
             "native 100 report requires a complete 18-task matrix"
         )
     return rows, task_records
+
+
+def _load_composite_task_dirs(
+    *,
+    index_path: Path,
+    expected_index_sha256: str,
+    composite_root: Path,
+    manifest: dict[str, Any],
+) -> dict[str, Path]:
+    payload = _read_bytes(
+        index_path,
+        purpose="native100 composite index",
+        expected_sha256=expected_index_sha256,
+        max_bytes=8 * 1024 * 1024,
+    )
+    try:
+        index = json.loads(
+            payload.decode("utf-8"),
+            object_pairs_hook=_strict_json_object,
+            parse_constant=_reject_json_constant,
+        )
+    except Native100ReportError:
+        raise
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise Native100ReportError("native100 composite index is invalid") from error
+    if (
+        not isinstance(index, dict)
+        or index.get("schema_version") != 1
+        or index.get("status") != "verified_native100_dual_host_18"
+        or index.get("protocol_id") != manifest["protocol_id"]
+        or index.get("matrix_id") != manifest["matrix_id"]
+        or index.get("manifest_sha256") != manifest["manifest_sha256"]
+        or index.get("claim_scope") != NATIVE100_CLAIM_SCOPE
+        or index.get("task_count") != 18
+        or not isinstance(index.get("tasks"), list)
+    ):
+        raise Native100ReportError("native100 composite index identity mismatch")
+    expected_ids = [task["task_id"] for task in manifest["tasks"]]
+    if [item.get("task_id") for item in index["tasks"]] != expected_ids:
+        raise Native100ReportError("native100 composite task order mismatch")
+    root = composite_root.resolve(strict=True)
+    task_dirs: dict[str, Path] = {}
+    for record in index["tasks"]:
+        source_relative = record.get("source_root_relative")
+        task_relative = record.get("task_relative")
+        if not isinstance(source_relative, str) or not isinstance(task_relative, str):
+            raise Native100ReportError("native100 composite task path is invalid")
+        source_pure = Path(source_relative)
+        task_pure = Path(task_relative)
+        if (
+            source_pure.is_absolute()
+            or task_pure.is_absolute()
+            or ".." in source_pure.parts
+            or ".." in task_pure.parts
+        ):
+            raise Native100ReportError("native100 composite task path is unsafe")
+        task_dir = (root / source_pure / task_pure).resolve(strict=True)
+        try:
+            task_dir.relative_to(root)
+        except ValueError as error:
+            raise Native100ReportError(
+                "native100 composite task escapes the source root"
+            ) from error
+        task_dirs[record["task_id"]] = task_dir
+    return task_dirs
 
 
 def _combined_csv_bytes(rows: list[dict[str, str]]) -> bytes:
@@ -395,10 +479,13 @@ def build_native100_table_report(
     expected_manifest_sha256: str,
     base_manifest_path: Path | str,
     expected_base_manifest_sha256: str,
-    results_root: Path | str,
+    results_root: Path | str | None,
     base_table_csv: Path | str,
     expected_base_table_sha256: str,
     output_dir: Path | str,
+    composite_index_path: Path | str | None = None,
+    expected_composite_index_sha256: str | None = None,
+    composite_root: Path | str | None = None,
 ) -> dict[str, Any]:
     manifest = load_native100_compare_manifest(
         manifest_path,
@@ -410,9 +497,22 @@ def build_native100_table_report(
         Path(base_table_csv),
         expected_sha256=expected_base_table_sha256,
     )
+    task_dirs = None
+    if composite_index_path is not None:
+        if expected_composite_index_sha256 is None or composite_root is None:
+            raise Native100ReportError("composite index binding is incomplete")
+        task_dirs = _load_composite_task_dirs(
+            index_path=Path(composite_index_path),
+            expected_index_sha256=expected_composite_index_sha256,
+            composite_root=Path(composite_root),
+            manifest=manifest,
+        )
+    elif results_root is None:
+        raise Native100ReportError("results_root or composite index is required")
     supplement_rows, task_records = _load_supplement_rows(
         manifest=manifest,
-        results_root=Path(results_root),
+        results_root=Path(results_root) if results_root is not None else None,
+        task_dirs=task_dirs,
     )
     rows = [*base_rows, *supplement_rows]
     outputs = {
@@ -439,6 +539,7 @@ def build_native100_table_report(
         "supplement_row_count": len(supplement_rows),
         "display_row_count": len(rows),
         "task_count": len(task_records),
+        "composite_index_sha256": expected_composite_index_sha256,
         "seeds": list(NATIVE100_SEEDS),
         "statistic": "mean_and_sample_standard_deviation",
         "task_records": task_records,
@@ -467,7 +568,11 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--manifest-sha256", required=True)
     parser.add_argument("--base-manifest", required=True, type=Path)
     parser.add_argument("--base-manifest-sha256", required=True)
-    parser.add_argument("--results-root", required=True, type=Path)
+    sources = parser.add_mutually_exclusive_group(required=True)
+    sources.add_argument("--results-root", type=Path)
+    sources.add_argument("--composite-index", type=Path)
+    parser.add_argument("--composite-index-sha256")
+    parser.add_argument("--composite-root", type=Path)
     parser.add_argument("--base-table-csv", required=True, type=Path)
     parser.add_argument("--base-table-sha256", required=True)
     parser.add_argument("--output-dir", required=True, type=Path)
@@ -485,6 +590,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         base_table_csv=args.base_table_csv,
         expected_base_table_sha256=args.base_table_sha256,
         output_dir=args.output_dir,
+        composite_index_path=args.composite_index,
+        expected_composite_index_sha256=args.composite_index_sha256,
+        composite_root=args.composite_root,
     )
     print(json.dumps(report, ensure_ascii=False, sort_keys=True))
     return 0
