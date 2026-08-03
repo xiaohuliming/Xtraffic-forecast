@@ -1,0 +1,118 @@
+{
+  "base_manifest_sha256": "d0c7fb88e24c6026d670a4a6d571357eb5320393417a83d344adb05151023a78",
+  "base_matrix_id": "igstgnn_table4_public_repro_39_v2",
+  "base_row_count": 42,
+  "base_table_sha256": "057e0fa94bbea24d834ed16ed00b94b0599a9e9081321cc205643793c47f34c1",
+  "caveats": [
+    "official_protocol_with_known_overlap",
+    "not_protocol_v3_noleak_dedup",
+    "ndr_net_is_not_an_original_igstgnn_table4_method",
+    "native_recipes_differ_except_for_the_shared_100_epoch_cap",
+    "existing_bist_500_epoch_and_ndr_30_epoch_rows_are_preserved"
+  ],
+  "claim_scope": "same_table_native_recipe_100_epoch_supplement",
+  "composite_index_sha256": "27746081f2450d5f8ae7fe950000a23d147bd117ac8b8a5fa3ac18fdfc12314c",
+  "display_row_count": 48,
+  "manifest_sha256": "e4fe8a6987e06dd573212f88665b181b03b83e9fbad43b9f08781ecbedcf8246",
+  "matrix_id": "igstgnn_table4_bist_ndr_native100_18_v1",
+  "outputs": {
+    "table4_with_native100.csv": {
+      "bytes": 8414,
+      "sha256": "4034b49080c223f1cc28a730b1790701cdcbf0e827e4eb982cb36baddbf024d6"
+    },
+    "table4_with_native100.md": {
+      "bytes": 7211,
+      "sha256": "e29348144e19d728dc614016b7d3653dd2587e0eb4fbb32b7569d4d99ce3ae5a"
+    },
+    "table4_with_native100.tex": {
+      "bytes": 7247,
+      "sha256": "66bd422b30e63b500d7e33c103982735c5ea53af60b760463ae2b7167eef262c"
+    }
+  },
+  "protocol_id": "igstgnn_table4_official_v1",
+  "schema_version": 1,
+  "seeds": [
+    42,
+    1,
+    2
+  ],
+  "statistic": "mean_and_sample_standard_deviation",
+  "status": "verified_native100_table_supplement",
+  "supplement_row_count": 6,
+  "task_count": 18,
+  "task_records": [
+    {
+      "summary_sha256": "342ea747a1840bf95f561a773ebfdcba79dd63b44e7c99d9c5ccacad8a4d0147",
+      "task_id": "n100001_bist_alameda_seed42"
+    },
+    {
+      "summary_sha256": "2ce0e5a44830d42678ddc873d1e4426bd6f9d2829ab04e740897a4f96a5cb376",
+      "task_id": "n100002_bist_alameda_seed1"
+    },
+    {
+      "summary_sha256": "58573b5b332cf99bd5a9f8ffadf46fdd8ac8deb8d35240e63d89322395c6e59c",
+      "task_id": "n100003_bist_alameda_seed2"
+    },
+    {
+      "summary_sha256": "94870dc89b64a8df420da9d1fc2000ec6d1ca02d59fc25e5b11afa0d73f38478",
+      "task_id": "n100004_bist_contra_costa_seed42"
+    },
+    {
+      "summary_sha256": "3739160c5c669d49c1d4107f97e284cbf45a7ff12feb40ed011bc8c415f2ff84",
+      "task_id": "n100005_bist_contra_costa_seed1"
+    },
+    {
+      "summary_sha256": "3799528e63c9cecf0ad32c05ae584fd30b80aa4a15c63897cbc57ee43df39f78",
+      "task_id": "n100006_bist_contra_costa_seed2"
+    },
+    {
+      "summary_sha256": "806becd57b5e2a75801893562ced4f1bd81e955f94649ebef0a7cfd4564a5f92",
+      "task_id": "n100007_bist_orange_seed42"
+    },
+    {
+      "summary_sha256": "c56020076156fc928f9edd3b28f6e19f544f0c1ccc8156e704db1d8cfb3fec29",
+      "task_id": "n100008_bist_orange_seed1"
+    },
+    {
+      "summary_sha256": "b66144290a2f2daf366e6b48507225a018d4e4737025e61b4eadbafbb2e2edb9",
+      "task_id": "n100009_bist_orange_seed2"
+    },
+    {
+      "summary_sha256": "798709273ef4c03a344bee819e31a49784fbffd1d81b641bbec7344dac71347d",
+      "task_id": "n100010_ndr_net_alameda_seed42"
+    },
+    {
+      "summary_sha256": "1d188cd23531b13d190f7833dca89c6bc5ea56952733dc777dd23179d4153d44",
+      "task_id": "n100011_ndr_net_alameda_seed1"
+    },
+    {
+      "summary_sha256": "77b35a79348b67e5eda7fae4eb0692bde933e419d458778281dc69cc3a341423",
+      "task_id": "n100012_ndr_net_alameda_seed2"
+    },
+    {
+      "summary_sha256": "bddfd1c2527ce08cb19d6ba1251815c0c7ee140018d58598058223945da7bffc",
+      "task_id": "n100013_ndr_net_contra_costa_seed42"
+    },
+    {
+      "summary_sha256": "d2ac19c20a95766c5eed7a29886a839a5f88b43b987ac12ab9d1c2815d6f6758",
+      "task_id": "n100014_ndr_net_contra_costa_seed1"
+    },
+    {
+      "summary_sha256": "88ec9ddb5c8c5158b5a046243676cf6f38102fd7376320090dc692112a080909",
+      "task_id": "n100015_ndr_net_contra_costa_seed2"
+    },
+    {
+      "summary_sha256": "b9507c6c4ab11ab118667db80e0f202a332b5c65d3c82b09fb3da55f7dfd4276",
+      "task_id": "n100016_ndr_net_orange_seed42"
+    },
+    {
+      "summary_sha256": "09badf024a2058fe74d6ca082eb6902ca1462e11250908b56a508c220ff294de",
+      "task_id": "n100017_ndr_net_orange_seed1"
+    },
+    {
+      "summary_sha256": "6c7288884dd1e85dbc8f52f8e086e59e0c6bf9a4be848f5923a2b27214e09014",
+      "task_id": "n100018_ndr_net_orange_seed2"
+    }
+  ],
+  "validity_label": "official_protocol_with_known_overlap"
+}

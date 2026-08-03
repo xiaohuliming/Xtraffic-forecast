@@ -10,7 +10,7 @@
 
 当前 XTraffic 的旧缓存、v2 缓存和既有结果均不得写成已验证论文结论，也不得覆盖旧 summary。v2 已冻结。除原有泄露问题外，复审还确认了重复 forecast origin、active event 跨 split、验证指标累计错误和训练契约不完整。5080 已停止 v2 旧队列，最先完成的 4 个 v2 结果只可视为 `contaminated preliminary`。
 
-当前修复协议为 `protocol_v3_noleak_dedup`，cache schema 为 3。正式缓存构建代码 SHA 为 clean commit `29159f626494de52c69b36fe5bba9854f13cb56c`。最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。训练 checkout 在 Mac、5080 与 5090 均为 143 passed 和 1 个既有 warning，当前本地全仓回归为 252 passed 和 1 个既有 warning。三地区正式缓存已在 `outputs/dist_net/region_data_v3_noleak_dedup` 落盘，并通过本地两次、5080 一次及 5090 一次严格复验。bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。正式样本数与 train、val、test 切分为 Alameda 45760 和 32001/6954/6805，ContraCosta 23337 和 16414/3472/3451，Orange 60015 和 42372/9098/8545。
+当前修复协议为 `protocol_v3_noleak_dedup`，cache schema 为 3。正式缓存构建代码 SHA 为 clean commit `29159f626494de52c69b36fe5bba9854f13cb56c`。最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。训练 checkout 在 Mac、5080 与 5090 均为 143 passed 和 1 个既有 warning，当前本地全仓回归为 502 passed 和 2 个既有 warning。三地区正式缓存已在 `outputs/dist_net/region_data_v3_noleak_dedup` 落盘，并通过本地两次、5080 一次及 5090 一次严格复验。bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。正式样本数与 train、val、test 切分为 Alameda 45760 和 32001/6954/6805，ContraCosta 23337 和 16414/3472/3451，Orange 60015 和 42372/9098/8545。
 
 2026-07-20 22:23 新加坡时间起，正式运行口径由“5090 同机 45 项”改为双机分层矩阵。两台机器保持独立结果根、独立 `config_hash`、独立 postflight 和运行时 provenance。最终只能称为 `host-stratified distributed 45`，不得称为 homogeneous 5090 matrix。固定分片不交叉且并集严格为 45 项，所有直接 A/B 比较组保持在同一台机器。
 
@@ -127,3 +127,11 @@ Mac 全仓回归为 489 passed 和 2 个既有 warning，5080 Windows 专项门�
 替代 5090 已重新部署训练归档提交 `ace318b`、BiST pristine commit `dd94adf7721fcbb9e3feb5d1b44040305199a4cc` 与 Orange 九个正式文件。数据逐文件 SHA-256 复验通过。BiST 和 NDR-Net 完整优化步探针 loss 为 `148.53358459` 与 `42.48369026`，峰值显存为 `3142229504` 与 `12682121728` bytes，与旧机一致。Orange 六项队列于 2026-08-02 09:48:50 新加坡时间从 0/6 重启，launcher PID 为 `2314`，matrix runner PID 为 `2318`。09:56:35 时 task007 到 epoch 48，队列为 0/6、0 失败。
 
 替代主机使用专用受限结果服务器 SSH 身份，公钥指纹为 `SHA256:LpNIDomLiv0Vm6YHvJvN5miilCwUSSXSPXnRNhAt5hg`。fail-closed finalizer SHA-256 为 `a1c85fc95b5af92b51dcd44e209cc132a93a1b7bf7459d4552fcfe42fa892597`，持久 PID 为 `2815`。它只在六项本地五文件复验、runner 零退出、无训练进程、结果服务器容量门、逐文件 SHA-256、精确 allowlist 和原子提升全部通过后执行关机。任何失败都会保留机器开机。本地全仓回归现为 496 passed 和 2 个既有 warning。
+
+2026-08-03，原生配方 100 epoch 矩阵已完成全部收尾。替代 5090 的 Orange 6/6 与 5080 的 Alameda、Contra Costa 12/12 均为 completed，失败数为 0。5090 正式树含 31 个结果文件和 `1109955208` bytes，files digest 为 `1ae14803b44dcd88190dbf81ef47431ce161238749fec0c5e37c67acc37b9a52`。结果服务器复验和原子提升后，5090 已自动关机。
+
+5080 正式树含 61 个结果文件和 `686213987` bytes，files digest 为 `5d2de42964e581ea68f6612e7c05b4672268b22f267f887c191e62bc1470abf9`。旧 Orange BiST tasks007-009 不在导出 allowlist 内。Windows SSH 子进程不退出事故发生在目标文件写入与哈希校验成功之后，没有损坏正式结果。提交 `4920a4d` 增加无标准输入 SSH 与已验证文件容量复用，重启后完成严格回传。5080 保持开机。
+
+两份正式树已完成两次全量只读 composite 复验。正式 index 状态为 `verified_native100_dual_host_18`，SHA-256 为 `27746081f2450d5f8ae7fe950000a23d147bd117ac8b8a5fa3ac18fdfc12314c`，含 2 个来源、18 个 canonical task、92 个结果文件和 `1796169195` bytes。第二次复验除时间字段外与正式 index 完全一致。composite 控制提交为 `a34dc958f336e06779c4419bbdb5303c93098c91`。
+
+最终 48 行表已保存在 `outputs/reproduction/igstgnn_table4_official_v1/table4_with_native100_verified_v1/`。CSV、Markdown、LaTeX 和 manifest SHA-256 分别为 `4034b49080c223f1cc28a730b1790701cdcbf0e827e4eb982cb36baddbf024d6`、`e29348144e19d728dc614016b7d3653dd2587e0eb4fbb32b7569d4d99ce3ae5a`、`66bd422b30e63b500d7e33c103982735c5ea53af60b760463ae2b7167eef262c` 和 `e9a4859fac07abd532f48f0075f6cbfa3e491f80af32d18082291680b74416bf`。100 epoch Average MAE 三种子汇总为 Alameda BiST `10.938871 ± 0.011328`、NDR-Net `10.504639 ± 0.056600`，Contra Costa BiST `11.582189 ± 0.010355`、NDR-Net `11.299118 ± 0.012621`，Orange BiST `11.765688 ± 0.005298`、NDR-Net `11.136362 ± 0.030750`。该表继承 `official_protocol_with_known_overlap`，不得与 v3 无泄露矩阵混合。本地全仓回归为 502 passed 和 2 个既有 warning。

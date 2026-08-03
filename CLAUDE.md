@@ -1,6 +1,6 @@
 # XTraffic 项目导航与协作约定
 
-最近更新：2026-07-30
+最近更新：2026-08-03
 
 ## 新会话先读
 
@@ -49,7 +49,7 @@ v2 随后修复了原始泄露问题，但全面复审又确认了四类影响�
 
 因此 v2 已冻结，5080 队列已停止。队列最先完成的 4 个结果只能标记为 `contaminated preliminary`，不能用于论文、模型选择或恢复旧结论。v2 的三地区样本数、远端测试记录和启动时 GPU 状态保留为历史运维记录，不再视为正式协议验收证据。
 
-当前修复版本为 `protocol_v3_noleak_dedup`，cache schema 为 3。正式缓存构建代码 SHA 为 clean commit `29159f626494de52c69b36fe5bba9854f13cb56c`，它只代表缓存 provenance。最终训练代码 SHA 已锁定为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。训练 checkout 在 Mac、5080 与 5090 均为 143 passed 和 1 个既有 warning，当前本地全仓回归为 252 passed 和 1 个既有 warning。默认缓存目录为 `outputs/dist_net/region_data_v3_noleak_dedup`，默认结果根目录为 `outputs/protocol_v3_noleak_dedup`。
+当前修复版本为 `protocol_v3_noleak_dedup`，cache schema 为 3。正式缓存构建代码 SHA 为 clean commit `29159f626494de52c69b36fe5bba9854f13cb56c`，它只代表缓存 provenance。最终训练代码 SHA 已锁定为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。训练 checkout 在 Mac、5080 与 5090 均为 143 passed 和 1 个既有 warning，当前本地全仓回归为 502 passed 和 2 个既有 warning。默认缓存目录为 `outputs/dist_net/region_data_v3_noleak_dedup`，默认结果根目录为 `outputs/protocol_v3_noleak_dedup`。
 
 三地区 v3 正式缓存已在 `outputs/dist_net/region_data_v3_noleak_dedup` 落盘，并通过本地两次、5080 一次及 5090 一次严格复验。正式 bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。
 
@@ -249,8 +249,22 @@ Mac 全仓回归为 489 passed 和 2 个既有 warning，5080 Windows 专项门�
 
 实验室共享主机、地址和密码集中明文维护在 `config/lab_hosts.env`。运行脚本可以直接 `source` 该文件，也允许环境变量覆盖。私钥、个人令牌和个人账号凭据仍不进入仓库。
 
-## 最新状态，2026-08-02 5080 辅助测速
+## 最新状态，2026-08-03 原生配方 100 epoch 补充矩阵完成
 
-替代 5090 的 Orange 队列截至 11:25:57 为 3/6 完成、0 失败，正在执行 `n100016_ndr_net_orange_seed42`，已完成 epoch 14。完整 18 项矩阵为 15/18 已验收。finalizer PID `2815` 保持活动，只会在 Orange 6/6、结果服务器逐文件复验和原子提升全部成功后关机。
+替代 5090 已完成 Orange 6/6，失败数为 0。source-host postflight、结果服务器逐文件 SHA-256、精确 allowlist、原子提升和正式树复验均通过，随后按用户要求自动关机。5090 正式分片含 31 个结果文件与 `1109955208` bytes，files digest 为 `1ae14803b44dcd88190dbf81ef47431ce161238749fec0c5e37c67acc37b9a52`。
 
-空闲 5080 已对 `n100017` 做真实 CUDA 探针和 292 秒隔离 live speed gate。探针通过，但正式测速没有完成首个 epoch，不能有效缩短 5090 剩余队列。候选分片被标记为 `rejected_after_live_speed_gate`，计划任务已停止并禁用，没有正式任务目录。incident 清单摘要为 `4ce4bf5402c69d3f11adb95a711fe8f2df3e18161a3e81dcec1410ef592e45ed`。原 `dual_host_region_stratified` 计划继续生效，5080 保持空闲，测速结果不得进入 composite。本地全仓回归为 498 passed 和 2 个既有 warning。
+5080 已复验 Alameda 与 Contra Costa 12/12 并完成严格回传，失败数为 0。正式分片含 61 个结果文件与 `686213987` bytes，files digest 为 `5d2de42964e581ea68f6612e7c05b4672268b22f267f887c191e62bc1470abf9`。旧 Orange BiST tasks007-009 已验证但不在导出 allowlist 内。Windows SSH 子进程曾在哈希校验后不退出，文件已正确写入且哈希一致。提交 `4920a4d` 增加无标准输入 SSH 和已验证文件容量复用，重启后跳过已完成文件并正常发布。5080 保持开机。
+
+双机正式树已完成两次全量只读 composite 复验。正式 index 状态为 `verified_native100_dual_host_18`，SHA-256 为 `27746081f2450d5f8ae7fe950000a23d147bd117ac8b8a5fa3ac18fdfc12314c`，包含 2 个来源、18 个 canonical task、92 个结果文件与 `1796169195` bytes。第二次复验除时间字段外与正式 index 完全一致。composite 控制提交为 `a34dc958f336e06779c4419bbdb5303c93098c91`。
+
+最终 48 行表已生成并保存在 `outputs/reproduction/igstgnn_table4_official_v1/table4_with_native100_verified_v1/`。CSV、Markdown、LaTeX 与 manifest 的 SHA-256 分别为 `4034b49080c223f1cc28a730b1790701cdcbf0e827e4eb982cb36baddbf024d6`、`e29348144e19d728dc614016b7d3653dd2587e0eb4fbb32b7569d4d99ce3ae5a`、`66bd422b30e63b500d7e33c103982735c5ea53af60b760463ae2b7167eef262c` 与 `e9a4859fac07abd532f48f0075f6cbfa3e491f80af32d18082291680b74416bf`。本地全仓回归为 502 passed 和 2 个既有 warning。
+
+100 epoch 三种子 Average MAE 均值与样本标准差如下：
+
+| 地区 | BiST 100ep | NDR-Net 100ep |
+|---|---:|---:|
+| Alameda | `10.938871 ± 0.011328` | `10.504639 ± 0.056600` |
+| Contra Costa | `11.582189 ± 0.010355` | `11.299118 ± 0.012621` |
+| Orange | `11.765688 ± 0.005298` | `11.136362 ± 0.030750` |
+
+这组补充实验继续使用 `official_protocol_with_known_overlap`。它支持 100 epoch 原生配方下的描述性比较，不是 v3 无泄露结论，也不能作为 IGSTGNN 原论文方法行。

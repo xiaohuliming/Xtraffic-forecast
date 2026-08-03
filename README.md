@@ -19,7 +19,7 @@
 - 完成三地区、多种子、等参数消融和一批标准基准实验。
 - 启动统一管线下的 baseline zoo，但结果尚未完成权威汇总。
 
-这些工作仍有方法设计和工程价值，但 XTraffic 上的数值证据需要按新协议重建。当前 v3 代码实现了因果填充、label-free train-only 气候态、完整目标窗切分、forecast origin 去重、active event split 隔离、可部署事故特征、显式 mask、全局有效观测点指标累计、缓存身份校验、输出隔离和 IGSTGNN 对齐。协议为 `protocol_v3_noleak_dedup`，cache schema 为 3。训练 checkout 在 Mac、5080 与 5090 均为 143 passed 和 1 个既有 warning，当前本地全仓回归为 496 passed 和 2 个既有 warning。
+这些工作仍有方法设计和工程价值，但 XTraffic 上的数值证据需要按新协议重建。当前 v3 代码实现了因果填充、label-free train-only 气候态、完整目标窗切分、forecast origin 去重、active event split 隔离、可部署事故特征、显式 mask、全局有效观测点指标累计、缓存身份校验、输出隔离和 IGSTGNN 对齐。协议为 `protocol_v3_noleak_dedup`，cache schema 为 3。训练 checkout 在 Mac、5080 与 5090 均为 143 passed 和 1 个既有 warning，当前本地全仓回归为 502 passed 和 2 个既有 warning。
 
 正式缓存位于 `outputs/dist_net/region_data_v3_noleak_dedup`。它已在本地正式路径和两个远端训练环境完成严格复验，状态均为 `verified`。bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。
 
@@ -50,13 +50,11 @@ NDR-Net 的 Average MAE 为 Alameda `10.759524 ± 0.040862`、Contra Costa `11.4
 
 为消除单次 BiST、三种子 NDR 和测试尾批处理不一致的问题，仓库已完成独立的 18 项 BiST 与 BiST-NDR 严格配对队列。该矩阵使用统一 30 epoch 训练控制，runner 已验收 18/18，尚待多种子与窗口级配对分析。协议、探针和完成状态见 [配对实验启动记录](docs/audits/igstgnn_table4_bist_ndr_pair_launch_2026-07-31.md)。
 
-为直接填入原 Table 4，仓库另建了 BiST 与原 STAEformer 版 NDR-Net 的 18 项原生配方 100 epoch 补充矩阵。两个方法保留各自原生 batch、optimizer、scheduler、partial batch 和 early stopping 契约，只把最大 epoch 设为 100。2026-08-01 12:18 新加坡时间起，矩阵改为按地区分层的 RTX 5080 与 RTX 5090 双机执行。5080 负责 Alameda 与 Contra Costa 的 12 项，5090 负责 Orange 的 6 项。完整身份、探针和原始启动状态见 [100 epoch 补充对比启动记录](docs/audits/igstgnn_table4_native100_launch_2026-08-01.md)，双机切换与当前状态见 [双机重分片记录](docs/audits/igstgnn_table4_native100_dual_host_rebalance_2026-08-01.md)。
+为直接填入原 Table 4，仓库另建了 BiST 与原 STAEformer 版 NDR-Net 的 18 项原生配方 100 epoch 补充矩阵。两个方法保留各自原生 batch、optimizer、scheduler、partial batch 和 early stopping 契约，只把最大 epoch 设为 100。5080 负责 Alameda 与 Contra Costa 的 12 项，替代 5090 负责 Orange 的 6 项。旧 5090 未回传结果全部排除。5080 的 Orange 测速候选分片也被拒绝，没有正式结果进入 composite。
 
-旧 5090 在 4/6、task017 epoch 82 后不可达，新端口对应空数据盘替代容器，因此旧机未回传结果全部排除。2026-08-02 09:48:50 新加坡时间，替代 5090 在重新通过九文件数据哈希和两项真实 CUDA 优化步探针后，从 0/6 重跑 Orange 六项。fail-closed finalizer 会在本地六项验收、结果服务器逐文件复验与原子发布全部成功后自动关机。完整 18 项 composite 通过前不生成最终补充表。
+2026-08-03，双机正式分片已完成 18/18，失败数为 0。5090 的 6 项与 5080 的 12 项均通过 source-host postflight、结果服务器逐文件 SHA-256、精确 allowlist 和原子提升。5090 已在发布后自动关机，5080 保持开机。两次全量只读 composite 复验通过，正式 index SHA-256 为 `27746081f2450d5f8ae7fe950000a23d147bd117ac8b8a5fa3ac18fdfc12314c`，状态为 `verified_native100_dual_host_18`。
 
-2026-08-02 11:25，替代 5090 已完成 Orange 3/6 并运行 `n100016` epoch 14，完整矩阵为 15/18，失败数为 0。空闲 5080 完成真实 CUDA 探针后进行了 292 秒隔离测速，但没有完成首个 epoch，因此不能有效缩短剩余队列。候选分片已拒绝，计划任务已停止并禁用，没有正式结果。原按地区双机计划和 5090 成功回传后自动关机契约保持不变。本地全仓回归为 498 passed 和 2 个既有 warning。
-
-18 项完成后，专用报告器会逐任务复算并验收五文件 artifact，然后把 BiST 100ep 和 NDR-Net 100ep 的三种子均值与样本标准差自动合并到既有 42 行表。输出保持原表的 H3、H6、H12 与 Average 指标列，同时生成 CSV、Markdown、LaTeX 和可追溯 manifest。
+最终 48 行表保留原 42 行，并追加 BiST 100ep 与 NDR-Net 100ep 的三地区三种子均值和样本标准差。可直接查看 [100 epoch 最终表](outputs/reproduction/igstgnn_table4_official_v1/table4_with_native100_verified_v1/table4_with_native100.md) 和 [CSV](outputs/reproduction/igstgnn_table4_official_v1/table4_with_native100_verified_v1/table4_with_native100.csv)。Average MAE 上，NDR-Net 在 Alameda、Contra Costa 与 Orange 分别为 `10.504639 ± 0.056600`、`11.299118 ± 0.012621` 与 `11.136362 ± 0.030750`，BiST 分别为 `10.938871 ± 0.011328`、`11.582189 ± 0.010355` 与 `11.765688 ± 0.005298`。该表继承 `official_protocol_with_known_overlap`，不能与 v3 无泄露结果混用。本地全仓回归为 502 passed 和 2 个既有 warning。完整身份、incident 和回传记录见 [双机重分片记录](docs/audits/igstgnn_table4_native100_dual_host_rebalance_2026-08-01.md)。
 
 ## 已确认的数据问题
 

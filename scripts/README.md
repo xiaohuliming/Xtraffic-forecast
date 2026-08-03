@@ -44,16 +44,21 @@ v2 已因重复 forecast origin、active event 跨 split、验证累计和训练
 | `reproduction/igstgnn_table4/bist_ndr_pair_model.py` | runner 已完成 | 在不修改 BiST pristine checkout 的前提下提供 BiST 对照与 BiST-NDR 双头适配 |
 | `reproduction/igstgnn_table4/bist_ndr_pair_runner.py` | runner 已完成 | 执行单项配对训练、全局验证 masked MAE、完整测试尾批与五文件结果写入 |
 | `reproduction/igstgnn_table4/bist_ndr_pair_matrix_runner.py` | runner 已完成 | 幂等执行 18 项队列并逐项验收正式 artifact |
-| `reproduction/igstgnn_table4/native100_compare_runner.py` | 运行中 | 保留 BiST 与原 NDR-Net 各自原生配方，只将最大 epoch 设为 100 |
-| `reproduction/igstgnn_table4/native100_compare_matrix_runner.py` | 运行中 | 幂等执行 18 项 100 epoch 补充矩阵并逐项验收 |
-| `reproduction/igstgnn_table4/native100_compare_report.py` | 待结果 | 复验 18 项后保留既有 42 行，追加 6 行并生成同结构 CSV、Markdown、LaTeX 和 manifest |
-| `remote/windows/igstgnn_table4_native100_5080_cc_only.cmd` | 运行中 | 在 5080 上只选择 Alameda 与 Contra Costa 的 12 个原生配方 100 epoch 任务 |
-| `remote/linux/igstgnn_table4_native100_5090_orange.sh` | 运行中 | 在 5090 上只选择 Orange 的 6 个原生配方 100 epoch 任务 |
+| `reproduction/igstgnn_table4/native100_compare_runner.py` | 已完成 | 保留 BiST 与原 NDR-Net 各自原生配方，只将最大 epoch 设为 100 |
+| `reproduction/igstgnn_table4/native100_compare_matrix_runner.py` | 已完成 18/18 | 幂等执行 18 项 100 epoch 补充矩阵并逐项验收 |
+| `reproduction/igstgnn_table4/native100_host_postflight.py` | 已验证 | 按双机计划复验源主机任务，生成精确导出 allowlist、哈希清单与 marker |
+| `reproduction/igstgnn_table4/native100_composite_postflight.py` | 已验证 | 只读复验 5080 与 5090 正式树，生成 `verified_native100_dual_host_18` index |
+| `reproduction/igstgnn_table4/native100_compare_report.py` | 已验证 | 绑定 composite index，保留既有 42 行，追加 6 行并生成 CSV、Markdown、LaTeX 和 manifest |
+| `remote/windows/igstgnn_table4_native100_5080_cc_only.cmd` | 已完成 12/12 | 在 5080 上只选择 Alameda 与 Contra Costa 的 12 个原生配方 100 epoch 任务 |
+| `remote/windows/igstgnn_table4_native100_5080_finalize.ps1` | 已验证 | 复验、可恢复回传、远端精确验哈希和原子发布 5080 的 12 项，成功后保持 5080 开机 |
+| `remote/linux/igstgnn_table4_native100_5090_orange.sh` | 已完成 6/6 | 在 5090 上只选择 Orange 的 6 个原生配方 100 epoch 任务 |
 | `remote/linux/igstgnn_table4_native100_5090_shutdown_waiter.sh` | 验收组件 | 严格复验 Orange 六项、runner 退出码和残留训练进程，供 finalizer 复用 |
-| `remote/linux/igstgnn_table4_native100_5090_finalize.sh` | 运行中 | 替代 5090 完成六项后执行本地验收、结果服务器逐文件复验、原子发布和成功后关机 |
+| `remote/linux/igstgnn_table4_native100_5090_finalize.sh` | 已完成 | 替代 5090 完成六项后执行本地验收、结果服务器逐文件复验、原子发布和成功后关机 |
 | `remote/windows/igstgnn_table4_native100_5080_orange_seeds1_2.cmd` | 已拒绝，禁用 | 5080 Orange 剩余种子隔离测速入口。live speed gate 未通过，脚本入口硬性返回 90，仅保留审计 |
 
 原 39 项 composite index SHA-256 为 `3e5f6bee6eb0cd667f28c287f9538136b31c4312652673453e3f56e446edbbe2`。NDR 扩展 index SHA-256 为 `8f4666c45b7708c47d1ee90f3a81444eaf46fee5ba1011bc0242f96c20e0983a`。最终报告位于 `outputs/reproduction/igstgnn_table4_official_v1/`。该协议保留已知重叠，不能与 v3 无泄露结果混用。
+
+原生配方 100 epoch 补充矩阵已完成 18/18，双机正式树及两次全量 composite 复验均通过。正式 index SHA-256 为 `27746081f2450d5f8ae7fe950000a23d147bd117ac8b8a5fa3ac18fdfc12314c`。最终 48 行表位于 `outputs/reproduction/igstgnn_table4_official_v1/table4_with_native100_verified_v1/`，CSV SHA-256 为 `4034b49080c223f1cc28a730b1790701cdcbf0e827e4eb982cb36baddbf024d6`。
 
 ## 事故标签对撞
 

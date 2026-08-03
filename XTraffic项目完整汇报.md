@@ -345,6 +345,26 @@ Mac 全仓回归为 489 passed 和 2 个既有 warning，5080 Windows 专项门�
 
 5080 辅助分片的预计收益很小，不足以抵消变更已锁定来源和 finalizer 的审计成本。候选计划因此被标记为 `rejected_after_live_speed_gate`，对应计划任务已停止并禁用。runner 受控终止退出码为 2，没有正式任务目录。现场清单摘要为 `4ce4bf5402c69d3f11adb95a711fe8f2df3e18161a3e81dcec1410ef592e45ed`。原按地区双机计划继续生效。11:25:57 时 5090 为 3/6 完成、0 失败，task016 完成 epoch 14，完整矩阵为 15/18，finalizer PID `2815` 正常等待。5080 保持空闲且测速 incident 不进入最终 composite。本地全仓回归为 498 passed 和 2 个既有 warning。
 
+### 最新进展，2026-08-03，100 epoch 双机矩阵、composite 与最终表完成
+
+替代 5090 已完成 Orange 6/6，失败数为 0。source-host postflight、结果服务器逐文件 SHA-256、精确 allowlist、原子提升与正式树复验全部通过。5090 正式分片含 31 个结果文件和 `1109955208` bytes，files digest 为 `1ae14803b44dcd88190dbf81ef47431ce161238749fec0c5e37c67acc37b9a52`。发布后 5090 按用户要求自动关机。
+
+5080 已完成 Alameda 与 Contra Costa 12/12 的严格回传，失败数为 0。正式分片含 61 个结果文件和 `686213987` bytes，files digest 为 `5d2de42964e581ea68f6612e7c05b4672268b22f267f887c191e62bc1470abf9`。旧 Orange BiST tasks007-009 不在导出 allowlist 内。Windows SSH 子进程曾在文件写入与远端哈希校验成功后未退出。提交 `4920a4d` 增加无标准输入 SSH 和已验证文件容量复用，重启后跳过已匹配文件并完成原子发布。该 incident 没有损坏或重训任务。5080 保持开机。
+
+两份正式树已完成两次全量只读 composite 复验。正式 index 状态为 `verified_native100_dual_host_18`，SHA-256 为 `27746081f2450d5f8ae7fe950000a23d147bd117ac8b8a5fa3ac18fdfc12314c`。它包含 2 个来源、18 个 canonical task、92 个结果文件和 `1796169195` bytes。第二次复验除时间字段外与正式 index 完全一致。composite 控制提交为 `a34dc958f336e06779c4419bbdb5303c93098c91`。
+
+最终入表提交为 `416586aa625e1bd9897283fedfbdf46190b4a29a`。报告保留既有 42 行并追加 6 个地区方法行，产物位于 `outputs/reproduction/igstgnn_table4_official_v1/table4_with_native100_verified_v1/`。CSV、Markdown、LaTeX 与 manifest SHA-256 分别为 `4034b49080c223f1cc28a730b1790701cdcbf0e827e4eb982cb36baddbf024d6`、`e29348144e19d728dc614016b7d3653dd2587e0eb4fbb32b7569d4d99ce3ae5a`、`66bd422b30e63b500d7e33c103982735c5ea53af60b760463ae2b7167eef262c` 与 `e9a4859fac07abd532f48f0075f6cbfa3e491f80af32d18082291680b74416bf`。
+
+100 epoch 三种子 Average MAE 均值与样本标准差为：
+
+| 地区 | BiST 100ep | NDR-Net 100ep | NDR-Net 的 MAE 差值 |
+|---|---:|---:|---:|
+| Alameda | `10.938871 ± 0.011328` | `10.504639 ± 0.056600` | `-0.434232` |
+| Contra Costa | `11.582189 ± 0.010355` | `11.299118 ± 0.012621` | `-0.283071` |
+| Orange | `11.765688 ± 0.005298` | `11.136362 ± 0.030750` | `-0.629326` |
+
+这是同一 100 epoch 上限下保留各自原生配方的描述性比较。它继承 `official_protocol_with_known_overlap`，不是 `protocol_v3_noleak_dedup` 结论，NDR-Net 行也不是 IGSTGNN 原论文方法。本地全仓回归为 502 passed 和 2 个既有 warning。
+
 ---
 
 ## 第二部分：研究目标与演进路径
@@ -878,12 +898,18 @@ runner 层现已完成或重新验收 45/45。5090 新分片为 18/18，5080 新
 86. 旧 5090 端口在 4/6、task017 epoch 82 后不可达。替代端口对应全新空数据盘容器，故旧机未回传结果全部排除。替代 5090 重新通过九文件数据哈希和两项真实 CUDA 完整优化步探针，并于 2026-08-02 09:48:50 从 0/6 重跑 Orange 六项。
 87. 部署替代 5090 的 fail-closed 回传 finalizer。它先执行六项本地五文件复验，再完成结果服务器容量检查、逐文件 SHA-256、精确 allowlist 与原子提升，成功后自动关机，任何异常保持开机。
 88. 对空闲 5080 执行 Orange NDR 真实 CUDA 探针和 292 秒隔离 live speed gate。探针通过但没有完成首个 epoch，候选辅助分片被拒绝并禁用，没有正式任务目录。原 5090 Orange 六项计划继续执行。
+89. 替代 5090 完成 Orange 6/6，失败数为 0。31 个结果文件和 1,109,955,208 bytes 通过 source-host postflight、结果服务器逐文件 SHA-256、精确 allowlist、原子提升与正式树复验。files digest 为 `1ae14803b44dcd88190dbf81ef47431ce161238749fec0c5e37c67acc37b9a52`。随后 5090 自动关机。
+90. 5080 完成 Alameda 和 Contra Costa 12/12 严格回传。61 个结果文件和 686,213,987 bytes 通过复验，files digest 为 `5d2de42964e581ea68f6612e7c05b4672268b22f267f887c191e62bc1470abf9`。旧 Orange BiST 三项被导出 allowlist 排除。提交 `4920a4d` 修正 Windows SSH 子进程不退出并使恢复路径复用已验证文件。5080 保持开机。
+91. 完成两次全量只读 composite 复验。正式 index 状态为 `verified_native100_dual_host_18`，SHA-256 为 `27746081f2450d5f8ae7fe950000a23d147bd117ac8b8a5fa3ac18fdfc12314c`，含 2 个来源、18 个 canonical task、92 个结果文件和 1,796,169,195 bytes。第二次复验除时间字段外完全一致。
+92. 生成 48 行最终表，保留原 42 行并追加 6 个 100 epoch 三种子汇总行。CSV SHA-256 为 `4034b49080c223f1cc28a730b1790701cdcbf0e827e4eb982cb36baddbf024d6`。三地区 Average MAE 上 NDR-Net 均低于 BiST，但结论局限于 `official_protocol_with_known_overlap` 和各自原生配方的描述性比较。
 
-当前待执行事项按优先级排列。
+当前 100 epoch 补充矩阵已完成的事项如下。
 
-1. 完成 BiST 与 NDR-Net 的 18 项原生配方 100 epoch 补充矩阵，并逐任务验收五文件 artifact。
-2. 在完整 18 项落盘后按 H3、H6、H12 和 Average 生成同结构对比表，同时保留三种子均值和样本标准差。
-3. 保留已有 BiST 500 epoch 单次行、NDR-Net 30 epoch 三种子行和新的 100 epoch 补充行，不互相覆盖。
+1. BiST 与 NDR-Net 的 18 项原生配方 100 epoch 补充矩阵已逐任务验收并发布。
+2. H3、H6、H12 和 Average 同结构对比表已生成，并保留三种子均值和样本标准差。
+3. 原 BiST 500 epoch 单次行、NDR-Net 30 epoch 三种子行和新 100 epoch 补充行均保留，没有互相覆盖。
+
+后续如需对统一 30 epoch 的 BiST 与 BiST-NDR 结构配对矩阵形成结论，应单独执行三种子汇总与窗口级配对分析。它与本次原生配方 100 epoch 补充表保持分离。
 
 ---
 
@@ -901,7 +927,11 @@ runner 层现已完成或重新验收 45/45。5090 新分片为 18/18，5080 新
 | docs/audits/igstgnn_table4_4090d_launch_2026-07-29.md | Table 4 双机九卡部署、incident、双卡恢复、自动回传与关机状态 |
 | docs/audits/igstgnn_table4_bist_ndr_pair_launch_2026-07-31.md | BiST 与 BiST-NDR 18 项严格配对协议、探针、启动 incident 与 5080 队列状态 |
 | docs/audits/igstgnn_table4_native100_launch_2026-08-01.md | BiST 与 NDR-Net 原生配方 100 epoch 矩阵、探针、身份与 5080 启动状态 |
-| docs/audits/igstgnn_table4_native100_dual_host_rebalance_2026-08-01.md | 原生配方 100 epoch 矩阵的 5080 与 5090 地区分层计划、数据复验、探针和双机启动状态 |
+| docs/audits/igstgnn_table4_native100_dual_host_rebalance_2026-08-01.md | 原生配方 100 epoch 矩阵的双机分层、incident、严格回传、composite 和最终表记录 |
+| outputs/reproduction/igstgnn_table4_official_v1/table4_with_native100_verified_v1/ | 最终 48 行 CSV、Markdown、LaTeX、manifest 与正式 composite index |
+| scripts/reproduction/igstgnn_table4/native100_host_postflight.py | 5080 与 5090 源主机精确导出复验 |
+| scripts/reproduction/igstgnn_table4/native100_composite_postflight.py | 双机正式树逐文件、逐任务只读 composite 复验 |
+| scripts/reproduction/igstgnn_table4/native100_compare_report.py | 从哈希绑定 composite index 生成 100 epoch 最终表 |
 | docs/archive/项目总结报告_2026-06-10.md | 已归档，止于 06-10 的全部结果、13 节审计实验、14 节决策、复现命令，详情已并入本文 |
 | docs/archive/去季节化方向_交接_2026-06-26.md | 已归档，去季节化方向的会话交接，核心已并入本文第 4.8 与第十二部分 |
 | dist_net/protocol.py | 无泄露 v3 的因果填充、窗口、切分、事件身份与共享协议 |

@@ -26,7 +26,7 @@
 | `protocol_v2_noleak/` | v2 训练结果统一根目录 | 已停止，最先完成的 4 项为 `contaminated preliminary` |
 | `dist_net/region_data_v3_noleak_dedup/` | schema 3 的 v3 XTraffic 缓存 | 已通过本地两次、5080 一次和 5090 一次严格复验，状态为 `verified` |
 | `protocol_v3_noleak_dedup/` | v3 训练结果统一根目录 | runner 45/45、正式 27/18 分片与只读 composite 均已验证，同机配对、多种子与窗口级显著性分析已完成，见 `protocol_v3_noleak_dedup/analysis/` |
-| `reproduction/igstgnn_table4_official_v1/` | IGSTGNN Table 4 官方发布协议复现与本地审计 | 原 39 项三源 composite 已验证，NDR 9 项扩展已验证，最终 CSV、Markdown 与 LaTeX 表已提交 |
+| `reproduction/igstgnn_table4_official_v1/` | IGSTGNN Table 4 官方发布协议复现与本地审计 | 原 39 项、NDR 9 项与原生配方 100 epoch 18 项均已验证，最终表已提交 |
 | `paper_artifacts/` | 旧事故双支论文资产 | Legacy，不代表当前论文方向 |
 | `impact_guided_next_stage/` | 大量旧事故增强实验 | Legacy，不再扩展 |
 | `remote_runs/` | 本地远程回传包与队列日志 | Git 忽略 |
@@ -36,6 +36,8 @@ v3 正式缓存的 bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bun
 IGSTGNN Table 4 复现使用作者发布数据与官方顺序切分，独立于 v3 无泄露缓存。正式清单位于 `config/reproduction/igstgnn_table4/matrix.public_material_v2.json`，SHA-256 为 `d0c7fb88e24c6026d670a4a6d571357eb5320393417a83d344adb05151023a78`。该协议保留官方数据中的已知重合，只能声明为按公开材料最大忠实复现。
 
 39 项结果由四卡机原 26 项、五卡机只读导出 12 项和 task034 跨主机恢复 1 项组成。结果服务器三源只读 composite 于 2026-07-30 通过两次完整复验，状态为 `verified_official_protocol_with_known_overlap_39`，index SHA-256 为 `3e5f6bee6eb0cd667f28c287f9538136b31c4312652673453e3f56e446edbbe2`。原 39 项表位于 `reproduction/igstgnn_table4_official_v1/table4_verified_v1/`。NDR-Net 独立扩展 9 项的结果服务器回执 SHA-256 为 `dbd9dcb355a3324707e728a1942465612cd443695b51ea6359e80dc03d1be100`，验证索引位于 `reproduction/igstgnn_table4_official_v1/ndr_extension_verified_v1/`。最终 39 行加 3 个 NDR 三种子汇总行位于 `reproduction/igstgnn_table4_official_v1/table4_with_ndr_verified_v1/`。
+
+BiST 与 NDR-Net 原生配方 100 epoch 补充矩阵已完成 18/18。RTX 5080 与 RTX 5090 两份正式树通过两次全量只读 composite 复验，正式 index SHA-256 为 `27746081f2450d5f8ae7fe950000a23d147bd117ac8b8a5fa3ac18fdfc12314c`。最终 48 行表位于 `reproduction/igstgnn_table4_official_v1/table4_with_native100_verified_v1/`，CSV SHA-256 为 `4034b49080c223f1cc28a730b1790701cdcbf0e827e4eb982cb36baddbf024d6`。该表保留 `official_protocol_with_known_overlap` 标签，不得与 v3 无泄露结果混用。
 
 NDR-Net 的 Average MAE 均值与样本标准差为 Alameda `10.759524 ± 0.040862`、Contra Costa `11.413717 ± 0.024537`、Orange `11.569331 ± 0.031664`。前 39 行为各方法的正式单次运行，NDR 三行为种子 42、1、2 的均值和样本标准差。两种统计口径在表中明确标注，不能把 NDR 写成 IGSTGNN 原论文的方法行。
 

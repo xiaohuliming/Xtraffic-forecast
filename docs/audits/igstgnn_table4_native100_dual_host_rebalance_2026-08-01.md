@@ -109,3 +109,36 @@ Orange 数据目录严格包含 9 个允许文件。三个 split 的 SHA-256 为
 候选计划因此标记为 `rejected_after_live_speed_gate`。5080 计划任务 `XTraffic_Table4_Native100_5080_Orange_Seeds1_2_v2` 已停止并禁用，GPU 恢复空闲。runner 的受控终止退出码为 2，没有任何正式任务目录或可接受结果。现场移入 `D:\t4\native100_orange_5080_recovery\incidents\seed_rebalance_no_speedup_20260802T032250Z`，包含 4 个文件，`files.sha256` 摘要为 `4ce4bf5402c69d3f11adb95a711fe8f2df3e18161a3e81dcec1410ef592e45ed`。当时部署的候选计划 SHA-256 为 `6af289c0c189a61bf2af565d43d2a9dd3ebe552d23e16a639ce249b5e2690a1a`。最终拒绝记录 `config/reproduction/igstgnn_table4/distributed_native100_seed_rebalance_v2.json` 的 SHA-256 为 `c62609e2651bf0373648c05a9769e169952a589651a1b88c6e6b80e7ab72df72`，禁用启动脚本的 SHA-256 为 `72ef8a012645ba1d78f4b75451c94944c39d6d32e1f6d0c5acfd25f07d9d9241`。
 
 原计划 `igstgnn_table4_native100_5080_5090_v1` 继续生效，执行布局仍为 `dual_host_region_stratified`。截至 11:25:57，5090 为 3/6 完成、0 失败，`n100016` 已完成 epoch 14，GPU 利用率为 88%，显存使用为 20,340 MiB，finalizer PID `2815` 仍在等待。完整矩阵为 15/18 已验收。5080 的测速 incident 不进入 composite，也不改变 5090 训练完成后严格回传并自动关机的契约。本地全仓回归为 498 passed 和 2 个既有 warning。
+
+## 最终完成状态
+
+2026-08-03，替代 5090 完成 Orange 6/6，失败数为 0。source-host postflight 完成 31 个结果文件与 `1109955208` bytes 复验。files digest 为 `1ae14803b44dcd88190dbf81ef47431ce161238749fec0c5e37c67acc37b9a52`，postflight SHA-256 为 `62d9de10f334c5ab687d4fd76a9d94ff7a472129b1e5f2010cb0cd8ea8577253`，marker SHA-256 为 `4e1775df6a73e833cf14197c452c1bd366cf3ff249579128e432bd98571f02de`。结果服务器完成逐文件 SHA-256、精确 allowlist、原子提升与正式树复验后，5090 自动关机。
+
+5080 的 12 项声明内任务已全部复验。旧 Orange BiST tasks007-009 仍保持只读，但不在导出 allowlist 内。source-host postflight 生成 61 个结果文件与 `686213987` bytes，files digest 为 `5d2de42964e581ea68f6612e7c05b4672268b22f267f887c191e62bc1470abf9`，postflight SHA-256 为 `ebeb2a28188c5975e7ecdd52237071bf9c1073776f3ab1415a59f13ac2851e32`，marker SHA-256 为 `1d4e68fe795b3c919f3cfc6b0db249410789a2e79669043550293396748a7306`。
+
+结果服务器原先只有约 329 MB 可用空间。只清理 apt 缓存、apt 列表和旧 system journal，共释放 `536313856` bytes。没有删除实验目录，没有改动四个运行中的 Docker 业务容器。
+
+5080 finalizer 第一次以 SYSTEM 运行时没有继承 ASUS site-packages，在 postflight 导入阶段停止，没有上传。补充 `PYTHONPATH` 后，SYSTEM 账户不能使用结果服务器 SSH 身份，再次在上传前 fail closed。计划任务改为 ASUS 后开始上传。其中一个 Windows SSH 子进程在 summary 写入与远端哈希校验成功后未退出。该文件的远端 SHA-256 与本地一致，没有结果损坏。提交 `4920a4d` 将 SSH 设为无标准输入模式，增加已验证文件的精确容量复用，并在上传不匹配文件前先删除该单个远端路径。重启后跳过所有已匹配文件，完成剩余上传、整树复验与原子提升。计划任务退出码为 0，5080 按契约保持开机。
+
+## Composite 与最终表
+
+结果服务器的 Python 环境没有 PyTorch，且剩余空间不足以安全安装。提交 `a34dc958f336e06779c4419bbdb5303c93098c91` 使用 NumPy 重算官方指标，同时保留逐文件 SHA-256、精确 allowlist、summary 内部精确一致性、valid mask、provenance 与任务身份验证。NumPy 与 PyTorch CPU 归约顺序会导致尾数差异。在 Alameda BiST 与 Orange NDR-Net 真实文件上实测的最大绝对差为约 `7.45e-6`。复验器以 16 个 float32 ULP 为上限，同时要求 summary 的 H3、H6、H12 与 Average 在内部完全一致。
+
+正式 composite 状态为 `verified_native100_dual_host_18`，index SHA-256 为 `27746081f2450d5f8ae7fe950000a23d147bd117ac8b8a5fa3ac18fdfc12314c`。它含 2 个来源、18 个 canonical task、92 个结果文件和 `1796169195` bytes。第二次全量复验除 `verified_at` 外与正式 index 完全一致。两次复验均没有改写 summary 或 artifact。
+
+最终报告使用提交 `416586aa625e1bd9897283fedfbdf46190b4a29a`，绑定 composite index 和基础 42 行表 SHA-256 `057e0fa94bbea24d834ed16ed00b94b0599a9e9081321cc205643793c47f34c1`。输出位于 `outputs/reproduction/igstgnn_table4_official_v1/table4_with_native100_verified_v1/`：
+
+- CSV SHA-256：`4034b49080c223f1cc28a730b1790701cdcbf0e827e4eb982cb36baddbf024d6`
+- Markdown SHA-256：`e29348144e19d728dc614016b7d3653dd2587e0eb4fbb32b7569d4d99ce3ae5a`
+- LaTeX SHA-256：`66bd422b30e63b500d7e33c103982735c5ea53af60b760463ae2b7167eef262c`
+- manifest SHA-256：`e9a4859fac07abd532f48f0075f6cbfa3e491f80af32d18082291680b74416bf`
+
+100 epoch 三种子 Average MAE 均值与样本标准差如下：
+
+| 地区 | BiST 100ep | NDR-Net 100ep |
+|---|---:|---:|
+| Alameda | `10.938871 ± 0.011328` | `10.504639 ± 0.056600` |
+| Contra Costa | `11.582189 ± 0.010355` | `11.299118 ± 0.012621` |
+| Orange | `11.765688 ± 0.005298` | `11.136362 ± 0.030750` |
+
+该矩阵继承 `official_protocol_with_known_overlap`。新表是 `same_table_native_recipe_100_epoch_supplement`，不是 IGSTGNN 原论文方法行，也不得与 `protocol_v3_noleak_dedup` 混合。本地全仓回归为 502 passed 和 2 个既有 warning。
