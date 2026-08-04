@@ -172,8 +172,8 @@ def test_event_launcher_isolated_from_fullwindow_queue() -> None:
     text = EVENT_LAUNCHER.read_text(encoding="utf-8")
 
     assert "table4_event_baselines_phase1_v1.json" in text
-    assert "v3_event_repo_v1" in text
-    assert "v3_event_phase1_5080_v1" in text
+    assert "v3_event_repo_v2" in text
+    assert "v3_event_phase1_5080_v2" in text
     assert "v3_baselines_phase1_5080_v3" not in text
 
 
