@@ -996,7 +996,9 @@ runner 层现已完成或重新验收 45/45。5090 新分片为 18/18，5080 新
 
 正式启动前出现两次失败关闭。v1 由于 Windows checkout 把 manifest 换行符转为 CRLF，哈希门拒绝启动。v2 的 HL 训练返回码为 0，但 baseline-zoo 的 staging 产物目录与控制层期待不一致，runner 因此未提升结果。两次都是 0/33 正式结果，旧任务已禁用，incident 保留供审计且不进入最终 composite。对应修复提交为 `a5830a8` 和 `2db8bff`。
 
-用户先前确认的 event 口径现为 v3 主对比。新清单 `config/protocol_v3/table4_event_baselines_phase1_v1.json` 先覆盖相同的 11 个已支持方法乘 3 地区，合计 33 项。BiST 与 IGSTGNN 将在同一 v3 event 样本集和切分上接入，不再尝试把 IGSTGNN 塞入不具备完整事故上下文的 full-window 队列。全仓回归为 510 passed 和 2 个既有 warning。
+用户先前确认的 event 口径现为 v3 主对比。新清单 `config/protocol_v3/table4_event_baselines_phase1_v1.json` 先覆盖相同的 11 个已支持方法乘 3 地区，合计 33 项。BiST 与 IGSTGNN 将在同一 v3 event 样本集和切分上接入，不再尝试把 IGSTGNN 塞入不具备完整事故上下文的 full-window 队列。全仓回归为 511 passed 和 2 个既有 warning。
+
+event v1 首次启动在 HL 产物阶段因测试集未显式加载 `affected_mask` 而失败，没有产生正式任务目录。修复提交为 `6e4d115`，新队列固定在 `c16dc7a8208f834984e76a40a7b6f47f523c210b`。计划任务 `XTraffic_ProtocolV3_Event_Baseline_Phase1_v2` 使用无执行时限的 `PT0S` 设置。正式结果根为 `D:\t4\v3_event_phase1_5080_v2\results`。当前为 1/33 完成、0 失败，正在训练 Alameda LSTM。event Alameda HL 的 H3、H6、H12 和 Average MAE 为 `14.5656612415774`、`17.672297556357695`、`24.177859877122867` 和 `18.262501186926563`，Average RMSE 和 MAPE 为 `31.760263449673126` 和 `25.456400502008623`，summary SHA-256 为 `9644760e084e70bfa8fe372ad2e11aecc826771f4ecb244d0c0685a611e999a3`。
 
 ---
 

@@ -142,4 +142,6 @@ canonical manifest SHA-256 为 `8734ea3632622a852b63d8faa6a36ebfebec196c7703654d
 
 正式启动前的 v1 和 v2 均保留为失败关闭 incident。v1 是 manifest CRLF 哈希不一致，v2 是 baseline-zoo staging 目录契约不一致。两者都是 0/33 正式结果，旧计划任务已禁用，不得进入最终 composite。修复提交为 `a5830a8` 和 `2db8bff`。
 
-用户先前确认的 event 口径现为 v3 主对比。新清单为 `config/protocol_v3/table4_event_baselines_phase1_v1.json`，先覆盖同样的 11 个已支持方法乘 3 地区共 33 项，之后在同一 event 样本集上接入 BiST 和 IGSTGNN。Mac 全仓回归为 510 passed 和 2 个既有 warning。
+用户先前确认的 event 口径现为 v3 主对比。新清单为 `config/protocol_v3/table4_event_baselines_phase1_v1.json`，先覆盖同样的 11 个已支持方法乘 3 地区共 33 项，之后在同一 event 样本集上接入 BiST 和 IGSTGNN。Mac 全仓回归为 511 passed 和 2 个既有 warning。
+
+event v1 首次启动因测试集未显式加载事后分析用 `affected_mask` 而在 HL 产物阶段失败，0/33 正式结果。修复提交为 `6e4d115`，隔离队列 checkout 为 `c16dc7a8208f834984e76a40a7b6f47f523c210b`。计划任务 `XTraffic_ProtocolV3_Event_Baseline_Phase1_v2` 使用 `PT0S` 执行限制启动，正式结果根为 `D:\t4\v3_event_phase1_5080_v2\results`。当前为 1/33 完成、0 失败，正在训练 Alameda LSTM。event Alameda HL 的 H3、H6、H12 和 Average MAE 为 `14.5656612415774`、`17.672297556357695`、`24.177859877122867` 和 `18.262501186926563`，summary SHA-256 为 `9644760e084e70bfa8fe372ad2e11aecc826771f4ecb244d0c0685a611e999a3`。
