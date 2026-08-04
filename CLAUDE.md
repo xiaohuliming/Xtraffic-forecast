@@ -298,3 +298,13 @@ DGCRN、D2STGNN 和 STTN 首轮在 24 GB 单卡上 OOM，没有正式任务目�
 4090 D 首轮 DSTAGNN 从第一个 batch 起出现非有限 loss。复审确认 v3 baseline factory 遗漏了上游 LargeST engine 对 ASTGCN 与 DSTAGNN 的显式参数初始化。ASTGCN 虽然数值有限，也不满足最大忠实实现口径，因此其未验收首轮 attempt 同样停止。提交 `d8760d1a48c30d7d87130aef1712c85b8aa76359` 恢复上游初始化语义，并统一 AGCRN 的同类初始化入口。本地全仓回归为 519 passed 和 2 个既有 warning，远端专项门为 12 passed。
 
 修正后的独立恢复矩阵为 `protocol_v3_event_orange_upstream_init_recovery_v1`。DSTAGNN 固定在 GPU 3，ASTGCN 与后续 STGCN 固定在 GPU 5。两项首个完整 batch 均为有限值，DSTAGNN loss 为 `198.078`，ASTGCN loss 为 `200.413`。DGCRN、D2STGNN 与 STTN 的等效 batch 恢复仍在运行。Orange 当前仍为 0/11 正式验收，不得形成性能结论。
+
+## 最新状态，2026-08-04 23:43 v3 event baseline GraphWaveNet 修复
+
+当前全矩阵正式验收为 7/33。5080 已验收 Alameda 5 项，分别为 HL、LSTM、DCRNN、AGCRN 与 STGCN。AGCRN 的 H3、H6、H12 与 Average MAE 为 `11.656392276914588`、`12.61538357264251`、`13.980622434773556` 与 `12.566473598812982`。STGCN 对应为 `13.367683261677238`、`14.344827822122049`、`16.12980471831583` 与 `14.419147622884214`。
+
+5080 的 Alameda GraphWaveNet 已完成 30 epoch，但旧独立入口在测试推理时没有为 event 测试集加载 `affected_mask`，因此 runner 以 `KeyError` 失败关闭。checkpoint 与训练日志保留，没有正式 task006。提交 `edf4c1e` 修复 split 级加载契约，训练集与验证集仍不加载分析标签。提交 `e1bea79` 增加 Orange 同 GPU 的 GraphWaveNet 恢复分片。本地全仓回归为 521 passed 和 2 个既有 warning。
+
+5080 新 continuation checkout 为 `e1bea79d41be4c923fa874d20f0e9fcbf4ed5dae`，结果根为 `D:\t4\v3_event_gwnfix_v1\results`。分片严格选择 tasks006-022，共 17 项，当前从 Alameda GraphWaveNet 干净重跑。旧 5 项保持在原正式根，不会被覆盖。首次 continuation 启动因 manifest 默认结果根为绝对路径而被配置门拒绝，没有 trainer 启动。incident 已保留，修正为相对路径后队列正常运行。5080 专项门为 12 passed。
+
+Orange 已正式验收 2/11。HL 的 H3、H6、H12 与 Average MAE 为 `15.407020772641456`、`18.471071562965424`、`24.89280260874014` 与 `19.025463577015767`。LSTM 对应为 `12.191570568539724`、`13.618700471002564`、`16.221245969669557` 与 `13.72444114753531`。旧 Orange GraphWaveNet 在 epoch 25 停止，没有正式结果。修正后的恢复矩阵 `protocol_v3_event_orange_4090d8_gwn_recovery_v1` 已在 GPU 6 从头重跑 GraphWaveNet，之后接续 AGCRN。4090 D checkout 为 `e1bea79d41be4c923fa874d20f0e9fcbf4ed5dae`，远端专项门为 16 passed。部署 bundle SHA-256 为 `e810c8c56b9715e2ff4e8b286c48d4ae0c0f92ba049698e66850bcbe36761359`。

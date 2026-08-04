@@ -56,3 +56,17 @@ RTX 5080 的 event 队列已验收 2/33，当前执行 Alameda DCRNN。Alameda L
 5080 event 队列已验收 3/33，当前执行 Alameda AGCRN。Alameda DCRNN Average MAE 为 `14.215668450826508`，H3、H6 和 H12 MAE 为 `12.167831568642377`、`14.011284383846979` 和 `17.427471336632582`，summary SHA-256 为 `806a6ab4f91ffca55609b908c82d6e5b028d5b26421a06e7f7336dfac09b2801`。
 
 Orange 的 DCRNN、GraphWaveNet、LSTM、DGCRN、D2STGNN、STTN、DSTAGNN 与 ASTGCN 正在训练或恢复。Orange 仍为 0/11 正式验收。首轮 ASTGCN 与 DSTAGNN attempt 均不得进入最终 composite。
+
+## GraphWaveNet 测试标签 incident 与恢复
+
+5080 上的 Alameda GraphWaveNet 完成 30 epoch 后，在测试推理访问 `batch["affected_mask"]` 时触发 `KeyError`。训练 best validation masked MAE 为 `12.934727422724507`。runner 返回码为 1，没有正式 task006。checkpoint 与完整 train log 保留为 incident 证据。
+
+根因是 GraphWaveNet 使用独立训练入口，未复用 baseline zoo 已修正的 split 级 RegionData 参数。提交 `edf4c1e` 增加同等契约。event 训练集与验证集不加载分析标签，只有 event 测试集加载 `affected_mask`。full-window 行为保持不变。提交 `e1bea79` 增加 GPU 6 的 Orange GraphWaveNet 与 AGCRN 恢复模式。本地全仓为 521 passed 和 2 个既有 warning。Windows 专项门为 12 passed，Linux 专项门为 16 passed。
+
+5080 原结果根已正式验收 5 项，当前保持只读。新 continuation 结果根为 `D:\t4\v3_event_gwnfix_v1\results`，分片为 tasks006-022，共 17 项，checkout 为 `e1bea79d41be4c923fa874d20f0e9fcbf4ed5dae`。首次启动因 manifest 的 `default_results_root` 是绝对路径而被配置门拒绝，没有 trainer。失败日志与退出码已移入 incident 目录。字段改为相对路径后，计划任务 `XTraffic_ProtocolV3_Event_Baseline_Continuation_v1` 正常运行，当前执行 Alameda GraphWaveNet。
+
+Orange 原 GPU 6 GraphWaveNet 在 epoch 25 停止，没有正式结果。新 controller PID 为 `12996`，子 runner PID 为 `13065`，matrix ID 为 `protocol_v3_event_orange_4090d8_gwn_recovery_v1`。恢复根为 `/root/autodl-tmp/v3_event_orange_4090d8/gwn_recovery_results`。它先从头执行 task028 GraphWaveNet，之后执行 task026 AGCRN。bundle SHA-256 为 `e810c8c56b9715e2ff4e8b286c48d4ae0c0f92ba049698e66850bcbe36761359`。
+
+## 最新正式进度
+
+全矩阵为 7/33。5080 为 Alameda 5 项，Orange 为 2 项。Orange HL 的 H3、H6、H12 与 Average MAE 为 `15.407020772641456`、`18.471071562965424`、`24.89280260874014` 与 `19.025463577015767`。Orange LSTM 对应为 `12.191570568539724`、`13.618700471002564`、`16.221245969669557` 与 `13.72444114753531`。其余任务继续训练或恢复，不得提前形成完整性能结论。

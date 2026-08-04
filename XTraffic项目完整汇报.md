@@ -1018,6 +1018,28 @@ DGCRN、D2STGNN 和 STTN 首轮分别在额外申请 120 MiB、2.80 GiB 和 5.61
 
 修正后的独立恢复矩阵 `protocol_v3_event_orange_upstream_init_recovery_v1` 已启动。DSTAGNN 在 GPU 3 的首个完整 batch loss 为 `198.078`，ASTGCN 在 GPU 5 的首个完整 batch loss 为 `200.413`，两者均为有限值。GPU 5 完成 ASTGCN 后接续 STGCN。DGCRN、D2STGNN 与 STTN 的等效 batch 恢复仍保持运行。Orange 当前没有新任务通过五文件正式验收，因此仍为 0/11，不得提前填表或形成性能排名。
 
+## 最新进展，2026-08-04 23:43 v3 event baseline GraphWaveNet 修复
+
+全矩阵当前有 7/33 个任务通过 runner 正式验收。5080 已完成 Alameda 的 HL、LSTM、DCRNN、AGCRN 与 STGCN，共 5 项。新增两项的结果如下：
+
+| 方法 | H3 MAE | H6 MAE | H12 MAE | Average MAE |
+|---|---:|---:|---:|---:|
+| AGCRN | `11.656392` | `12.615384` | `13.980622` | `12.566474` |
+| STGCN | `13.367683` | `14.344828` | `16.129805` | `14.419148` |
+
+Alameda GraphWaveNet 已完成 30 epoch，best validation masked MAE 为 `12.934727422724507`。测试推理随即因 event 测试集没有加载 `affected_mask` 而失败关闭。该问题位于 GraphWaveNet 独立入口，不影响其训练 checkpoint，也没有产生正式 task006。提交 `edf4c1e` 让 event 测试集加载只用于分析的标签，训练集和验证集继续不加载该标签，因此没有训练泄露。提交 `e1bea79` 增加同 GPU 恢复分片。本地全仓回归为 521 passed 和 2 个既有 warning。
+
+5080 使用 clean checkout `e1bea79d41be4c923fa874d20f0e9fcbf4ed5dae` 启动 tasks006-022 的 17 项 continuation。新结果根为 `D:\t4\v3_event_gwnfix_v1\results`，当前从 Alameda GraphWaveNet 干净重跑。旧根内 5 个正式结果保持只读。首次启动因默认结果根误写为绝对路径而被配置门拒绝，没有 trainer 或结果。incident 保留后，manifest 已改回相对路径并正常启动。Windows 专项门为 12 passed。
+
+Orange 已验收 HL 与 LSTM，共 2/11。结果如下：
+
+| 方法 | H3 MAE | H6 MAE | H12 MAE | Average MAE |
+|---|---:|---:|---:|---:|
+| HL | `15.407021` | `18.471072` | `24.892803` | `19.025464` |
+| LSTM | `12.191571` | `13.618700` | `16.221246` | `13.724441` |
+
+旧 Orange GraphWaveNet 在 epoch 25 主动停止，没有正式结果。修正后的矩阵 `protocol_v3_event_orange_4090d8_gwn_recovery_v1` 已在 GPU 6 从 epoch 0 干净重跑 GraphWaveNet，完成后接续 AGCRN。4090 D checkout 同样为 `e1bea79d41be4c923fa874d20f0e9fcbf4ed5dae`，专项门为 16 passed。部署 bundle SHA-256 为 `e810c8c56b9715e2ff4e8b286c48d4ae0c0f92ba049698e66850bcbe36761359`。其余 DCRNN、DGCRN、D2STGNN、STTN、DSTAGNN 与 ASTGCN 继续训练或恢复。所有结果仍需经过单任务验收、双机 postflight、结果服务器复验和只读 composite 后才能生成最终表。
+
 ---
 
 ## 第十二部分：去季节化方向的数据现实与设计决策
