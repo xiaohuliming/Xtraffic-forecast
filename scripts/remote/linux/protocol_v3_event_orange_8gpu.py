@@ -40,6 +40,11 @@ OOM_RECOVERY_GPU_METHODS = OrderedDict(
         4: ("sttn",),
     }
 )
+GWN_RECOVERY_GPU_METHODS = OrderedDict(
+    {
+        6: ("graphwavenet", "agcrn"),
+    }
+)
 OOM_RECOVERY_MICROBATCH_SIZES = {
     "dgcrn": 8,
     "d2stgnn": 8,
@@ -183,7 +188,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--code-sha", required=True)
     parser.add_argument(
         "--mode",
-        choices=("full", "oom-recovery"),
+        choices=("full", "oom-recovery", "gwn-recovery"),
         default="full",
     )
     parser.add_argument(
@@ -224,15 +229,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     import torch
 
-    assignments = (
-        GPU_METHODS
-        if args.mode == "full"
-        else OOM_RECOVERY_GPU_METHODS
-    )
+    assignments = {
+        "full": GPU_METHODS,
+        "oom-recovery": OOM_RECOVERY_GPU_METHODS,
+        "gwn-recovery": GWN_RECOVERY_GPU_METHODS,
+    }[args.mode]
     microbatch_sizes = (
-        None
-        if args.mode == "full"
-        else OOM_RECOVERY_MICROBATCH_SIZES
+        OOM_RECOVERY_MICROBATCH_SIZES
+        if args.mode == "oom-recovery"
+        else None
     )
     device_count = torch.cuda.device_count()
     required_device_count = max(assignments) + 1
@@ -254,16 +259,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         microbatch_sizes=microbatch_sizes,
     )
     plan = {
-        "matrix_id": (
-            "protocol_v3_event_orange_4090d8_v1"
-            if args.mode == "full"
-            else "protocol_v3_event_orange_4090d8_oom_recovery_v1"
-        ),
-        "execution_layout": (
-            "single_host_eight_gpu_method_sharded"
-            if args.mode == "full"
-            else "same_host_failed_task_microbatch_recovery"
-        ),
+        "matrix_id": {
+            "full": "protocol_v3_event_orange_4090d8_v1",
+            "oom-recovery": (
+                "protocol_v3_event_orange_4090d8_oom_recovery_v1"
+            ),
+            "gwn-recovery": (
+                "protocol_v3_event_orange_4090d8_gwn_recovery_v1"
+            ),
+        }[args.mode],
+        "execution_layout": {
+            "full": "single_host_eight_gpu_method_sharded",
+            "oom-recovery": "same_host_failed_task_microbatch_recovery",
+            "gwn-recovery": "same_host_corrected_evaluation_input_recovery",
+        }[args.mode],
         "created_at": _utc_now(),
         "source_manifest": str(source_path),
         "source_manifest_sha256": _sha256_file(source_path),

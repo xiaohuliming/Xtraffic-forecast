@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from scripts.remote.linux.protocol_v3_event_orange_8gpu import (
+    GWN_RECOVERY_GPU_METHODS,
     OOM_RECOVERY_GPU_METHODS,
     OOM_RECOVERY_MICROBATCH_SIZES,
     build_orange_gpu_shards,
@@ -95,3 +96,15 @@ def test_oom_recovery_shards_bind_three_failed_models_to_idle_gpus(
         ).training["microbatch_size"]
         for gpu, path in paths.items()
     } == {1: 8, 2: 8, 4: 16}
+
+
+def test_graphwavenet_recovery_keeps_orange_followup_on_gpu6() -> None:
+    manifest = load_baseline_manifest(EVENT_MANIFEST)
+
+    shards = build_orange_gpu_shards(
+        manifest,
+        assignments=GWN_RECOVERY_GPU_METHODS,
+    )
+
+    assert tuple(shards) == (6,)
+    assert [task.model for task in shards[6]] == ["graphwavenet", "agcrn"]
