@@ -282,3 +282,11 @@ canonical manifest SHA-256 为 `8734ea3632622a852b63d8faa6a36ebfebec196c7703654d
 用户先前确认的 event 口径现为 v3 主对比。新清单为 `config/protocol_v3/table4_event_baselines_phase1_v1.json`，先覆盖相同的 11 个已支持方法乘 3 地区共 33 项，之后以同一 event 样本集接入 BiST 和 IGSTGNN。全仓回归现为 511 passed 和 2 个既有 warning。
 
 event v1 首次启动在 HL 产物阶段因测试集未显式加载 `affected_mask` 而失败，没有正式结果。修复提交为 `6e4d115`，隔离队列提交为 `c16dc7a8208f834984e76a40a7b6f47f523c210b`。修正后的计划任务为 `XTraffic_ProtocolV3_Event_Baseline_Phase1_v2`，结果根为 `D:\t4\v3_event_phase1_5080_v2\results`。当前为 1/33 完成、0 失败，正在训练 Alameda LSTM。event Alameda HL 的 H3、H6、H12 和 Average MAE 为 `14.5656612415774`、`17.672297556357695`、`24.177859877122867` 和 `18.262501186926563`，summary SHA-256 为 `9644760e084e70bfa8fe372ad2e11aecc826771f4ecb244d0c0685a611e999a3`。
+
+## 最新状态，2026-08-04 v3 event baseline 八卡加速
+
+新 SeetaCloud 实例实际为同一容器内的 8 张 RTX 4090 D，每张约 24 GB。Orange 的 11 个 baseline 全部放在该主机，以方法固定分片到 GPU 0 至 7。Orange 内部直接比较仍保持同主机。八卡控制器 PID 为 `2429`，matrix ID 为 `protocol_v3_event_orange_4090d8_v1`，首轮训练提交为 `2303557dc7fc3f5e87760bae0b31d407b544e5f5`。正式 bundle ID 与 digest 逐文件复验通过。
+
+DGCRN、D2STGNN 和 STTN 首轮在 24 GB 单卡上 OOM，没有正式任务目录。恢复层保持有效 batch 32，按全 batch 有效观测点归一化梯度，累积 microbatch 反向后只做一次优化器更新。DGCRN 使用 microbatch 8，STTN 使用 16，D2STGNN 使用 8。三者均已通过首个完整有效 batch。恢复提交为 `845804de1586eb6620496298d264c789c6a140c9` 和 `5bced13246ee3eb1e903726f0e9c60c839f46209`。Mac 全仓回归为 517 passed 和 2 个既有 warning。
+
+5080 event 队列已验收 2/33，当前执行 Alameda DCRNN。Alameda LSTM 的 Average MAE 为 `12.950932743865955`，H3、H6 和 H12 MAE 为 `11.472908787131686`、`12.867387335945871` 和 `15.258082126124597`，summary SHA-256 为 `cfe37cfb481623214afa4516125100f8e6d05d518fe71cf84a895203b50f9452`。Orange 尚无本轮新的正式性能结论。详细记录见 `docs/audits/protocol_v3_event_4090d8_launch_2026-08-04.md`。

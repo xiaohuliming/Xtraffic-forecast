@@ -1,0 +1,44 @@
+# protocol v3 event baseline 八卡启动记录
+
+## 范围
+
+2026-08-04，用户提供了新的 SeetaCloud 主机。硬件复验确认该实例不是单张 RTX 5090，而是同一容器中的 8 张 RTX 4090 D，每张可用显存约 24 GB。容器主机名为 `autodl-container-5ee0448de2-ca306372`，正式数据盘为 `/root/autodl-tmp`。
+
+本轮仍使用 `protocol_v3_noleak_dedup`、cache schema 3、target-disjoint 切分和 event 样本口径。Orange 的 11 个 baseline 全部保留在同一台主机，只在主机内按 GPU 分片。因此 Orange 的直接方法比较不跨主机。RTX 5080 继续执行 Alameda 与 Contra Costa。最终结果必须使用明确的主机分层 composite，不得称为同质矩阵。
+
+## 数据与环境门
+
+三地区正式缓存和图文件已传入新主机。runner 按正式 `cache_bundle_manifest.json` 逐文件复验通过。bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。
+
+基础镜像原先只有 PyTorch 2.12.1 和 CUDA 13.0。安装 h5py、pandas、scipy 和 pytest 后，远端首轮专项门为 11 passed。八卡控制器实现提交为 `2303557dc7fc3f5e87760bae0b31d407b544e5f5`，对应 Git bundle SHA-256 为 `4916a2b918cd3f00e8b4135ee93125da8bc23ab2f5df5423d5418cfbaec4c418`。
+
+## 八卡分片
+
+| GPU | 任务 |
+|---:|---|
+| 0 | DCRNN |
+| 1 | DGCRN |
+| 2 | D2STGNN |
+| 3 | DSTAGNN |
+| 4 | STTN |
+| 5 | ASTGCN，STGCN |
+| 6 | GraphWaveNet，AGCRN |
+| 7 | LSTM，HL |
+
+持久控制器 PID 为 `2429`，矩阵 ID 为 `protocol_v3_event_orange_4090d8_v1`。正式根为 `/root/autodl-tmp/v3_event_orange_4090d8`。每张 GPU 都有独立的 shard manifest、results root、queue status 和日志。启动后 8 个子 runner 和 8 个 trainer 均实际出现。
+
+## 24 GB 显存 incident 与恢复
+
+首轮真实训练暴露三个容量事件。DGCRN 在额外申请 120 MiB 时已使用 23.44 GiB。D2STGNN 需要再申请 2.80 GiB。STTN 反向需要再申请 5.61 GiB。三项均没有正式任务目录，traceback 保留在各自失败 attempt 中。
+
+提交 `845804de1586eb6620496298d264c789c6a140c9` 增加等效 batch 32 的显存恢复。训练按全 batch 的有效观测点数归一化梯度，对多个 microbatch 累积反向，然后只执行一次优化器更新。验证和测试使用同一观测集合分块推理。全仓回归为 517 passed 和 2 个既有 warning，远端恢复专项门为 14 passed。
+
+DGCRN 使用 microbatch 8，STTN 使用 microbatch 16，两者已通过首个完整有效 batch。D2STGNN 在 microbatch 16 时仍占用 23.50 GiB 并安全失败。提交 `5bced13246ee3eb1e903726f0e9c60c839f46209` 将 D2STGNN 降为 microbatch 8。独立重试 PID 为 `7214`，首个完整有效 batch 的 loss 为 `141.838`，当时显存占用约 19.5 GiB。
+
+## 当前状态
+
+2026-08-04 21:19 新加坡时间，Orange 的 DCRNN、DSTAGNN、ASTGCN、GraphWaveNet 和 LSTM 使用首轮 checkout 训练。DGCRN 和 STTN 在独立恢复 checkout 训练。D2STGNN 在第二个独立恢复 checkout 训练。后续轻量任务会由同一 GPU 的子队列串行接续。
+
+RTX 5080 的 event 队列已验收 2/33，当前执行 Alameda DCRNN。Alameda LSTM 的 Average MAE 为 `12.950932743865955`，H3、H6 和 H12 MAE 为 `11.472908787131686`、`12.867387335945871` 和 `15.258082126124597`，summary SHA-256 为 `cfe37cfb481623214afa4516125100f8e6d05d518fe71cf84a895203b50f9452`。
+
+当前只确认启动、首个完整 batch 和已有的两份 Alameda 正式结果。Orange 尚无本轮新的正式性能结论。所有结果只有在逐任务五文件验收、源主机 postflight、结果服务器逐文件复验和最终 composite 全部通过后才可入表。

@@ -16,6 +16,7 @@
 | `audits/igstgnn_table4_bist_ndr_pair_launch_2026-07-31.md` | BiST 与 BiST-NDR 18 项严格配对协议、探针和 5080 队列状态 |
 | `audits/igstgnn_table4_native100_launch_2026-08-01.md` | BiST 与 NDR-Net 原生配方 100 epoch 补充矩阵、探针和 5080 启动状态 |
 | `audits/igstgnn_table4_native100_dual_host_rebalance_2026-08-01.md` | 原生配方 100 epoch 矩阵的双机分层、incident、严格回传、composite 和最终表 |
+| `audits/protocol_v3_event_4090d8_launch_2026-08-04.md` | v3 event baseline 的八卡 Orange 分片、24 GB 显存 incident 和等效 batch 恢复 |
 
 `XTraffic项目完整汇报.md` 仍是研究历史和数字出处的权威文档，但其中的 XTraffic 数值在 v3 复跑前均属于历史结果。当前是否可用于论文，以 v3 协议复审、数据泄露审计和有效性清单为准。
 

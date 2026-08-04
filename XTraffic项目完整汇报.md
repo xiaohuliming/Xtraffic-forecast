@@ -1000,6 +1000,16 @@ runner 层现已完成或重新验收 45/45。5090 新分片为 18/18，5080 新
 
 event v1 首次启动在 HL 产物阶段因测试集未显式加载 `affected_mask` 而失败，没有产生正式任务目录。修复提交为 `6e4d115`，新队列固定在 `c16dc7a8208f834984e76a40a7b6f47f523c210b`。计划任务 `XTraffic_ProtocolV3_Event_Baseline_Phase1_v2` 使用无执行时限的 `PT0S` 设置。正式结果根为 `D:\t4\v3_event_phase1_5080_v2\results`。当前为 1/33 完成、0 失败，正在训练 Alameda LSTM。event Alameda HL 的 H3、H6、H12 和 Average MAE 为 `14.5656612415774`、`17.672297556357695`、`24.177859877122867` 和 `18.262501186926563`，Average RMSE 和 MAPE 为 `31.760263449673126` 和 `25.456400502008623`，summary SHA-256 为 `9644760e084e70bfa8fe372ad2e11aecc826771f4ecb244d0c0685a611e999a3`。
 
+## 最新进展，2026-08-04 v3 event baseline 八卡加速
+
+新 SeetaCloud 实例经硬件复验为同一容器内的 8 张 RTX 4090 D，每张约 24 GB。Orange 的 11 个 baseline 全部保留在该主机内，只按方法固定分片到 GPU 0 至 7。Orange 的直接方法比较不跨主机。RTX 5080 继续执行 Alameda 和 Contra Costa。最终布局必须标记为主机分层矩阵，不得写成同质矩阵。
+
+正式缓存与图文件已通过 bundle 逐文件复验。bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。八卡控制器 PID 为 `2429`，matrix ID 为 `protocol_v3_event_orange_4090d8_v1`，首轮提交为 `2303557dc7fc3f5e87760bae0b31d407b544e5f5`。
+
+DGCRN、D2STGNN 和 STTN 首轮分别在额外申请 120 MiB、2.80 GiB 和 5.61 GiB 时 OOM。三项都没有正式任务目录，traceback 作为 incident 保留。提交 `845804de1586eb6620496298d264c789c6a140c9` 增加等效 batch 32 的显存恢复。梯度按全 batch 有效观测点归一化，microbatch 只用于限制激活显存，每个有效 batch 仍只做一次优化器更新。DGCRN 使用 microbatch 8，STTN 使用 16。D2STGNN 在 16 时仍 OOM，提交 `5bced13246ee3eb1e903726f0e9c60c839f46209` 将其降为 8。三者均已通过首个完整有效 batch。D2STGNN 在 microbatch 8 时的首 batch loss 为 `141.838`，显存约 19.5 GiB。Mac 全仓回归为 517 passed 和 2 个既有 warning。
+
+5080 event 队列已验收 2/33，当前执行 Alameda DCRNN。新验收的 Alameda LSTM Average MAE 为 `12.950932743865955`，H3、H6 和 H12 MAE 为 `11.472908787131686`、`12.867387335945871` 和 `15.258082126124597`，summary SHA-256 为 `cfe37cfb481623214afa4516125100f8e6d05d518fe71cf84a895203b50f9452`。当前 Orange 尚无本轮新的正式性能结论。详细运维与 incident 记录见 `docs/audits/protocol_v3_event_4090d8_launch_2026-08-04.md`。
+
 ---
 
 ## 第十二部分：去季节化方向的数据现实与设计决策
