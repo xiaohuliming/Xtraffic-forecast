@@ -102,6 +102,24 @@ def masked_mae(pred: torch.Tensor, target: torch.Tensor,
     return masked_mae_loss(pred, target, mask)
 
 
+def region_data_kwargs(
+    *,
+    protocol: str,
+    split: str,
+    stride: int,
+    train_frac: float,
+    val_frac: float,
+) -> dict[str, object]:
+    """Build split-specific loader options without exposing analysis labels to training."""
+    if protocol == "full_window":
+        return {
+            "stride": stride,
+            "train_frac": train_frac,
+            "val_frac": val_frac,
+        }
+    return {"include_analysis_labels": True} if split == "test" else {}
+
+
 @torch.no_grad()
 def evaluate(model, loader, device, supports) -> dict[str, float]:
     model.eval()
@@ -127,10 +145,9 @@ def main() -> None:
 
     if args.protocol == "full_window":
         rd_cls = FullWindowRegionData
-        rd_kw = {"stride": args.stride, "train_frac": args.train_frac, "val_frac": args.val_frac}
         out_base = args.out_dir.with_name(args.out_dir.name + "_fullwindow")
     else:
-        rd_cls, rd_kw, out_base = RegionData, {}, args.out_dir
+        rd_cls, out_base = RegionData, args.out_dir
     out_dir = out_base / args.region
     run_context = TrainingRunContext.prepare(
         out_dir,
@@ -144,6 +161,13 @@ def main() -> None:
     out_dir = run_context.output_dir
 
     def mk(split):
+        rd_kw = region_data_kwargs(
+            protocol=args.protocol,
+            split=split,
+            stride=args.stride,
+            train_frac=args.train_frac,
+            val_frac=args.val_frac,
+        )
         return MultiRegionDataset(
             region_names=[args.region], data_dir=args.data_dir,
             graph_dir=args.graph_dir, split=split, lazy=False,

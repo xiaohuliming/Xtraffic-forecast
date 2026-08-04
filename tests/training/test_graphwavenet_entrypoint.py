@@ -1,6 +1,6 @@
 import torch
 
-from scripts.train_graphwavenet import evaluate
+from scripts.train_graphwavenet import evaluate, region_data_kwargs
 
 
 class _FlowEchoModel:
@@ -36,3 +36,27 @@ def test_graphwavenet_validation_uses_all_valid_observations():
     result = evaluate(_FlowEchoModel(), loader, torch.device("cpu"), supports=[])
 
     assert result["L_main"] == 2.6
+
+
+def test_event_graphwavenet_loads_analysis_labels_only_for_test_split():
+    assert region_data_kwargs(
+        protocol="event",
+        split="test",
+        stride=1,
+        train_frac=0.7,
+        val_frac=0.15,
+    ) == {"include_analysis_labels": True}
+    assert region_data_kwargs(
+        protocol="event",
+        split="train",
+        stride=1,
+        train_frac=0.7,
+        val_frac=0.15,
+    ) == {}
+    assert region_data_kwargs(
+        protocol="full_window",
+        split="test",
+        stride=2,
+        train_frac=0.7,
+        val_frac=0.15,
+    ) == {"stride": 2, "train_frac": 0.7, "val_frac": 0.15}
