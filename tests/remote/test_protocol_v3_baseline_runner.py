@@ -79,7 +79,7 @@ def test_baseline_invocation_uses_v3_target_disjoint_70_15_15_split(
     assert command[command.index("--protocol") + 1] == "full_window"
     assert command[command.index("--train_frac") + 1] == "0.7"
     assert command[command.index("--val_frac") + 1] == "0.15"
-    assert invocation.result_relpath == Path("work_fullwindow") / "Alameda"
+    assert invocation.result_relpath == Path("work") / "Alameda"
     assert invocation.required_artifacts == (
         "summary.json",
         "ckpt_best.pt",
@@ -105,6 +105,22 @@ def test_history_last_has_no_fake_checkpoint_contract(tmp_path: Path) -> None:
         "test_predictions.npz",
         "train.log",
     )
+
+
+def test_graphwavenet_keeps_its_fullwindow_output_suffix(tmp_path: Path) -> None:
+    manifest = load_baseline_manifest(MANIFEST)
+    task = next(
+        task for task in manifest.tasks if task.model == "graphwavenet"
+    )
+
+    invocation = build_baseline_invocation(
+        task,
+        manifest,
+        _inputs(tmp_path),
+        tmp_path / "attempt",
+    )
+
+    assert invocation.result_relpath == Path("work_fullwindow") / "Alameda"
 
 
 def test_fullwindow_summary_represents_empty_affected_subset_as_null(

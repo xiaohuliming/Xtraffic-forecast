@@ -170,7 +170,11 @@ def build_baseline_invocation(
     }
     return Invocation(
         command=tuple(command),
-        result_relpath=Path("work_fullwindow") / task.region,
+        result_relpath=(
+            Path("work_fullwindow") / task.region
+            if task.kind == "graphwavenet"
+            else Path("work") / task.region
+        ),
         required_artifacts=tuple(artifacts),
         required_metrics=("all",),
         config=config,

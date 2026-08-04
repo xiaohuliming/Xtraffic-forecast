@@ -1,12 +1,12 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
 
-set "REPO=D:\t4\v3_baselines_repo_lf"
+set "REPO=D:\t4\v3_baselines_repo_v3"
 set "PYTHON=C:\Python313\python.exe"
 set "MANIFEST=%REPO%\config\protocol_v3\table4_fullwindow_baselines_phase1_v1.json"
 set "CACHE=C:\Users\ASUS\traffic_fourier_v3_final\outputs\dist_net\region_data_v3_noleak_dedup"
 set "GRAPH=C:\Users\ASUS\traffic_fourier_v3_final\outputs\region_graphs"
-set "RUN_ROOT=D:\t4\v3_baselines_phase1_5080_v2"
+set "RUN_ROOT=D:\t4\v3_baselines_phase1_5080_v3"
 set "RESULTS=%RUN_ROOT%\results"
 set "CONTROL=%RUN_ROOT%\control"
 set "LOG=%CONTROL%\runner.log"
