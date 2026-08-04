@@ -23,6 +23,19 @@ MANIFEST = (
     / "protocol_v3"
     / "table4_fullwindow_baselines_phase1_v1.json"
 )
+EVENT_MANIFEST = (
+    REPO_ROOT
+    / "config"
+    / "protocol_v3"
+    / "table4_event_baselines_phase1_v1.json"
+)
+EVENT_LAUNCHER = (
+    REPO_ROOT
+    / "scripts"
+    / "remote"
+    / "windows"
+    / "protocol_v3_event_baseline_phase1_5080.cmd"
+)
 
 
 def _inputs(tmp_path: Path) -> ProtocolV3Inputs:
@@ -55,6 +68,20 @@ def test_phase1_manifest_is_the_exact_supported_table4_subset() -> None:
         for task in manifest.tasks
     } == {
         (region, method, 42, "full_window")
+        for region in ("Alameda", "ContraCosta", "Orange")
+        for method in BASELINE_METHODS
+    }
+
+
+def test_event_manifest_is_the_exact_supported_table4_subset() -> None:
+    manifest = load_baseline_manifest(EVENT_MANIFEST)
+
+    assert len(manifest.tasks) == 33
+    assert {
+        (task.region, task.model, task.seed, task.sampling_protocol)
+        for task in manifest.tasks
+    } == {
+        (region, method, 42, "event")
         for region in ("Alameda", "ContraCosta", "Orange")
         for method in BASELINE_METHODS
     }
@@ -121,6 +148,33 @@ def test_graphwavenet_keeps_its_fullwindow_output_suffix(tmp_path: Path) -> None
     )
 
     assert invocation.result_relpath == Path("work_fullwindow") / "Alameda"
+
+
+def test_event_graphwavenet_uses_unsuffixed_output_root(tmp_path: Path) -> None:
+    manifest = load_baseline_manifest(EVENT_MANIFEST)
+    task = next(
+        task for task in manifest.tasks if task.model == "graphwavenet"
+    )
+
+    invocation = build_baseline_invocation(
+        task,
+        manifest,
+        _inputs(tmp_path),
+        tmp_path / "attempt",
+    )
+
+    command = list(invocation.command)
+    assert command[command.index("--protocol") + 1] == "event"
+    assert invocation.result_relpath == Path("work") / "Alameda"
+
+
+def test_event_launcher_isolated_from_fullwindow_queue() -> None:
+    text = EVENT_LAUNCHER.read_text(encoding="utf-8")
+
+    assert "table4_event_baselines_phase1_v1.json" in text
+    assert "v3_event_repo_v1" in text
+    assert "v3_event_phase1_5080_v1" in text
+    assert "v3_baselines_phase1_5080_v3" not in text
 
 
 def test_fullwindow_summary_represents_empty_affected_subset_as_null(

@@ -65,8 +65,17 @@ def load_baseline_manifest(path: Path | str) -> Manifest:
             "v3 baseline phase 1 training contract must equal "
             f"{expected_training!r}"
         )
+    sampling_protocols = {task.sampling_protocol for task in manifest.tasks}
+    if len(sampling_protocols) != 1 or not sampling_protocols <= {
+        "event",
+        "full_window",
+    }:
+        raise ManifestError(
+            "v3 baseline phase 1 must use exactly one supported sampling protocol"
+        )
+    sampling_protocol = next(iter(sampling_protocols))
     expected = {
-        (region, method, 42, "full_window")
+        (region, method, 42, sampling_protocol)
         for region in REGIONS
         for method in BASELINE_METHODS
     }
@@ -77,7 +86,7 @@ def load_baseline_manifest(path: Path | str) -> Manifest:
     if len(manifest.tasks) != 33 or actual != expected:
         raise ManifestError(
             "v3 baseline phase 1 must contain the exact 33-task supported "
-            "Table 4 subset"
+            f"Table 4 subset under {sampling_protocol}"
         )
     for task in manifest.tasks:
         expected_kind = (
@@ -139,7 +148,7 @@ def build_baseline_invocation(
         "--out-dir",
         str(work),
         "--protocol",
-        "full_window",
+        task.sampling_protocol,
         "--stride",
         str(stride),
         "--train_frac",
@@ -173,6 +182,7 @@ def build_baseline_invocation(
         result_relpath=(
             Path("work_fullwindow") / task.region
             if task.kind == "graphwavenet"
+            and task.sampling_protocol == "full_window"
             else Path("work") / task.region
         ),
         required_artifacts=tuple(artifacts),
