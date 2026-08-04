@@ -49,7 +49,11 @@ def _training_value(manifest: Manifest, name: str, expected_type: type) -> objec
     return value
 
 
-def load_baseline_manifest(path: Path | str) -> Manifest:
+def load_baseline_manifest(
+    path: Path | str,
+    *,
+    require_complete_matrix: bool = True,
+) -> Manifest:
     manifest = load_manifest(path, require_production_matrix=False)
     expected_training = {
         "epochs": 30,
@@ -83,10 +87,16 @@ def load_baseline_manifest(path: Path | str) -> Manifest:
         (task.region, task.model, task.seed, task.sampling_protocol)
         for task in manifest.tasks
     }
-    if len(manifest.tasks) != 33 or actual != expected:
+    if require_complete_matrix:
+        if len(manifest.tasks) != 33 or actual != expected:
+            raise ManifestError(
+                "v3 baseline phase 1 must contain the exact 33-task supported "
+                f"Table 4 subset under {sampling_protocol}"
+            )
+    elif len(actual) != len(manifest.tasks) or not actual <= expected:
         raise ManifestError(
-            "v3 baseline phase 1 must contain the exact 33-task supported "
-            f"Table 4 subset under {sampling_protocol}"
+            "v3 baseline shard must be a non-duplicated subset of the "
+            f"canonical Table 4 tasks under {sampling_protocol}"
         )
     for task in manifest.tasks:
         expected_kind = (
@@ -206,13 +216,21 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--cache-bundle-digest", required=True)
     parser.add_argument("--code-sha", required=True)
     parser.add_argument("--python", dest="python_executable", default=sys.executable)
+    parser.add_argument(
+        "--allow-shard",
+        action="store_true",
+        help="accept a non-duplicated canonical task subset instead of all 33 tasks",
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     try:
-        manifest = load_baseline_manifest(args.manifest)
+        manifest = load_baseline_manifest(
+            args.manifest,
+            require_complete_matrix=not args.allow_shard,
+        )
         repo_root = args.repo_root.resolve()
         run_inputs = ProtocolV3Inputs(
             results_root=_resolve(
