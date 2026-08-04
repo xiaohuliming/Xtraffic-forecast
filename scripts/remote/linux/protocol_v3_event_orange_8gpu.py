@@ -42,7 +42,7 @@ OOM_RECOVERY_GPU_METHODS = OrderedDict(
 )
 OOM_RECOVERY_MICROBATCH_SIZES = {
     "dgcrn": 8,
-    "d2stgnn": 16,
+    "d2stgnn": 8,
     "sttn": 16,
 }
 

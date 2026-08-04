@@ -94,4 +94,4 @@ def test_oom_recovery_shards_bind_three_failed_models_to_idle_gpus(
             require_complete_matrix=False,
         ).training["microbatch_size"]
         for gpu, path in paths.items()
-    } == {1: 8, 2: 16, 4: 16}
+    } == {1: 8, 2: 8, 4: 16}
