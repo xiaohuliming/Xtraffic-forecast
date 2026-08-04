@@ -33,6 +33,18 @@ GPU_METHODS = OrderedDict(
         7: ("lstm", "hl"),
     }
 )
+OOM_RECOVERY_GPU_METHODS = OrderedDict(
+    {
+        1: ("dgcrn",),
+        2: ("d2stgnn",),
+        4: ("sttn",),
+    }
+)
+OOM_RECOVERY_MICROBATCH_SIZES = {
+    "dgcrn": 8,
+    "d2stgnn": 16,
+    "sttn": 16,
+}
 
 DEFAULT_MANIFEST = (
     Path(__file__).resolve().parents[3]
@@ -73,21 +85,22 @@ def _write_json_atomic(path: Path, payload: object) -> None:
 
 def build_orange_gpu_shards(
     manifest: Manifest,
+    *,
+    assignments: OrderedDict[int, tuple[str, ...]] = GPU_METHODS,
 ) -> dict[int, tuple[Task, ...]]:
     orange_by_method = {
         task.model: task for task in manifest.tasks if task.region == "Orange"
     }
     expected_methods = {
-        method for methods in GPU_METHODS.values() for method in methods
+        method for methods in assignments.values() for method in methods
     }
-    if set(orange_by_method) != expected_methods:
+    if not expected_methods <= set(orange_by_method):
         raise ValueError(
-            "event manifest must contain exactly one Orange task per "
-            "supported baseline method"
+            "event manifest is missing an Orange task required by the GPU plan"
         )
     return {
         gpu: tuple(orange_by_method[method] for method in methods)
-        for gpu, methods in GPU_METHODS.items()
+        for gpu, methods in assignments.items()
     }
 
 
@@ -95,6 +108,9 @@ def write_orange_shard_manifests(
     source_path: Path,
     manifest: Manifest,
     output_dir: Path,
+    *,
+    assignments: OrderedDict[int, tuple[str, ...]] = GPU_METHODS,
+    microbatch_sizes: dict[str, int] | None = None,
 ) -> dict[int, Path]:
     payload = json.loads(source_path.read_text(encoding="utf-8"))
     source_tasks = {
@@ -102,8 +118,20 @@ def write_orange_shard_manifests(
     }
     output_dir.mkdir(parents=True, exist_ok=True)
     paths: dict[int, Path] = {}
-    for gpu, tasks in build_orange_gpu_shards(manifest).items():
+    for gpu, tasks in build_orange_gpu_shards(
+        manifest,
+        assignments=assignments,
+    ).items():
         shard_payload = dict(payload)
+        shard_payload["training"] = dict(payload["training"])
+        if microbatch_sizes is not None:
+            if len(tasks) != 1 or tasks[0].model not in microbatch_sizes:
+                raise ValueError(
+                    "microbatch recovery shards must bind exactly one configured model"
+                )
+            shard_payload["training"]["microbatch_size"] = (
+                microbatch_sizes[tasks[0].model]
+            )
         shard_payload["default_results_root"] = (
             "outputs/protocol_v3_noleak_dedup/remote_runs/"
             f"table4_event_orange_4090d8_gpu{gpu}"
@@ -154,6 +182,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--cache-bundle-digest", required=True)
     parser.add_argument("--code-sha", required=True)
     parser.add_argument(
+        "--mode",
+        choices=("full", "oom-recovery"),
+        default="full",
+    )
+    parser.add_argument(
         "--python",
         dest="python_executable",
         default=sys.executable,
@@ -191,27 +224,53 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     import torch
 
+    assignments = (
+        GPU_METHODS
+        if args.mode == "full"
+        else OOM_RECOVERY_GPU_METHODS
+    )
+    microbatch_sizes = (
+        None
+        if args.mode == "full"
+        else OOM_RECOVERY_MICROBATCH_SIZES
+    )
     device_count = torch.cuda.device_count()
-    if device_count < len(GPU_METHODS):
+    required_device_count = max(assignments) + 1
+    if device_count < required_device_count:
         raise SystemExit(
-            f"eight-GPU controller requires at least 8 CUDA devices, got {device_count}"
+            f"GPU plan requires at least {required_device_count} CUDA devices, "
+            f"got {device_count}"
         )
 
-    shards = build_orange_gpu_shards(manifest)
+    shards = build_orange_gpu_shards(
+        manifest,
+        assignments=assignments,
+    )
     manifest_paths = write_orange_shard_manifests(
         source_path,
         manifest,
         control_root / "manifests",
+        assignments=assignments,
+        microbatch_sizes=microbatch_sizes,
     )
     plan = {
-        "matrix_id": "protocol_v3_event_orange_4090d8_v1",
-        "execution_layout": "single_host_eight_gpu_method_sharded",
+        "matrix_id": (
+            "protocol_v3_event_orange_4090d8_v1"
+            if args.mode == "full"
+            else "protocol_v3_event_orange_4090d8_oom_recovery_v1"
+        ),
+        "execution_layout": (
+            "single_host_eight_gpu_method_sharded"
+            if args.mode == "full"
+            else "same_host_failed_task_microbatch_recovery"
+        ),
         "created_at": _utc_now(),
         "source_manifest": str(source_path),
         "source_manifest_sha256": _sha256_file(source_path),
         "code_sha": args.code_sha.lower(),
         "cache_bundle_id": args.cache_bundle_id,
         "cache_bundle_digest": args.cache_bundle_digest.lower(),
+        "microbatch_sizes": microbatch_sizes,
         "assignments": {
             str(gpu): [task.task_id for task in tasks]
             for gpu, tasks in shards.items()
@@ -222,7 +281,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     children: dict[int, subprocess.Popen[bytes]] = {}
     log_streams: dict[int, object] = {}
     try:
-        for gpu in GPU_METHODS:
+        for gpu in assignments:
             log_path = control_root / "logs" / f"gpu{gpu}.log"
             log_path.parent.mkdir(parents=True, exist_ok=True)
             log_stream = log_path.open("ab", buffering=0)

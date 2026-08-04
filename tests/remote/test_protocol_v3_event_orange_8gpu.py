@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from scripts.remote.linux.protocol_v3_event_orange_8gpu import (
+    OOM_RECOVERY_GPU_METHODS,
+    OOM_RECOVERY_MICROBATCH_SIZES,
     build_orange_gpu_shards,
     write_orange_shard_manifests,
 )
@@ -62,3 +64,34 @@ def test_written_shard_manifests_are_individually_runner_valid(
         assert not task_ids.intersection(task.task_id for task in shard.tasks)
         task_ids.update(task.task_id for task in shard.tasks)
     assert len(task_ids) == 11
+
+
+def test_oom_recovery_shards_bind_three_failed_models_to_idle_gpus(
+    tmp_path: Path,
+) -> None:
+    manifest = load_baseline_manifest(EVENT_MANIFEST)
+    shards = build_orange_gpu_shards(
+        manifest,
+        assignments=OOM_RECOVERY_GPU_METHODS,
+    )
+
+    paths = write_orange_shard_manifests(
+        EVENT_MANIFEST,
+        manifest,
+        tmp_path,
+        assignments=OOM_RECOVERY_GPU_METHODS,
+        microbatch_sizes=OOM_RECOVERY_MICROBATCH_SIZES,
+    )
+
+    assert {gpu: shard[0].model for gpu, shard in shards.items()} == {
+        1: "dgcrn",
+        2: "d2stgnn",
+        4: "sttn",
+    }
+    assert {
+        gpu: load_baseline_manifest(
+            path,
+            require_complete_matrix=False,
+        ).training["microbatch_size"]
+        for gpu, path in paths.items()
+    } == {1: 8, 2: 16, 4: 16}

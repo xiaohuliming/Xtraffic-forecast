@@ -64,11 +64,24 @@ def load_baseline_manifest(
         "train_frac": 0.7,
         "val_frac": 0.15,
     }
-    if dict(manifest.training) != expected_training:
+    actual_training = dict(manifest.training)
+    microbatch_size = actual_training.pop("microbatch_size", None)
+    if actual_training != expected_training:
         raise ManifestError(
             "v3 baseline phase 1 training contract must equal "
             f"{expected_training!r}"
         )
+    if microbatch_size is not None:
+        if (
+            require_complete_matrix
+            or isinstance(microbatch_size, bool)
+            or not isinstance(microbatch_size, int)
+            or not 1 <= microbatch_size <= expected_training["batch_size"]
+        ):
+            raise ManifestError(
+                "training.microbatch_size is valid only for a canonical shard "
+                "and must be between 1 and batch_size"
+            )
     sampling_protocols = {task.sampling_protocol for task in manifest.tasks}
     if len(sampling_protocols) != 1 or not sampling_protocols <= {
         "event",
@@ -166,6 +179,9 @@ def build_baseline_invocation(
         "--val_frac",
         str(val_frac),
     ]
+    microbatch_size = manifest.training.get("microbatch_size")
+    if microbatch_size is not None:
+        command += ["--microbatch-size", str(microbatch_size)]
     artifacts = ["summary.json"]
     if task.model != "hl":
         artifacts.append("ckpt_best.pt")
@@ -187,6 +203,8 @@ def build_baseline_invocation(
         "train_frac": train_frac,
         "val_frac": val_frac,
     }
+    if microbatch_size is not None:
+        config["microbatch_size"] = int(microbatch_size)
     return Invocation(
         command=tuple(command),
         result_relpath=(

@@ -110,6 +110,35 @@ def test_event_shard_accepts_an_exact_canonical_task_subset(
     assert {task.model for task in manifest.tasks} == set(BASELINE_METHODS)
 
 
+def test_oom_recovery_shard_binds_microbatch_size_to_invocation(
+    tmp_path: Path,
+) -> None:
+    payload = json.loads(EVENT_MANIFEST.read_text(encoding="utf-8"))
+    payload["training"]["microbatch_size"] = 8
+    payload["tasks"] = [
+        task
+        for task in payload["tasks"]
+        if task["region"] == "Orange" and task["model"] == "dgcrn"
+    ]
+    shard_path = tmp_path / "dgcrn_recovery.json"
+    shard_path.write_text(json.dumps(payload), encoding="utf-8")
+    manifest = load_baseline_manifest(
+        shard_path,
+        require_complete_matrix=False,
+    )
+
+    invocation = build_baseline_invocation(
+        manifest.tasks[0],
+        manifest,
+        _inputs(tmp_path),
+        tmp_path / "attempt",
+    )
+
+    command = list(invocation.command)
+    assert command[command.index("--microbatch-size") + 1] == "8"
+    assert invocation.config["microbatch_size"] == 8
+
+
 def test_baseline_invocation_uses_v3_target_disjoint_70_15_15_split(
     tmp_path: Path,
 ) -> None:

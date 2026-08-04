@@ -76,6 +76,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--train_frac", type=float, default=0.7, help="full_window only")
     p.add_argument("--val_frac", type=float, default=0.1, help="full_window only")
     p.add_argument("--patience", type=int, default=0)
+    p.add_argument(
+        "--microbatch-size",
+        type=int,
+        default=0,
+        help="activation-memory cap; 0 keeps the full effective batch",
+    )
     p.add_argument("--smoke", action="store_true",
                    help="2 train batches + 2 val/test batches, 1 epoch (shape/loss check)")
     return p.parse_args()
@@ -261,17 +267,124 @@ def masked_mae(pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor) -> 
     return num.sum() / mask.sum().clamp(min=1.0)
 
 
+def backward_effective_masked_mae_batch(
+    *,
+    model,
+    name: str,
+    x: torch.Tensor,
+    label: torch.Tensor | None,
+    y_true: torch.Tensor,
+    y_mask: torch.Tensor,
+    iter_cnt: int,
+    horizon: int,
+    node_count: int,
+    device: torch.device,
+    mean: float,
+    std: float,
+    max_microbatch_size: int,
+) -> float:
+    """Backpropagate one effective batch while bounding activation memory."""
+    if max_microbatch_size <= 0:
+        raise ValueError("max_microbatch_size must be positive")
+    batch_size = int(x.size(0))
+    valid_count = y_mask.float().sum()
+    if int(valid_count.item()) <= 0:
+        raise ValueError("training batch has no valid observations")
+
+    numpy_state = np.random.get_state()
+    state_after_forward = None
+    total_absolute_error = 0.0
+    for start in range(0, batch_size, max_microbatch_size):
+        stop = min(start + max_microbatch_size, batch_size)
+        chunk = slice(start, stop)
+        np.random.set_state(numpy_state)
+        prediction_normalized = forward_model(
+            model,
+            name,
+            x[chunk],
+            None if label is None else label[chunk],
+            iter_cnt,
+            horizon,
+            node_count,
+            device,
+        )
+        if state_after_forward is None:
+            state_after_forward = np.random.get_state()
+        prediction = prediction_normalized * std + mean
+        mask = y_mask[chunk].float()
+        absolute_error = ((prediction - y_true[chunk]).abs() * mask).sum()
+        (absolute_error / valid_count).backward()
+        total_absolute_error += float(absolute_error.detach().item())
+    if state_after_forward is not None:
+        np.random.set_state(state_after_forward)
+    return total_absolute_error / float(valid_count.item())
+
+
 @torch.no_grad()
-def evaluate(model, name, loader, device, mean, std, T_p, N, limit=0) -> float:
+def predict_normalized_in_microbatches(
+    model,
+    name: str,
+    x: torch.Tensor,
+    label: torch.Tensor | None,
+    iter_cnt: int,
+    horizon: int,
+    node_count: int,
+    device: torch.device,
+    max_microbatch_size: int,
+) -> torch.Tensor:
+    if max_microbatch_size <= 0:
+        raise ValueError("max_microbatch_size must be positive")
+    outputs = []
+    for start in range(0, int(x.size(0)), max_microbatch_size):
+        stop = min(start + max_microbatch_size, int(x.size(0)))
+        outputs.append(
+            forward_model(
+                model,
+                name,
+                x[start:stop],
+                None if label is None else label[start:stop],
+                iter_cnt,
+                horizon,
+                node_count,
+                device,
+            ).cpu()
+        )
+    return torch.cat(outputs, dim=0)
+
+
+@torch.no_grad()
+def evaluate(
+    model,
+    name,
+    loader,
+    device,
+    mean,
+    std,
+    T_p,
+    N,
+    max_microbatch_size=None,
+    limit=0,
+) -> float:
     model.eval()
     metric = MaskedMAEAccumulator()
     for bi, batch in enumerate(loader):
         if limit and bi >= limit:
             break
         x = make_input(batch, mean, std, device, IN_CH.get(name, 3))
-        y_true = batch["y_true"][..., 0].to(device)
-        y_mask = batch["y_mask"][..., 0].to(device)
-        pred_n = forward_model(model, name, x, None, 0, T_p, N, device)
+        y_true = batch["y_true"][..., 0]
+        y_mask = batch["y_mask"][..., 0]
+        effective_microbatch_size = max_microbatch_size or int(x.size(0))
+        pred_n = predict_normalized_in_microbatches(
+            model,
+            name,
+            x,
+            None,
+            0,
+            T_p,
+            N,
+            device,
+            effective_microbatch_size,
+        )
         pred = pred_n * std + mean
         metric.update(pred, y_true, y_mask)
     model.train()
@@ -280,6 +393,9 @@ def evaluate(model, name, loader, device, mean, std, T_p, N, limit=0) -> float:
 
 def main() -> None:
     args = parse_args()
+    if args.microbatch_size < 0 or args.microbatch_size > args.batch_size:
+        raise ValueError("microbatch-size must be 0 or at most batch-size")
+    max_microbatch_size = args.microbatch_size or args.batch_size
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     device = pick_device(args.device)
@@ -347,6 +463,10 @@ def main() -> None:
     val_loader = make_loader(val_ds, batch_size=args.batch_size, shuffle=False)
     test_loader = make_loader(test_ds, batch_size=args.batch_size, shuffle=False)
     n_batches = (len(train_ds) + args.batch_size - 1) // args.batch_size
+    print(
+        f"effective batch={args.batch_size}  max microbatch={max_microbatch_size}",
+        flush=True,
+    )
 
     epochs = 1 if args.smoke else args.epochs
     best_val = float("inf")
@@ -365,25 +485,46 @@ def main() -> None:
                 y_true = batch["y_true"][..., 0].to(device)
                 y_mask = batch["y_mask"][..., 0].to(device)
                 label = make_label(batch, mean, std, device) if needs_label else None
-                pred_n = forward_model(model, args.model, x, label, iter_cnt, T_p, N, device)
-                pred = pred_n * std + mean
-                loss = masked_mae(pred, y_true, y_mask)
                 optimizer.zero_grad(set_to_none=True)
-                loss.backward()
+                loss_value = backward_effective_masked_mae_batch(
+                    model=model,
+                    name=args.model,
+                    x=x,
+                    label=label,
+                    y_true=y_true,
+                    y_mask=y_mask,
+                    iter_cnt=iter_cnt,
+                    horizon=T_p,
+                    node_count=N,
+                    device=device,
+                    mean=mean,
+                    std=std,
+                    max_microbatch_size=max_microbatch_size,
+                )
                 if cfg["clip"]:
                     torch.nn.utils.clip_grad_norm_(model.parameters(), cfg["clip"])
                 optimizer.step()
                 iter_cnt += 1
-                sum_loss += float(loss.item()) * x.size(0)
+                sum_loss += loss_value * x.size(0)
                 n += x.size(0)
                 if bi % 100 == 0:
-                    print(f"  ep{epoch:02d} batch {bi}/{n_batches} L={loss.item():.3f}",
+                    print(f"  ep{epoch:02d} batch {bi}/{n_batches} L={loss_value:.3f}",
                           flush=True)
             if scheduler is not None:
                 scheduler.step()
             train_avg = sum_loss / max(n, 1)
-            val = evaluate(model, args.model, val_loader, device, mean, std, T_p, N,
-                           limit=2 if args.smoke else 0)
+            val = evaluate(
+                model,
+                args.model,
+                val_loader,
+                device,
+                mean,
+                std,
+                T_p,
+                N,
+                max_microbatch_size,
+                limit=2 if args.smoke else 0,
+            )
             t = time.time() - t0
             print(f"==> ep{epoch:02d} train L={train_avg:.4f}  val L={val:.4f}  ({t:.0f}s)",
                   flush=True)
@@ -414,7 +555,8 @@ def main() -> None:
     model.eval()
     write_test_outputs(model, args.model, test_loader, test_ds, rdata, device,
                        mean, std, T_p, N, out_dir, best_val, n_params,
-                       run_context, limit=2 if args.smoke else 0)
+                       run_context, max_microbatch_size,
+                       limit=2 if args.smoke else 0)
 
 
 def run_hl(args, test_ds, rdata, out_dir, N, T_p, run_context) -> None:
@@ -459,7 +601,7 @@ def run_hl(args, test_ds, rdata, out_dir, N, T_p, run_context) -> None:
 
 def write_test_outputs(model, name, test_loader, test_ds, rdata, device,
                        mean, std, T_p, N, out_dir, best_val, n_params,
-                       run_context, limit=0) -> None:
+                       run_context, max_microbatch_size, limit=0) -> None:
     S = len(test_ds)
     pred = np.empty((S, T_p, N), dtype=np.float32)
     actual = np.empty((S, T_p, N), dtype=np.float32)
@@ -474,8 +616,18 @@ def write_test_outputs(model, name, test_loader, test_ds, rdata, device,
                 S = cur
                 break
             x = make_input(batch, mean, std, device, IN_CH.get(name, 3))
-            pred_n = forward_model(model, name, x, None, 0, T_p, N, device)
-            p = (pred_n * std + mean).permute(0, 2, 1).cpu().numpy()  # (B, T_p, N)
+            pred_n = predict_normalized_in_microbatches(
+                model,
+                name,
+                x,
+                None,
+                0,
+                T_p,
+                N,
+                device,
+                max_microbatch_size,
+            )
+            p = (pred_n * std + mean).permute(0, 2, 1).numpy()  # (B, T_p, N)
             b = p.shape[0]
             pred[cur:cur + b] = p
             actual[cur:cur + b] = batch["y_true"][..., 0].permute(0, 2, 1).numpy()
