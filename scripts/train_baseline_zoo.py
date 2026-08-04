@@ -106,6 +106,25 @@ def train_flow_stats(traffic_path: Path, train_end: int) -> tuple[float, float]:
     return float(vals.mean()), float(vals.std())
 
 
+def region_data_kwargs(
+    *,
+    protocol: str,
+    split: str,
+    stride: int,
+    train_frac: float,
+    val_frac: float,
+) -> dict[str, object]:
+    if protocol == "full_window":
+        return {
+            "stride": stride,
+            "train_frac": train_frac,
+            "val_frac": val_frac,
+        }
+    if protocol == "event":
+        return {"include_analysis_labels": True} if split == "test" else {}
+    raise ValueError(f"unsupported sampling protocol: {protocol}")
+
+
 def build_model(name: str, N: int, device: torch.device, A: np.ndarray,
                 args: argparse.Namespace):
     """Returns (model, needs_label, optim_cfg). Hyperparameters = LargeST
@@ -268,10 +287,9 @@ def main() -> None:
 
     if args.protocol == "full_window":
         rd_cls = FullWindowRegionData
-        rd_kw = {"stride": args.stride, "train_frac": args.train_frac, "val_frac": args.val_frac}
         suffix = "_fullwindow"
     else:
-        rd_cls, rd_kw, suffix = RegionData, {}, ""
+        rd_cls, suffix = RegionData, ""
     out_base = args.out_dir or Path(
         f"outputs/protocol_v3_noleak_dedup/baselines/zoo_{args.model}{suffix}"
     )
@@ -288,6 +306,13 @@ def main() -> None:
     out_dir = run_context.output_dir
 
     def mk(split):
+        rd_kw = region_data_kwargs(
+            protocol=args.protocol,
+            split=split,
+            stride=args.stride,
+            train_frac=args.train_frac,
+            val_frac=args.val_frac,
+        )
         return MultiRegionDataset(
             region_names=[args.region], data_dir=args.data_dir,
             graph_dir=args.graph_dir, split=split, lazy=False,

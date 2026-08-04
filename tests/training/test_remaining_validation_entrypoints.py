@@ -3,7 +3,10 @@ from types import SimpleNamespace
 import numpy as np
 import torch
 
-from scripts.train_baseline_zoo import evaluate as evaluate_baseline_zoo
+from scripts.train_baseline_zoo import (
+    evaluate as evaluate_baseline_zoo,
+    region_data_kwargs,
+)
 from scripts.train_dist_net import evaluate as evaluate_dist_net
 from scripts.train_rad import evaluate as evaluate_rad
 from scripts.train_rfn import evaluate as evaluate_rfn
@@ -105,6 +108,30 @@ def test_baseline_zoo_validation_uses_all_valid_observations():
     )
 
     assert result == 2.6
+
+
+def test_baseline_zoo_loads_analysis_labels_only_for_event_test_split():
+    assert region_data_kwargs(
+        protocol="event",
+        split="test",
+        stride=1,
+        train_frac=0.7,
+        val_frac=0.15,
+    ) == {"include_analysis_labels": True}
+    assert region_data_kwargs(
+        protocol="event",
+        split="train",
+        stride=1,
+        train_frac=0.7,
+        val_frac=0.15,
+    ) == {}
+    assert region_data_kwargs(
+        protocol="full_window",
+        split="test",
+        stride=2,
+        train_frac=0.7,
+        val_frac=0.15,
+    ) == {"stride": 2, "train_frac": 0.7, "val_frac": 0.15}
 
 
 class _ModeOnlyModel:
