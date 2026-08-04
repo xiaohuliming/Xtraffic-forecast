@@ -39,6 +39,7 @@ from torch.optim.lr_scheduler import MultiStepLR, StepLR
 
 from dist_net.data import MultiRegionDataset, FullWindowRegionData, RegionData, make_loader
 from dist_net.metrics import MaskedMAEAccumulator
+from dist_net.training_runtime import TrainingRunContext
 from graph_algo import normalize_adj_mx, calculate_cheb_poly
 
 REGION_TO_GRAPH_KEY = {
@@ -275,7 +276,16 @@ def main() -> None:
         f"outputs/protocol_v3_noleak_dedup/baselines/zoo_{args.model}{suffix}"
     )
     out_dir = out_base / args.region
-    out_dir.mkdir(parents=True, exist_ok=True)
+    run_context = TrainingRunContext.prepare(
+        out_dir,
+        data_dir=args.data_dir,
+        region=args.region,
+        model=args.model,
+        variant="base",
+        seed=args.seed,
+        sampling_protocol=args.protocol,
+    )
+    out_dir = run_context.output_dir
 
     def mk(split):
         return MultiRegionDataset(
@@ -285,6 +295,7 @@ def main() -> None:
         )
     train_ds, val_ds, test_ds = mk("train"), mk("val"), mk("test")
     rdata = train_ds.regions[args.region]
+    run_context.verify_region_cache(rdata)
     N, T_h, T_p = int(rdata.N), int(rdata.T_h), int(rdata.T_p)
     print(f"N={N}  T_h={T_h}  T_p={T_p}", flush=True)
     print(f"|train|={len(train_ds)}  |val|={len(val_ds)}  |test|={len(test_ds)}", flush=True)
@@ -297,7 +308,7 @@ def main() -> None:
     A = dense_adj(rdata.edge_index, N)
 
     if args.model == "hl":
-        run_hl(args, test_ds, rdata, out_dir, N, T_p)
+        run_hl(args, test_ds, rdata, out_dir, N, T_p, run_context)
         return
 
     model, needs_label, cfg = build_model(args.model, N, device, A, args)
@@ -378,10 +389,10 @@ def main() -> None:
     model.eval()
     write_test_outputs(model, args.model, test_loader, test_ds, rdata, device,
                        mean, std, T_p, N, out_dir, best_val, n_params,
-                       limit=2 if args.smoke else 0)
+                       run_context, limit=2 if args.smoke else 0)
 
 
-def run_hl(args, test_ds, rdata, out_dir, N, T_p) -> None:
+def run_hl(args, test_ds, rdata, out_dir, N, T_p, run_context) -> None:
     """History Last: repeat the last observed frame for all horizons. No training."""
     loader = make_loader(test_ds, batch_size=args.batch_size, shuffle=False)
     S = len(test_ds)
@@ -402,12 +413,28 @@ def run_hl(args, test_ds, rdata, out_dir, N, T_p) -> None:
         ss[cur:cur + b] = batch["sample_start"].numpy()
         rc[cur:cur + b] = batch["region_code"].numpy()
         cur += b
-    save_outputs(out_dir, rc, ss, rdata, pred, actual, msk, aff,
-                 best_val=float("nan"), n_params=0)
+    (out_dir / "train.log").write_text(
+        "History Last is non-trainable.\n",
+        encoding="utf-8",
+    )
+    save_outputs(
+        out_dir,
+        rc,
+        ss,
+        rdata,
+        pred,
+        actual,
+        msk,
+        aff,
+        best_val=None,
+        n_params=0,
+        run_context=run_context,
+    )
 
 
 def write_test_outputs(model, name, test_loader, test_ds, rdata, device,
-                       mean, std, T_p, N, out_dir, best_val, n_params, limit=0) -> None:
+                       mean, std, T_p, N, out_dir, best_val, n_params,
+                       run_context, limit=0) -> None:
     S = len(test_ds)
     pred = np.empty((S, T_p, N), dtype=np.float32)
     actual = np.empty((S, T_p, N), dtype=np.float32)
@@ -433,7 +460,7 @@ def write_test_outputs(model, name, test_loader, test_ds, rdata, device,
             rc[cur:cur + b] = batch["region_code"].numpy()
             cur += b
     save_outputs(out_dir, rc[:S], ss[:S], rdata, pred[:S], actual[:S], msk[:S], aff[:S],
-                 best_val, n_params)
+                 best_val, n_params, run_context)
 
 
 def flow_metrics(pred: np.ndarray, actual: np.ndarray, msk: np.ndarray,
@@ -441,17 +468,19 @@ def flow_metrics(pred: np.ndarray, actual: np.ndarray, msk: np.ndarray,
     """Masked MAE/RMSE/MAPE over all/affected/unaffected + per-horizon lists.
     MAPE follows LargeST (null_val=0): only entries with actual != 0 count."""
     S, T_p, N = pred.shape
-    diff = np.abs(pred - actual)
-    a_abs = np.abs(actual)
+    pred64 = pred.astype(np.float64, copy=False)
+    actual64 = actual.astype(np.float64, copy=False)
+    diff = np.abs(pred64 - actual64)
+    a_abs = np.abs(actual64)
     aff3 = np.broadcast_to(aff[:, None, :], (S, T_p, N))
 
     def stats(d, a, sel):
         dd = d[sel].astype(np.float64)
         p = sel & (a > 1e-4)
         rr = (d[p] / a[p]).astype(np.float64)
-        return (float(dd.mean()) if dd.size else float("nan"),
-                float(np.sqrt((dd ** 2).mean())) if dd.size else float("nan"),
-                float(rr.mean() * 100.0) if rr.size else float("nan"))
+        return (float(dd.mean()) if dd.size else None,
+                float(np.sqrt((dd ** 2).mean())) if dd.size else None,
+                float(rr.mean() * 100.0) if rr.size else None)
 
     mae_all, rmse_all, mape_all = stats(diff, a_abs, msk)
     mae_aff, rmse_aff, mape_aff = stats(diff, a_abs, msk & aff3)
@@ -467,7 +496,19 @@ def flow_metrics(pred: np.ndarray, actual: np.ndarray, msk: np.ndarray,
             "mae_h": mae_h, "rmse_h": rmse_h, "mape_h": mape_h}
 
 
-def save_outputs(out_dir, rc, ss, rdata, pred, actual, msk, aff, best_val, n_params) -> None:
+def save_outputs(
+    out_dir,
+    rc,
+    ss,
+    rdata,
+    pred,
+    actual,
+    msk,
+    aff,
+    best_val,
+    n_params,
+    run_context,
+) -> None:
     np.savez_compressed(
         out_dir / "test_predictions.npz",
         region_code=rc, sample_start=ss,
@@ -478,12 +519,20 @@ def save_outputs(out_dir, rc, ss, rdata, pred, actual, msk, aff, best_val, n_par
     summary = {**flow_metrics(pred, actual, msk, aff),
                "best_val_L_main": best_val, "n_params": n_params,
                **rdata.result_metadata()}
-    print(f"\ntest MAE: all={summary['all']:.3f}  affected={summary['affected']:.3f}  "
-          f"unaffected={summary['unaffected']:.3f}  "
+    def display(value, digits=3):
+        return "null" if value is None else f"{value:.{digits}f}"
+
+    print(f"\ntest MAE: all={display(summary['all'])}  "
+          f"affected={display(summary['affected'])}  "
+          f"unaffected={display(summary['unaffected'])}  "
           f"h3={summary['h3']:.3f} h6={summary['h6']:.3f} h12={summary['h12']:.3f}\n"
           f"test RMSE={summary['rmse']:.3f}  MAPE={summary['mape']:.2f}%",
           flush=True)
-    (out_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    run_context.write_summary(
+        summary,
+        valid_count=int(msk.sum()),
+        required_metrics=("all",),
+    )
 
 
 if __name__ == "__main__":

@@ -379,6 +379,7 @@ def load_manifest(
     seen_outputs: set[str] = set()
     valid_regions = {"Alameda", "ContraCosta", "Orange"}
     valid_kinds = {
+        "baseline_zoo",
         "staeformer_deseason",
         "staeformer_icsf",
         "graphwavenet",
