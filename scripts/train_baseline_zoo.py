@@ -55,6 +55,14 @@ TPD = 288  # 5-min steps per day (LargeST used 96 on 15-min data)
 IN_CH = {"dstagnn": 1}
 
 
+def initialize_like_largest_engine(model: torch.nn.Module) -> None:
+    for parameter in model.parameters():
+        if parameter.dim() > 1:
+            torch.nn.init.xavier_uniform_(parameter)
+        else:
+            torch.nn.init.uniform_(parameter)
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("--model", required=True, choices=MODELS)
@@ -162,11 +170,7 @@ def build_model(name: str, N: int, device: torch.device, A: np.ndarray,
         model = AGCRN(embed_dim=10, rnn_unit=64, num_layer=2, cheb_k=2, **base)
         # LargeST's AGCRN_Engine re-inits all params (weights_pool/bias_pool are
         # torch.FloatTensor allocations, i.e. uninitialized memory)
-        for p in model.parameters():
-            if p.dim() > 1:
-                torch.nn.init.xavier_uniform_(p)
-            else:
-                torch.nn.init.uniform_(p)
+        initialize_like_largest_engine(model)
         cfg.update(wd=0.0, clip=0.0)
         return model, False, cfg
     if name == "astgcn":
@@ -177,6 +181,7 @@ def build_model(name: str, N: int, device: torch.device, A: np.ndarray,
         cheb = [torch.from_numpy(m).float().to(device) for m in calculate_cheb_poly(L_tilde, 3)]
         model = ASTGCN(device=device, cheb_poly=cheb, order=3, nb_block=2,
                        nb_chev_filter=64, nb_time_filter=64, time_stride=1, **base)
+        initialize_like_largest_engine(model)
         return model, False, cfg
     if name == "sttn":
         from sttn import STTN
@@ -224,6 +229,7 @@ def build_model(name: str, N: int, device: torch.device, A: np.ndarray,
         model = DSTAGNN(device=device, cheb_poly=cheb, order=2, nb_block=2,
                         nb_chev_filter=32, nb_time_filter=32, time_stride=1,
                         adj_pa=adj_pa, d_model=512, d_k=32, d_v=32, n_head=3, **base)
+        initialize_like_largest_engine(model)
         cfg.update(lr=1e-4, wd=0.0, clip=0.0)
         return model, False, cfg
     raise ValueError(name)
