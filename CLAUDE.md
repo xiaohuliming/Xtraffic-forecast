@@ -268,3 +268,13 @@ Mac 全仓回归为 489 passed 和 2 个既有 warning，5080 Windows 专项门�
 | Orange | `11.765688 ± 0.005298` | `11.136362 ± 0.030750` |
 
 这组补充实验继续使用 `official_protocol_with_known_overlap`。它支持 100 epoch 原生配方下的描述性比较，不是 v3 无泄露结论，也不能作为 IGSTGNN 原论文方法行。
+
+## 最新状态，2026-08-04 v3 全窗口 baseline 第一阶段已启动
+
+v3 无泄露 Table 4 对比的第一阶段使用 `protocol_v3_noleak_dedup` 和 target-disjoint 70/15/15 切分。清单包含 HL、LSTM、DCRNN、AGCRN、STGCN、GraphWaveNet、ASTGCN、STTN、DSTAGNN、DGCRN 和 D2STGNN，共 11 个方法乘 3 个地区，合计 33 项。当前固定 seed 42、上限 30 epoch 和 patience 6。BiST 与 IGSTGNN 必须先增加 v3 数据适配层，将在第二阶段单独加入。NDR-Net 也必须在 v3 下单独重跑，不能复用官方重叠协议的结果。
+
+canonical manifest SHA-256 为 `8734ea3632622a852b63d8faa6a36ebfebec196c7703654d93e5739ba3e777b0`，训练代码固定在 `2db8bff83ea791bd83dc62d9a1feb0386a2eb9e9`。Mac 全仓回归为 507 passed 和 2 个既有 warning，5080 最终 checkout 专项门为 10 passed。正式结果根为 `D:\t4\v3_baselines_phase1_5080_v3\results`，计划任务为 `XTraffic_ProtocolV3_Baseline_Phase1_v3`，于 2026-08-04 18:28:58 新加坡时间启动。截至 18:35 为 1/33 完成、0 失败，Alameda LSTM 运行到 epoch 5。
+
+首项 Alameda HL 已经 runner 验收。Average MAE 为 `17.835280131426384`，H3、H6 和 H12 MAE 为 `13.664771357540491`、`17.141543678361064` 和 `24.58813473938541`，有效观测点为 `79942548`，summary SHA-256 为 `2c7d1fb7fe0580dfade9e8fb1c4b8582364a5044dd2dbad293a1f31ee325cf8e`。这只是单项已验收结果，不构成完整 baseline 结论。
+
+正式启动前保留两个失败关闭 incident。v1 由于 Windows checkout 把 manifest 换行转为 CRLF 而被哈希门拒绝。v2 中 HL 训练返回码为 0，但控制层期待了错误的 staging 目录，因此未提升结果。两次均为 0/33 正式结果，旧计划任务已禁用，不得进入最终聚合。修复提交分别为 `a5830a8` 和 `2db8bff`。

@@ -984,6 +984,20 @@ runner 层现已完成或重新验收 45/45。5090 新分片为 18/18，5080 新
 
 ---
 
+## 最新进展，2026-08-04 v3 无泄露全窗口 baseline 已启动
+
+为了得到与 Table 4 列结构一致且不含 target 重叠的对比结果，项目新建了独立的 v3 全窗口 baseline 矩阵。它与 `igstgnn_table4_official_v1` 官方最大忠实复现线互不覆盖。后者保留已知样本重叠，只用于和论文表格对照。新矩阵使用 `protocol_v3_noleak_dedup`、target-disjoint 70/15/15 切分和 cache schema 3。
+
+第一阶段包含 HL、LSTM、DCRNN、AGCRN、STGCN、GraphWaveNet、ASTGCN、STTN、DSTAGNN、DGCRN 和 D2STGNN，共 11 个方法乘 3 个地区，合计 33 项。训练控制为 seed 42、30 epoch 上限和 patience 6。BiST 与 IGSTGNN 暂未包含，原因是它们还没有与 v3 缓存契约对齐的 adapter。两者将在完成适配与审计后作为第二阶段加入。NDR-Net 同样必须使用 v3 数据单独重跑，现有官方重叠协议下的 NDR-Net 数字不能填入 v3 表。
+
+第一阶段 canonical manifest SHA-256 为 `8734ea3632622a852b63d8faa6a36ebfebec196c7703654d93e5739ba3e777b0`，训练代码 SHA 为 `2db8bff83ea791bd83dc62d9a1feb0386a2eb9e9`。三地区正式 cache 再次通过只读复验，bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。Mac 全仓回归为 507 passed 和 2 个既有 warning，5080 最终 checkout 专项门为 10 passed。
+
+5080 正式计划任务 `XTraffic_ProtocolV3_Baseline_Phase1_v3` 于 2026-08-04 18:28:58 新加坡时间启动，正式结果根为 `D:\t4\v3_baselines_phase1_5080_v3\results`。18:35 时队列为 1/33 完成、0 失败，正在训练 Alameda LSTM，已到 epoch 5。Alameda HL 是首个通过 runner 验收的任务。它的 H3、H6、H12 和 Average MAE 分别为 `13.664771357540491`、`17.141543678361064`、`24.58813473938541` 和 `17.835280131426384`，Average RMSE 为 `31.697551962208454`，Average MAPE 为 `28.380292960200414`，有效观测点数为 `79942548`。summary SHA-256 为 `2c7d1fb7fe0580dfade9e8fb1c4b8582364a5044dd2dbad293a1f31ee325cf8e`。当前只能称为单项已验收结果，不得提前形成完整性能排名。
+
+正式启动前出现两次失败关闭。v1 由于 Windows checkout 把 manifest 换行符转为 CRLF，哈希门拒绝启动。v2 的 HL 训练返回码为 0，但 baseline-zoo 的 staging 产物目录与控制层期待不一致，runner 因此未提升结果。两次都是 0/33 正式结果，旧任务已禁用，incident 保留供审计且不进入最终 composite。对应修复提交为 `a5830a8` 和 `2db8bff`。
+
+---
+
 ## 第十二部分：去季节化方向的数据现实与设计决策
 
 本节并入自原去季节化交接文档，记录 v0c 这条线的方向决策与数据现实，供后续工作参考。
