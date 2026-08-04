@@ -42,3 +42,17 @@ DGCRN 使用 microbatch 8，STTN 使用 microbatch 16，两者已通过首个完
 RTX 5080 的 event 队列已验收 2/33，当前执行 Alameda DCRNN。Alameda LSTM 的 Average MAE 为 `12.950932743865955`，H3、H6 和 H12 MAE 为 `11.472908787131686`、`12.867387335945871` 和 `15.258082126124597`，summary SHA-256 为 `cfe37cfb481623214afa4516125100f8e6d05d518fe71cf84a895203b50f9452`。
 
 当前只确认启动、首个完整 batch 和已有的两份 Alameda 正式结果。Orange 尚无本轮新的正式性能结论。所有结果只有在逐任务五文件验收、源主机 postflight、结果服务器逐文件复验和最终 composite 全部通过后才可入表。
+
+## 初始化 incident 与修正恢复
+
+后续复验确认 DSTAGNN 首轮从第一个 batch 起 loss 即为非有限值。runner 在测试预测门安全失败，没有正式任务目录。对照上游 LargeST engine 后确认，v3 baseline factory 遗漏了 ASTGCN 与 DSTAGNN 的显式参数初始化。ASTGCN 首轮数值虽然有限，但同样不满足绑定上游实现契约，因此在没有正式结果时停止。
+
+提交 `d8760d1a48c30d7d87130aef1712c85b8aa76359` 恢复上游参数初始化。所有大于一维的参数使用 Xavier uniform，一维参数使用 uniform。AGCRN 改为复用同一入口，其数值语义不变。Mac 全仓回归为 519 passed 和 2 个既有 warning，远端专项门为 12 passed。部署 bundle SHA-256 为 `7b4433425ffb9c05641ade2a09aabc1847d3db588651bdd48e0d9d4f16d77b76`。
+
+独立恢复矩阵 ID 为 `protocol_v3_event_orange_upstream_init_recovery_v1`，代码 checkout 为 `d8760d1a48c30d7d87130aef1712c85b8aa76359`。DSTAGNN 使用 GPU 3，ASTGCN 与后续 STGCN 使用 GPU 5。首个完整 batch 的 loss 分别为 `198.078` 与 `200.413`，均为有限值。
+
+## 最新状态
+
+5080 event 队列已验收 3/33，当前执行 Alameda AGCRN。Alameda DCRNN Average MAE 为 `14.215668450826508`，H3、H6 和 H12 MAE 为 `12.167831568642377`、`14.011284383846979` 和 `17.427471336632582`，summary SHA-256 为 `806a6ab4f91ffca55609b908c82d6e5b028d5b26421a06e7f7336dfac09b2801`。
+
+Orange 的 DCRNN、GraphWaveNet、LSTM、DGCRN、D2STGNN、STTN、DSTAGNN 与 ASTGCN 正在训练或恢复。Orange 仍为 0/11 正式验收。首轮 ASTGCN 与 DSTAGNN attempt 均不得进入最终 composite。

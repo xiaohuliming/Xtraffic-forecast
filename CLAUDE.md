@@ -290,3 +290,11 @@ event v1 首次启动在 HL 产物阶段因测试集未显式加载 `affected_ma
 DGCRN、D2STGNN 和 STTN 首轮在 24 GB 单卡上 OOM，没有正式任务目录。恢复层保持有效 batch 32，按全 batch 有效观测点归一化梯度，累积 microbatch 反向后只做一次优化器更新。DGCRN 使用 microbatch 8，STTN 使用 16，D2STGNN 使用 8。三者均已通过首个完整有效 batch。恢复提交为 `845804de1586eb6620496298d264c789c6a140c9` 和 `5bced13246ee3eb1e903726f0e9c60c839f46209`。Mac 全仓回归为 517 passed 和 2 个既有 warning。
 
 5080 event 队列已验收 2/33，当前执行 Alameda DCRNN。Alameda LSTM 的 Average MAE 为 `12.950932743865955`，H3、H6 和 H12 MAE 为 `11.472908787131686`、`12.867387335945871` 和 `15.258082126124597`，summary SHA-256 为 `cfe37cfb481623214afa4516125100f8e6d05d518fe71cf84a895203b50f9452`。Orange 尚无本轮新的正式性能结论。详细记录见 `docs/audits/protocol_v3_event_4090d8_launch_2026-08-04.md`。
+
+## 最新状态，2026-08-04 v3 event baseline 初始化修复与续跑
+
+5080 event 队列现已验收 3/33，当前执行 Alameda AGCRN。新验收的 Alameda DCRNN Average MAE 为 `14.215668450826508`，H3、H6 和 H12 MAE 为 `12.167831568642377`、`14.011284383846979` 和 `17.427471336632582`，Average RMSE 和 MAPE 为 `24.984026878436037` 和 `20.944177481318572`，summary SHA-256 为 `806a6ab4f91ffca55609b908c82d6e5b028d5b26421a06e7f7336dfac09b2801`。
+
+4090 D 首轮 DSTAGNN 从第一个 batch 起出现非有限 loss。复审确认 v3 baseline factory 遗漏了上游 LargeST engine 对 ASTGCN 与 DSTAGNN 的显式参数初始化。ASTGCN 虽然数值有限，也不满足最大忠实实现口径，因此其未验收首轮 attempt 同样停止。提交 `d8760d1a48c30d7d87130aef1712c85b8aa76359` 恢复上游初始化语义，并统一 AGCRN 的同类初始化入口。本地全仓回归为 519 passed 和 2 个既有 warning，远端专项门为 12 passed。
+
+修正后的独立恢复矩阵为 `protocol_v3_event_orange_upstream_init_recovery_v1`。DSTAGNN 固定在 GPU 3，ASTGCN 与后续 STGCN 固定在 GPU 5。两项首个完整 batch 均为有限值，DSTAGNN loss 为 `198.078`，ASTGCN loss 为 `200.413`。DGCRN、D2STGNN 与 STTN 的等效 batch 恢复仍在运行。Orange 当前仍为 0/11 正式验收，不得形成性能结论。
