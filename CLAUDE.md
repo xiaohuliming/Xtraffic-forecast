@@ -318,3 +318,13 @@ Orange 已正式验收 2/11。HL 的 H3、H6、H12 与 Average MAE 为 `15.40702
 5080 在 Alameda DGCRN 的最后一个单样本 partial batch 触发维度错误。上游实现的无维度 `squeeze` 同时删除了 batch 维度。失败发生在 epoch 1，没有正式 task010。提交 `9dd7cac140d6af3ea0d504962f3ce4c99b4f8be2` 去除该无条件 squeeze，对 batch 大于 1 的数值语义不变，并增加 batch 1 前向回归。Mac 全仓为 522 passed 和 2 个既有 warning，5080 专项门为 13 passed。
 
 新恢复结果根为 `D:\t4\v3_event_dgfix_v1\results`，checkout 为 `9dd7cac140d6af3ea0d504962f3ce4c99b4f8be2`，分片严格选择 tasks010-022，共 13 项。计划任务 `XTraffic_ProtocolV3_Event_Baseline_DGCRNFix_v1` 已正常启动 Alameda DGCRN，首个 batch loss 为 `137.815`，GPU 显存约 10.6 GiB。部署 bundle SHA-256 为 `a2c6e990eb9883884e064ed2d5b5c1c681393e96ca7af192749d76dccbb3d902`。
+
+## 最新状态，2026-08-05 12:37 八卡机无卡恢复与结果备份
+
+端口 `11218` 已恢复 SSH，主机名仍为 `autodl-container-5ee0448de2-ca306372`，原 `/root/autodl-tmp` 数据盘完整。当前实例为无卡模式，没有 CUDA 设备，也没有残留 trainer，因此只能做只读恢复，不能继续训练。复验发现停机前 Orange 实际已有 4 项通过 runner 正式验收，分别为 HL、LSTM、GraphWaveNet 与 STTN。Average MAE 为 `19.025463577015767`、`13.72444114753531`、`12.95053482055664` 与 `12.585341003332807`。因此全矩阵 runner 层进度修正为 13/33。
+
+这 4 项及其队列和计划证据已通过硬链接整理为源主机只读 partial export，并回传至 Mac 的 `outputs/protocol_v3_noleak_dedup/remote_recovery/partial_export_4_v1`。本地逐文件 SHA-256 复验为 25/25 通过，源文件总字节数为 `1652698342`，`files.sha256` 的 SHA-256 为 `6297b0403746faea2b9c8da0c174952db670cfbd2bdb8f20bea28289118c118a`。该备份不等同于结果服务器正式发布，也不得替代最终 source-host postflight 与 composite。
+
+结果服务器 `/root/xtraffic_results` 所在分区当前为 40 GB、100% 已用且可用空间为 0。没有发现可用的替代结果盘。本次没有删除任何既有实验结果、Docker 数据或系统文件，服务器正式回传保持待处理。八卡机还保留 D2STGNN epoch 4、AGCRN epoch 4、DSTAGNN epoch 11、ASTGCN epoch 12、DGCRN epoch 2 与 DCRNN epoch 19 的未验收 staging。恢复有卡模式后需逐项判断 checkpoint 是否满足恢复契约，否则从头重跑。
+
+5080 继续运行 Alameda DGCRN。12:37 时已完成 epoch 2，epoch 3 到 batch 600/1001，队列仍为 running、0/13 新任务完成。当前可访问且有内容哈希保护的正式结果为 13/33，其中 5080 为 9 项，Mac partial export 为 Orange 4 项。

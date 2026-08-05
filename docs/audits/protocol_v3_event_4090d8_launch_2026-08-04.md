@@ -84,3 +84,26 @@ Orange 原 GPU 6 GraphWaveNet 在 epoch 25 停止，没有正式结果。新 con
 提交 `9dd7cac140d6af3ea0d504962f3ce4c99b4f8be2` 去除该 squeeze，并增加单样本前向回归。Mac 全仓为 522 passed 和 2 个既有 warning。5080 专项门为 13 passed。部署 bundle SHA-256 为 `a2c6e990eb9883884e064ed2d5b5c1c681393e96ca7af192749d76dccbb3d902`。
 
 独立恢复分片固定为 tasks010-022，共 13 项。checkout 为 `9dd7cac140d6af3ea0d504962f3ce4c99b4f8be2`，结果根为 `D:\t4\v3_event_dgfix_v1\results`，计划任务为 `XTraffic_ProtocolV3_Event_Baseline_DGCRNFix_v1`。首个 Alameda DGCRN batch loss 为 `137.815`，GPU 显存约 10.6 GiB。runner 状态为 running。
+
+## 无卡模式恢复与 partial export
+
+2026-08-05 12:37 新加坡时间，端口 `11218` 恢复 SSH。容器主机名仍为 `autodl-container-5ee0448de2-ca306372`，证明这是原实例而不是空数据盘替代容器。`/root/autodl-tmp` 保留原有结果、staging、日志和控制文件，剩余空间约 47 GB。实例当前没有 GPU，`nvidia-smi` 不可用，没有 trainer、runner 或 finalizer 进程，因此未尝试继续训练。
+
+只读复验确认停机前实际完成 4 个 Orange 正式任务：
+
+| 任务 | 方法 | H3 MAE | H6 MAE | H12 MAE | Average MAE |
+|---|---|---:|---:|---:|---:|
+| v3e023 | HL | `15.407021` | `18.471072` | `24.892803` | `19.025464` |
+| v3e024 | LSTM | `12.191571` | `13.618700` | `16.221246` | `13.724441` |
+| v3e028 | GraphWaveNet | 待从 prediction artifact 汇总 | 待汇总 | 待汇总 | `12.950535` |
+| v3e030 | STTN | `11.697110` | `12.646399` | `13.804152` | `12.585341` |
+
+源主机上的 4 个正式任务目录保持原位。另以硬链接建立 `/root/autodl-tmp/v3_event_orange_4090d8/partial_export_4_v1`，纳入 20 个任务 artifact、state、queue snapshot、计划和 export 元数据，共 25 个文件。源 artifact 总字节数为 `1652698342`，`files.sha256` 的 SHA-256 为 `6297b0403746faea2b9c8da0c174952db670cfbd2bdb8f20bea28289118c118a`。
+
+partial export 已复制到 Mac 的 `outputs/protocol_v3_noleak_dedup/remote_recovery/partial_export_4_v1`，本地执行清单复验为 25/25 通过。该副本是停机风险下的内容级保护，不构成结果服务器正式发布，也不替代最终 composite。
+
+结果服务器 `/root/xtraffic_results` 所在 40 GB 分区为 100% 已用，可用空间为 0。没有可用的替代结果盘。本轮没有删除历史实验、Docker 或系统文件，正式回传暂缓。必须先扩容或经明确审核释放足够空间，再执行远端逐文件复验与原子提升。
+
+未验收 staging 的最后落盘 epoch 为 D2STGNN 4、AGCRN 4、DSTAGNN 11、ASTGCN 12、DGCRN 2 与 DCRNN 19。这些只说明中间状态存在，不能视为正式结果。恢复 GPU 模式后需先检查 checkpoint、optimizer、scheduler、验证状态与代码 provenance 是否满足恢复契约，不满足时必须从头重跑。
+
+5080 继续运行 task010 Alameda DGCRN。12:37 时 queue 为 running，tasks010-022 中 0/13 新任务完成。训练已完成 epoch 2，epoch 3 到 batch 600/1001。综合两台源主机与 Mac 备份，全矩阵已有 13/33 项通过 runner 验收并具备可访问的哈希保护 artifact。

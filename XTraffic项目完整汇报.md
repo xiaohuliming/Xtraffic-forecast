@@ -1068,3 +1068,22 @@ Alameda DGCRN 在 epoch 1 的最后一个单样本 partial batch 上失败。上
 数据现实，三类协变量的可用性。第一，节假日已在数据内。time_enc 的第五列是 2023 年美国联邦假日标志，构建见 scripts/build_full_county_cache.py 的 US_FEDERAL_HOLIDAYS_2023。但气候态基线 baseline_median 形状为 2 乘 288 乘 N 乘 3，只分工作日与周末两类日型，没有单独建假日类，假日当前错用工作日或周末基线。改进点是把基线粒度扩成三类，或把假日当协变量喂给学习式基线，预期对 all 影响很小，因为假日只占全年约 3%，是正确性修补而非主增益。第二，天气数据集里没有，要用需外接 Meteostat 或 NOAA ISD，按传感器经纬度找最近站取 2023 年逐小时再广播到 5 分钟，属独立数据工程，有站点稀疏与对齐与仅 2023 一年的风险，先不外接，作后续可插拔项。第三，活动不可行，数据里除事故外无其他活动事件，投入产出比太低，放下。
 
 当时已定的下一步顺序是先用 in-data 的 holiday 与自适应把骨架搭通，再做骨干无关性验证。两项后来均已完成，审计前结果见第 4.8 至 4.12 节。天气仍作为后续可插拔项，holiday 感知基线仍是正确性小修补。无泄露 v3 缓存重建、本地和远端严格审计、clean checkout、runner 45/45、两个正式分片回传与只读 composite 验证现已完成。5090 为 18/18，5080 为 27/27，矩阵有效性状态为 `verified_host_stratified_45`。当前优先级是执行同机配对、多种子与显著性分析。所有判读继续坚持等参数、多种子和显著性，不在单种子结果上收官。方法实现层级始终为 `RADS ⊂ RADS-O ⊂ NDR-Net`。
+
+## 最新进展，2026-08-05 12:37 八卡机无卡恢复
+
+八卡 4090 D 实例以无卡模式恢复 SSH。主机名仍为 `autodl-container-5ee0448de2-ca306372`，原 `/root/autodl-tmp` 数据盘、正式结果、staging 与日志均完整。当前没有 CUDA 设备和训练进程，所以没有尝试在无卡模式继续训练。
+
+停机前实际完成的 Orange 正式结果为 4/11，比此前最后在线快照多 GraphWaveNet 与 STTN 两项。当前结果如下：
+
+| 方法 | H3 MAE | H6 MAE | H12 MAE | Average MAE |
+|---|---:|---:|---:|---:|
+| HL | `15.407021` | `18.471072` | `24.892803` | `19.025464` |
+| LSTM | `12.191571` | `13.618700` | `16.221246` | `13.724441` |
+| GraphWaveNet | 待从 prediction artifact 汇总 | 待汇总 | 待汇总 | `12.950535` |
+| STTN | `11.697110` | `12.646399` | `13.804152` | `12.585341` |
+
+四项结果及关键控制证据已回传到 Mac 的 `outputs/protocol_v3_noleak_dedup/remote_recovery/partial_export_4_v1`。25 个文件全部通过 SHA-256，源文件总字节数为 `1652698342`，清单 SHA-256 为 `6297b0403746faea2b9c8da0c174952db670cfbd2bdb8f20bea28289118c118a`。这是只读灾备，不是结果服务器正式发布。
+
+结果服务器所在 40 GB 分区已满，可用空间为 0。本轮没有删除历史结果、Docker 数据或系统文件。正式回传将在扩容或完成安全空间审核后继续。八卡机上还保留 D2STGNN epoch 4、AGCRN epoch 4、DSTAGNN epoch 11、ASTGCN epoch 12、DGCRN epoch 2 与 DCRNN epoch 19 的未验收 staging，恢复有卡模式后需按 checkpoint 恢复契约逐项审计。
+
+5080 仍在训练 Alameda DGCRN。12:37 已完成 epoch 2，epoch 3 到 batch 600/1001。全矩阵 runner 层进度修正为 13/33，当前 13 项均已有可访问的内容哈希保护，其中 5080 为 9 项，Mac partial export 为 Orange 4 项。最终性能表仍需完成其余训练、结果服务器原子发布、各源 postflight 和只读 composite。

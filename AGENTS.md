@@ -149,3 +149,9 @@ event v1 首次启动因测试集未显式加载事后分析用 `affected_mask` 
 2026-08-05 12:10，新 v3 event baseline 的 runner 层进度为 11/33。5080 上有 9 项可直接复验，Orange HL 与 LSTM 两项最后确认已由 4090 D runner 验收但尚未回传。八卡 4090 D 的 11218 端口连续三次 TCP 可达但 SSH 立即关闭，结果服务器没有本轮 event 目录。只能记录为疑似余额不足、实例停止或平台回收，不能断言具体原因。重新开启同一实例并恢复原数据盘后，应先回传已有结果再继续训练。
 
 5080 已验收 Alameda tasks001-009。tasks006-009 的 Average MAE 为 GraphWaveNet `12.589115142822266`、ASTGCN `13.838033263794035`、STTN `12.552551273568538`、DSTAGNN `12.62779631022974`。task010 DGCRN 在最后一个 batch size 1 的 partial batch 上因上游无维度 `squeeze` 删除 batch 维度而失败，没有正式结果。修复提交为 `9dd7cac140d6af3ea0d504962f3ce4c99b4f8be2`。本地全仓为 522 passed 和 2 个既有 warning，5080 专项门为 13 passed。新结果根 `D:\t4\v3_event_dgfix_v1\results` 运行 tasks010-022，当前 Alameda DGCRN 首 batch loss 为 `137.815`。
+
+2026-08-05 12:37，八卡机以无卡模式恢复 SSH。主机名仍为 `autodl-container-5ee0448de2-ca306372`，原 `/root/autodl-tmp` 完整，但没有 CUDA 设备或训练进程。只读复验确认 Orange HL、LSTM、GraphWaveNet 与 STTN 共 4 项已由 runner 正式验收，Average MAE 分别为 `19.025463577015767`、`13.72444114753531`、`12.95053482055664` 与 `12.585341003332807`。全矩阵 runner 层进度因此修正为 13/33。
+
+四项正式结果、state、queue snapshot 与计划文件已建立只读 partial export，并回传到 Mac 的 `outputs/protocol_v3_noleak_dedup/remote_recovery/partial_export_4_v1`。25 个文件逐一通过 SHA-256，源字节数为 `1652698342`，清单 SHA-256 为 `6297b0403746faea2b9c8da0c174952db670cfbd2bdb8f20bea28289118c118a`。结果服务器分区为 40 GB、100% 已用、0 可用空间，因此尚未正式发布。本次没有清理既有实验结果或系统数据。
+
+未验收 staging 仍保留 D2STGNN epoch 4、AGCRN epoch 4、DSTAGNN epoch 11、ASTGCN epoch 12、DGCRN epoch 2 与 DCRNN epoch 19。无卡模式不得启动训练。恢复 GPU 后应先按 checkpoint 恢复契约审计，再决定续跑或从头重跑。5080 在 12:37 已完成 Alameda DGCRN epoch 2，epoch 3 到 batch 600/1001。当前有 13/33 项具备可访问且哈希保护的正式 artifact，其中 5080 为 9 项，Mac partial export 为 Orange 4 项。最终入表仍需结果服务器发布、所有 source-host postflight 与只读 composite。
