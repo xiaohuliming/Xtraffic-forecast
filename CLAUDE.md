@@ -330,3 +330,9 @@ Orange 已正式验收 2/11。HL 的 H3、H6、H12 与 Average MAE 为 `15.40702
 5080 继续运行 Alameda DGCRN。12:37 时已完成 epoch 2，epoch 3 到 batch 600/1001，队列仍为 running、0/13 新任务完成。当前可访问且有内容哈希保护的正式结果为 13/33，其中 5080 为 9 项，Mac partial export 为 Orange 4 项。
 
 13:09 完成结果服务器安全清理。删除项仅包括与 Mac 旧污染缓存逐文件 SHA-256 一致且无进程占用的 `/root/xtraffic_stage`、systemd 历史日志和可再生成的 APT 缓存。正式结果树 `/root/xtraffic_results` 仍为 21 GB且未改动，Docker 活跃容器和镜像未删除。ext4 root 保留比例从约 4.5% 调整为 1%，仍保留 104340 个 4096 字节 block。最终可用空间为 `3267715072` bytes，约 3.1 GB，文件系统使用率为 93%，journal 为 75.7 MB。该容量可容纳当前 4 项 partial export，但不足以为完整 Orange 11 项和原子发布保留稳妥余量，因此 partial export 继续由 Mac 保护，结果服务器正式发布仍等待扩容。
+
+## 最新状态，2026-08-05 18:20 NAS 灾备与 5080 进度
+
+群晖 SSH 别名为 `heiqunhui-nas`，主机名为 `verydisk`。Orange 四项 partial export 已从 Mac 传入 `/var/services/homes/xhlm/Drive/XTraffic/results/protocol_v3_noleak_dedup/event_baseline_phase1/orange_4090d8_partial_4_v1`。传输先落入隐藏 incoming 目录，NAS 端确认 `files.sha256` 自身 SHA-256 为 `6297b0403746faea2b9c8da0c174952db670cfbd2bdb8f20bea28289118c118a`，清单内 25 个文件全部通过后才原子改名。最终目录共 26 个 regular files，精确文件字节和为 `1652693542`。此前记录的 `1652698342` 是源端目录遍历口径，差额来自目录项统计，不是文件内容差异。NAS `/volume1` 仍有约 427 GB 可用。该目录是验证灾备，不是结果服务器正式发布或最终 composite。
+
+5080 已正式验收 task010 Alameda DGCRN，Average MAE 为 `12.57730031172414`，H3、H6 与 H12 MAE 为 `11.284029503462909`、`12.563134072848419` 与 `14.453520300691103`，summary SHA-256 为 `49dcb9734a0f74e7aed6613045d087c2ab27dd7d1752bf05facff5484f113aec`。全矩阵 runner 层达到 14/33，5080 为 10 项，Orange 为 4 项。5080 正在 task011 Alameda D2STGNN，epoch 1 已到 batch 700/1001。

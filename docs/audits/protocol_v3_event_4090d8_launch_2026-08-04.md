@@ -119,3 +119,15 @@ partial export 已复制到 Mac 的 `outputs/protocol_v3_noleak_dedup/remote_rec
 ext4 `/dev/vda3` 原有 468496 个保留 block，约占 4.5%。将保留比例调为 1% 后仍保留 104340 个 4096 字节 block，约 407.6 MiB。13:09 最终复验为 40 GB 总量、36 GB 已用、`3267715072` bytes 可用、93% 使用率。`/root/xtraffic_results` 仍为 21 GB，所有一级正式目录存在，活跃 Docker 容器仍在线。
 
 当前空间足以接收 1.65 GB 的四项 partial export，但上传后余量不足，且完整 Orange 11 项预计无法安全容纳。为避免再次将根分区推至临界状态，本轮不上传 partial export。Mac 的 25 文件哈希验证副本继续作为灾备，结果服务器正式发布等待扩容或新增结果盘。
+
+## 群晖 NAS 验证灾备
+
+2026-08-05 18:20，新备份目标通过本机 SSH 配置别名 `heiqunhui-nas` 访问。群晖主机名为 `verydisk`，用户为 `xhlm`。`/volume1` 为 443 GB，传输后仍有约 427 GB 可用。
+
+目标目录为 `/var/services/homes/xhlm/Drive/XTraffic/results/protocol_v3_noleak_dedup/event_baseline_phase1/orange_4090d8_partial_4_v1`。数据先传入同级隐藏 incoming 目录。macOS 自带旧 rsync 与群晖 rsync 握手不兼容，首次 rsync 没有写入结果文件。随后使用同一 SSH 密钥的 legacy SCP 完成传输。一个小型连通测试文件在校验后删除，不进入最终目录。
+
+NAS 端先验证 `files.sha256` 自身 SHA-256 为 `6297b0403746faea2b9c8da0c174952db670cfbd2bdb8f20bea28289118c118a`，再运行 `sha256sum -c files.sha256`。清单内 25 个文件全部为 OK。最终目录包含 26 个 regular files，其中一个是 `files.sha256`，精确文件字节和为 `1652693542`。此前源主机的 `1652698342` 使用目录遍历口径，差额来自目录项统计，不代表文件内容差异。验证成功后 incoming 目录在同一 Btrfs volume 内原子改名为正式灾备目录。
+
+该 NAS 副本的有效性状态为 `verified_partial_disaster_backup_4`。它保护 4 个 runner accepted Orange 任务，但不是完整 Orange shard，不替代源主机 postflight、结果服务器逐文件复验、正式原子发布或最终 composite。
+
+同一时间，5080 已完成并验收 task010 Alameda DGCRN。H3、H6、H12 与 Average MAE 为 `11.284029503462909`、`12.563134072848419`、`14.453520300691103` 与 `12.57730031172414`，summary SHA-256 为 `49dcb9734a0f74e7aed6613045d087c2ab27dd7d1752bf05facff5484f113aec`。全矩阵 runner 层进度为 14/33。task011 Alameda D2STGNN 正在 epoch 1，已到 batch 700/1001。
