@@ -328,3 +328,5 @@ Orange 已正式验收 2/11。HL 的 H3、H6、H12 与 Average MAE 为 `15.40702
 结果服务器 `/root/xtraffic_results` 所在分区当前为 40 GB、100% 已用且可用空间为 0。没有发现可用的替代结果盘。本次没有删除任何既有实验结果、Docker 数据或系统文件，服务器正式回传保持待处理。八卡机还保留 D2STGNN epoch 4、AGCRN epoch 4、DSTAGNN epoch 11、ASTGCN epoch 12、DGCRN epoch 2 与 DCRNN epoch 19 的未验收 staging。恢复有卡模式后需逐项判断 checkpoint 是否满足恢复契约，否则从头重跑。
 
 5080 继续运行 Alameda DGCRN。12:37 时已完成 epoch 2，epoch 3 到 batch 600/1001，队列仍为 running、0/13 新任务完成。当前可访问且有内容哈希保护的正式结果为 13/33，其中 5080 为 9 项，Mac partial export 为 Orange 4 项。
+
+13:09 完成结果服务器安全清理。删除项仅包括与 Mac 旧污染缓存逐文件 SHA-256 一致且无进程占用的 `/root/xtraffic_stage`、systemd 历史日志和可再生成的 APT 缓存。正式结果树 `/root/xtraffic_results` 仍为 21 GB且未改动，Docker 活跃容器和镜像未删除。ext4 root 保留比例从约 4.5% 调整为 1%，仍保留 104340 个 4096 字节 block。最终可用空间为 `3267715072` bytes，约 3.1 GB，文件系统使用率为 93%，journal 为 75.7 MB。该容量可容纳当前 4 项 partial export，但不足以为完整 Orange 11 项和原子发布保留稳妥余量，因此 partial export 继续由 Mac 保护，结果服务器正式发布仍等待扩容。

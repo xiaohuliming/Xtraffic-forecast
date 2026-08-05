@@ -107,3 +107,15 @@ partial export 已复制到 Mac 的 `outputs/protocol_v3_noleak_dedup/remote_rec
 未验收 staging 的最后落盘 epoch 为 D2STGNN 4、AGCRN 4、DSTAGNN 11、ASTGCN 12、DGCRN 2 与 DCRNN 19。这些只说明中间状态存在，不能视为正式结果。恢复 GPU 模式后需先检查 checkpoint、optimizer、scheduler、验证状态与代码 provenance 是否满足恢复契约，不满足时必须从头重跑。
 
 5080 继续运行 task010 Alameda DGCRN。12:37 时 queue 为 running，tasks010-022 中 0/13 新任务完成。训练已完成 epoch 2，epoch 3 到 batch 600/1001。综合两台源主机与 Mac 备份，全矩阵已有 13/33 项通过 runner 验收并具备可访问的哈希保护 artifact。
+
+## 结果服务器容量恢复
+
+用户于 2026-08-05 授权清理 40 GB 结果服务器分区。清理前分区为 100% 使用且可用空间为 0。只读盘点确认 `/root/xtraffic_results` 为 21 GB，正式实验数据不在删除范围。
+
+`/root/xtraffic_stage` 共 12 个文件和约 1.7 GB，时间均为 2026-07-07。六个 HDF5、三个 config 和三个图文件的 SHA-256 分别与 Mac 的旧 `outputs/dist_net/region_data` 和 `outputs/region_graphs` 完全一致。该缓存属于审计前旧污染数据，在服务器上没有其他引用或打开文件。删除前记录了文件哈希，随后只删除该冗余 staging 副本。
+
+同时将 systemd journal 从 800.3 MB 清理到 75.7 MB，删除可再生成的 APT lists 与 pkgcache。一个从 2026-08-04 起卡住的 `apt-get update` 被正常停止。Docker 活跃容器、Docker 镜像、`/www`、`/opt` 和正式结果均未删除。
+
+ext4 `/dev/vda3` 原有 468496 个保留 block，约占 4.5%。将保留比例调为 1% 后仍保留 104340 个 4096 字节 block，约 407.6 MiB。13:09 最终复验为 40 GB 总量、36 GB 已用、`3267715072` bytes 可用、93% 使用率。`/root/xtraffic_results` 仍为 21 GB，所有一级正式目录存在，活跃 Docker 容器仍在线。
+
+当前空间足以接收 1.65 GB 的四项 partial export，但上传后余量不足，且完整 Orange 11 项预计无法安全容纳。为避免再次将根分区推至临界状态，本轮不上传 partial export。Mac 的 25 文件哈希验证副本继续作为灾备，结果服务器正式发布等待扩容或新增结果盘。

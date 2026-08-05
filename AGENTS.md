@@ -155,3 +155,5 @@ event v1 首次启动因测试集未显式加载事后分析用 `affected_mask` 
 四项正式结果、state、queue snapshot 与计划文件已建立只读 partial export，并回传到 Mac 的 `outputs/protocol_v3_noleak_dedup/remote_recovery/partial_export_4_v1`。25 个文件逐一通过 SHA-256，源字节数为 `1652698342`，清单 SHA-256 为 `6297b0403746faea2b9c8da0c174952db670cfbd2bdb8f20bea28289118c118a`。结果服务器分区为 40 GB、100% 已用、0 可用空间，因此尚未正式发布。本次没有清理既有实验结果或系统数据。
 
 未验收 staging 仍保留 D2STGNN epoch 4、AGCRN epoch 4、DSTAGNN epoch 11、ASTGCN epoch 12、DGCRN epoch 2 与 DCRNN epoch 19。无卡模式不得启动训练。恢复 GPU 后应先按 checkpoint 恢复契约审计，再决定续跑或从头重跑。5080 在 12:37 已完成 Alameda DGCRN epoch 2，epoch 3 到 batch 600/1001。当前有 13/33 项具备可访问且哈希保护的正式 artifact，其中 5080 为 9 项，Mac partial export 为 Orange 4 项。最终入表仍需结果服务器发布、所有 source-host postflight 与只读 composite。
+
+2026-08-05 13:09，结果服务器完成非实验数据清理。`/root/xtraffic_stage` 的 12 个文件已证明与 Mac 的旧污染 `region_data` 和图文件逐一同哈希，没有进程打开，随后删除。systemd journal 从 800.3 MB 清到 75.7 MB，APT lists 与 cache 清到 16 KB 与 32 KB。ext4 root 保留比例从约 4.5% 调为 1%，仍保留 104340 个 4096 字节 block。正式 `/root/xtraffic_results` 保持 21 GB，Docker 活跃容器、镜像和所有正式实验数据未改动。最终可用空间为 `3267715072` bytes，约 3.1 GB，使用率为 93%。当前 partial export 仍未正式上传，因为完整 Orange shard 需要更大的长期和原子发布余量。

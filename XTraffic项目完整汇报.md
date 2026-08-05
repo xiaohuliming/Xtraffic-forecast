@@ -1087,3 +1087,7 @@ Alameda DGCRN 在 epoch 1 的最后一个单样本 partial batch 上失败。上
 结果服务器所在 40 GB 分区已满，可用空间为 0。本轮没有删除历史结果、Docker 数据或系统文件。正式回传将在扩容或完成安全空间审核后继续。八卡机上还保留 D2STGNN epoch 4、AGCRN epoch 4、DSTAGNN epoch 11、ASTGCN epoch 12、DGCRN epoch 2 与 DCRNN epoch 19 的未验收 staging，恢复有卡模式后需按 checkpoint 恢复契约逐项审计。
 
 5080 仍在训练 Alameda DGCRN。12:37 已完成 epoch 2，epoch 3 到 batch 600/1001。全矩阵 runner 层进度修正为 13/33，当前 13 项均已有可访问的内容哈希保护，其中 5080 为 9 项，Mac partial export 为 Orange 4 项。最终性能表仍需完成其余训练、结果服务器原子发布、各源 postflight 和只读 composite。
+
+13:09，结果服务器安全清理完成。服务器端约 1.7 GB 的 `/root/xtraffic_stage` 已确认是与 Mac 旧污染缓存完全同哈希的冗余副本，且没有进程占用，随后删除。systemd 历史日志从 800.3 MB 清至 75.7 MB，APT 可再生成缓存也已清除。正式结果树仍为 21 GB，Docker 活跃服务和所有实验结果未改动。ext4 根分区保留比例从约 4.5% 调至 1%，仍保留约 407.6 MiB 紧急空间。最终分区从 100% 和 0 可用恢复到 93% 和 `3267715072` bytes 可用，约 3.1 GB。
+
+这 3.1 GB 可以暂存当前 Orange 四项，但不足以稳妥容纳完整 Orange 11 项、上传临时树和原子发布余量。因此当前不把 partial export 重新塞满服务器，Mac 的 25 文件验证副本继续承担灾备。正式发布前建议把结果盘扩到至少 60 GB，更稳妥的目标是 80 GB。
