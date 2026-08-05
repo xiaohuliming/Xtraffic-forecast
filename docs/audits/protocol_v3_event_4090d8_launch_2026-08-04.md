@@ -70,3 +70,17 @@ Orange 原 GPU 6 GraphWaveNet 在 epoch 25 停止，没有正式结果。新 con
 ## 最新正式进度
 
 全矩阵为 7/33。5080 为 Alameda 5 项，Orange 为 2 项。Orange HL 的 H3、H6、H12 与 Average MAE 为 `15.407020772641456`、`18.471071562965424`、`24.89280260874014` 与 `19.025463577015767`。Orange LSTM 对应为 `12.191570568539724`、`13.618700471002564`、`16.221245969669557` 与 `13.72444114753531`。其余任务继续训练或恢复，不得提前形成完整性能结论。
+
+## 2026-08-05 主机不可达状态
+
+12:06 新加坡时间，端口 `11218` 连续三次 TCP 建连成功，但 SSH 均由远端立即关闭。该行为不是普通网络超时。结果服务器未发现本轮 v3 event 结果目录。现有证据不足以区分余额不足、实例手动停止与平台回收，因此审计状态为 `suspected_provider_stop_or_balance_exhaustion`，不得写成已确认欠费。
+
+最后在线证据确认 Orange HL 与 LSTM 已通过 runner 验收，另外多个任务处于训练或恢复中。两项正式结果尚未回传，当前滞留在不可达主机。重新开启同一实例并挂载原数据盘后，第一步必须只读复验并回传这两项，再审计其他 attempt。若平台返回的是全新空盘容器，未回传结果不得凭日志或旧数值重建。
+
+## 5080 DGCRN partial batch incident
+
+5080 继续在线，并在 GraphWaveNet 修复根中完成 tasks006-009。task010 Alameda DGCRN 在 epoch 1 的最后一个 batch size 1 上触发 `IndexError`。根因是 vendored DGCRN 对 `x[..., i]` 使用无维度 `torch.squeeze`，单样本时误删 batch 维度。失败 attempt 没有正式任务目录。
+
+提交 `9dd7cac140d6af3ea0d504962f3ce4c99b4f8be2` 去除该 squeeze，并增加单样本前向回归。Mac 全仓为 522 passed 和 2 个既有 warning。5080 专项门为 13 passed。部署 bundle SHA-256 为 `a2c6e990eb9883884e064ed2d5b5c1c681393e96ca7af192749d76dccbb3d902`。
+
+独立恢复分片固定为 tasks010-022，共 13 项。checkout 为 `9dd7cac140d6af3ea0d504962f3ce4c99b4f8be2`，结果根为 `D:\t4\v3_event_dgfix_v1\results`，计划任务为 `XTraffic_ProtocolV3_Event_Baseline_DGCRNFix_v1`。首个 Alameda DGCRN batch loss 为 `137.815`，GPU 显存约 10.6 GiB。runner 状态为 running。

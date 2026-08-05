@@ -308,3 +308,13 @@ DGCRN、D2STGNN 和 STTN 首轮在 24 GB 单卡上 OOM，没有正式任务目�
 5080 新 continuation checkout 为 `e1bea79d41be4c923fa874d20f0e9fcbf4ed5dae`，结果根为 `D:\t4\v3_event_gwnfix_v1\results`。分片严格选择 tasks006-022，共 17 项，当前从 Alameda GraphWaveNet 干净重跑。旧 5 项保持在原正式根，不会被覆盖。首次 continuation 启动因 manifest 默认结果根为绝对路径而被配置门拒绝，没有 trainer 启动。incident 已保留，修正为相对路径后队列正常运行。5080 专项门为 12 passed。
 
 Orange 已正式验收 2/11。HL 的 H3、H6、H12 与 Average MAE 为 `15.407020772641456`、`18.471071562965424`、`24.89280260874014` 与 `19.025463577015767`。LSTM 对应为 `12.191570568539724`、`13.618700471002564`、`16.221245969669557` 与 `13.72444114753531`。旧 Orange GraphWaveNet 在 epoch 25 停止，没有正式结果。修正后的恢复矩阵 `protocol_v3_event_orange_4090d8_gwn_recovery_v1` 已在 GPU 6 从头重跑 GraphWaveNet，之后接续 AGCRN。4090 D checkout 为 `e1bea79d41be4c923fa874d20f0e9fcbf4ed5dae`，远端专项门为 16 passed。部署 bundle SHA-256 为 `e810c8c56b9715e2ff4e8b286c48d4ae0c0f92ba049698e66850bcbe36761359`。
+
+## 最新状态，2026-08-05 12:10 v3 event 主机状态与 DGCRN 恢复
+
+八卡 4090 D 的端口 `11218` 连续三次 TCP 可达但 SSH 立即关闭。结果服务器没有发现本轮 event 结果目录。该状态只能标记为疑似余额不足、实例停止或平台回收，不能仅凭 SSH 断言具体原因。最后一次在线证据确认 Orange HL 与 LSTM 已由 runner 验收，但尚未回传，因此这 2 项当前滞留在不可达主机上。重新开启同一实例并挂回原数据盘后必须优先回传现有结果，再判断其余 attempt 是否可恢复。
+
+5080 保持在线。原结果根验收 5 项，GraphWaveNet 修复根又验收 Alameda GraphWaveNet、ASTGCN、STTN 与 DSTAGNN，共 9 项本地可访问。四项 Average MAE 为 `12.589115142822266`、`13.838033263794035`、`12.552551273568538` 与 `12.62779631022974`。连同 4090 D 最后确认但未回传的 2 项，runner 层进度为 11/33，当前可直接复验的结果为 9/33。
+
+5080 在 Alameda DGCRN 的最后一个单样本 partial batch 触发维度错误。上游实现的无维度 `squeeze` 同时删除了 batch 维度。失败发生在 epoch 1，没有正式 task010。提交 `9dd7cac140d6af3ea0d504962f3ce4c99b4f8be2` 去除该无条件 squeeze，对 batch 大于 1 的数值语义不变，并增加 batch 1 前向回归。Mac 全仓为 522 passed 和 2 个既有 warning，5080 专项门为 13 passed。
+
+新恢复结果根为 `D:\t4\v3_event_dgfix_v1\results`，checkout 为 `9dd7cac140d6af3ea0d504962f3ce4c99b4f8be2`，分片严格选择 tasks010-022，共 13 项。计划任务 `XTraffic_ProtocolV3_Event_Baseline_DGCRNFix_v1` 已正常启动 Alameda DGCRN，首个 batch loss 为 `137.815`，GPU 显存约 10.6 GiB。部署 bundle SHA-256 为 `a2c6e990eb9883884e064ed2d5b5c1c681393e96ca7af192749d76dccbb3d902`。

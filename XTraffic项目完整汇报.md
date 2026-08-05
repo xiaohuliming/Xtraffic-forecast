@@ -1040,6 +1040,23 @@ Orange 已验收 HL 与 LSTM，共 2/11。结果如下：
 
 旧 Orange GraphWaveNet 在 epoch 25 主动停止，没有正式结果。修正后的矩阵 `protocol_v3_event_orange_4090d8_gwn_recovery_v1` 已在 GPU 6 从 epoch 0 干净重跑 GraphWaveNet，完成后接续 AGCRN。4090 D checkout 同样为 `e1bea79d41be4c923fa874d20f0e9fcbf4ed5dae`，专项门为 16 passed。部署 bundle SHA-256 为 `e810c8c56b9715e2ff4e8b286c48d4ae0c0f92ba049698e66850bcbe36761359`。其余 DCRNN、DGCRN、D2STGNN、STTN、DSTAGNN 与 ASTGCN 继续训练或恢复。所有结果仍需经过单任务验收、双机 postflight、结果服务器复验和只读 composite 后才能生成最终表。
 
+## 最新进展，2026-08-05 12:10 v3 event 主机离线与 5080 续跑
+
+八卡 4090 D 的 `11218` 端口连续三次显示 TCP 建连成功后由远端立即关闭 SSH。结果服务器没有本轮 v3 event 结果目录。该证据说明实例当前不可用，但无法区分余额不足、手动停止或平台回收。最后在线时 Orange HL 与 LSTM 已通过 runner 验收，尚未完成远端回传。因此当前 runner 层进度为 11/33，其中 5080 的 9 项可直接访问，4090 D 的 2 项处于未回传状态。若同一实例重新开机并挂回原数据盘，应先锁定和回传现有 task artifact，再检查其他中间 attempt。
+
+5080 新增验收的 Alameda 四项如下：
+
+| 方法 | H3 MAE | H6 MAE | H12 MAE | Average MAE |
+|---|---:|---:|---:|---:|
+| GraphWaveNet | 待从 prediction artifact 汇总 | 待汇总 | 待汇总 | `12.589115` |
+| ASTGCN | `12.250701` | `13.715483` | `16.391159` | `13.838033` |
+| STTN | `11.632755` | `12.569361` | `14.021482` | `12.552551` |
+| DSTAGNN | `11.671517` | `12.846888` | `14.307856` | `12.627796` |
+
+Alameda DGCRN 在 epoch 1 的最后一个单样本 partial batch 上失败。上游 `torch.squeeze` 未指定维度，batch size 为 1 时把 batch 维一起删除，随后 `transpose` 触发维度越界。该 attempt 没有正式 task010。提交 `9dd7cac140d6af3ea0d504962f3ce4c99b4f8be2` 去除无条件 squeeze，对常规 batch 的张量和值不做改变，并增加 batch 1 前向回归测试。Mac 全仓为 522 passed 和 2 个既有 warning，5080 专项门为 13 passed。
+
+5080 已使用 clean checkout `9dd7cac140d6af3ea0d504962f3ce4c99b4f8be2` 启动 tasks010-022 的独立恢复分片。结果根为 `D:\t4\v3_event_dgfix_v1\results`，计划任务为 `XTraffic_ProtocolV3_Event_Baseline_DGCRNFix_v1`。Alameda DGCRN 首个 batch loss 为 `137.815`，显存占用约 10.6 GiB，训练正常。部署 bundle SHA-256 为 `a2c6e990eb9883884e064ed2d5b5c1c681393e96ca7af192749d76dccbb3d902`。
+
 ---
 
 ## 第十二部分：去季节化方向的数据现实与设计决策
