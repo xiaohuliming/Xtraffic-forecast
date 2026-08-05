@@ -336,3 +336,11 @@ Orange 已正式验收 2/11。HL 的 H3、H6、H12 与 Average MAE 为 `15.40702
 群晖 SSH 别名为 `heiqunhui-nas`，主机名为 `verydisk`。Orange 四项 partial export 已从 Mac 传入 `/var/services/homes/xhlm/Drive/XTraffic/results/protocol_v3_noleak_dedup/event_baseline_phase1/orange_4090d8_partial_4_v1`。传输先落入隐藏 incoming 目录，NAS 端确认 `files.sha256` 自身 SHA-256 为 `6297b0403746faea2b9c8da0c174952db670cfbd2bdb8f20bea28289118c118a`，清单内 25 个文件全部通过后才原子改名。最终目录共 26 个 regular files，精确文件字节和为 `1652693542`。此前记录的 `1652698342` 是源端目录遍历口径，差额来自目录项统计，不是文件内容差异。NAS `/volume1` 仍有约 427 GB 可用。该目录是验证灾备，不是结果服务器正式发布或最终 composite。
 
 5080 已正式验收 task010 Alameda DGCRN，Average MAE 为 `12.57730031172414`，H3、H6 与 H12 MAE 为 `11.284029503462909`、`12.563134072848419` 与 `14.453520300691103`，summary SHA-256 为 `49dcb9734a0f74e7aed6613045d087c2ab27dd7d1752bf05facff5484f113aec`。全矩阵 runner 层达到 14/33，5080 为 10 项，Orange 为 4 项。5080 正在 task011 Alameda D2STGNN，epoch 1 已到 batch 700/1001。
+
+## 最新状态，2026-08-05 18:38 5080 自动 NAS 回传已部署
+
+5080 已部署持久计划任务 `XTraffic_ProtocolV3_Event_NAS_Finalize_v1`，当前状态为 running，每 60 秒检查一次 tasks010-022 恢复队列。它只在恢复队列 13/13 completed、runner 退出码为 0、没有残留 trainer，且 5080 的 tasks001-022 全部通过逐任务验收后才启动 NAS 回传。异常时 fail closed，保留源结果并保持 5080 开机。
+
+22 项结果来自三个受控恢复根。tasks001-005 绑定代码 `c16dc7a8208f834984e76a40a7b6f47f523c210b`，tasks006-009 绑定 `e1bea79d41be4c923fa874d20f0e9fcbf4ed5dae`，tasks010-022 绑定 `9dd7cac140d6af3ea0d504962f3ce4c99b4f8be2`。postflight 会重算每项 `config_hash`，从 `test_predictions.npz` 重算指标，核对 completed state，并生成精确文件白名单。回传使用可恢复 `.part` 文件、NAS 端 SHA-256 复验、精确目录树比对和同 volume 原子改名。目标为 `/var/services/homes/xhlm/Drive/XTraffic/results/protocol_v3_noleak_dedup/event_baseline_phase1/hosts/event_rtx5080_alameda_contra`。
+
+5080 专用 NAS 密钥指纹为 `SHA256:Nx5BbjtFe9eRbSJh4hV/YN+reR2pw4hZuFLa9PLKMGc`，私钥只在 `D:\t4\v3_event_nas_control\id_ed25519`，不进入 Git。5080 到 NAS 的直连探针已通过。回传计划、postflight、PowerShell finalizer、CMD 入口与 keygen 的 SHA-256 依次为 `738bc46122f9af6466c1b605013b57c2cc05874aadcda6682cdf08fb4ed964c8`、`b8605c1725fe9de5ffc74d19815f460b19be812dd495f9814fe41a92eb5b1bf0`、`7295346daf7eb972ead64db27706f4234157ae783e68c69421097e6787349c70`、`9b2848c7dae81adb96d8ac939d4096106ee23ce341538ec3752e32cdd07e6e6a` 与 `47f10171a273b3600d655f3d77e4ff7603b3b26748b24d49ec007cdad6dd7fc5`。该 postflight 核心为跨平台 Python，后续 5090 可使用相同计划格式和独立密钥，仅替换 Linux 持久启动包装。NAS 副本仍是灾备，不代替结果服务器正式发布和最终 composite。本地全仓回归为 526 passed 和 2 个既有 warning。

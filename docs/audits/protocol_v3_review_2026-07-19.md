@@ -309,3 +309,13 @@ runner 在启动前验证 clean Git checkout、精确代码 SHA、缓存审计�
 6. 新结果写入 `outputs/protocol_v3_noleak_dedup` 下的新 attempt，不读取或覆盖 v2 输出。
 
 5080 与 5090 的正式 checkout 均为 Git SHA `3a4952837aaf6fbda1403d50b610b1bf40c6098a`，worktree clean。两台机器的 runner 身份均绑定同一 cache bundle ID、bundle digest 和 schema 3。runner 层已完成或重新验收 45/45，最终分片为 5080 的 27 项与 5090 的 18 项。两份正式分片均已回传结果服务器，通过逐文件 SHA-256 复验并原子提升。两分片保持独立结果身份，只通过只读 composite index 验证完整性。正式缓存保持 `verified`，最小判别矩阵状态为 `verified_host_stratified_45`。composite 只恢复矩阵完整性有效性。同机配对、多种子和显著性分析完成前，不恢复论文性能结论。
+
+## 2026-08-05 v3 event baseline NAS 灾备控制
+
+v3 event baseline 主矩阵为 33 项。2026-08-05 18:38 的 runner 层状态为 14/33，5080 已验收 tasks001-010，Orange 已验收 4 项。5080 正在训练 task011 Alameda D2STGNN。这个运维快照不是完整性结论。
+
+5080 的训练后 NAS 回传使用 `config/protocol_v3/event_baseline_5080_nas_backup_v1.json` 作为固定计划，SHA-256 为 `738bc46122f9af6466c1b605013b57c2cc05874aadcda6682cdf08fb4ed964c8`。计划声明 tasks001-022 且只声明 Alameda 与 Contra Costa，三个结果根的 task ID 互斥，并按 canonical manifest 顺序组成精确 22 项。最后的 tasks010-022 恢复队列是完成门，必须为 13/13 completed 且 runner 零退出。
+
+`scripts/remote/windows/protocol_v3_event_host_postflight.py` 对每项重新派生 `config_hash`，根据声明的代码 SHA 复验 summary，从 prediction artifact 重算 masked metric，检查必需 artifact 和 completed state，最后对白名单文件逐一哈希。它不把前两个按设计遇错停止的 queue 写成整队成功。PowerShell finalizer 实现已验证文件复用、`.part` 上传、NAS 端 SHA-256、精确树比对和原子改名。任何失败都保持主机开机。
+
+NAS 目标为 `/var/services/homes/xhlm/Drive/XTraffic/results/protocol_v3_noleak_dedup/event_baseline_phase1/hosts/event_rtx5080_alameda_contra`。专用公钥指纹为 `SHA256:Nx5BbjtFe9eRbSJh4hV/YN+reR2pw4hZuFLa9PLKMGc`，私钥未进入仓库。当前等待器正在运行，尚未触发正式上传。该副本完成后只能标记为经验证灾备，不能代替结果服务器正式发布和只读 composite。postflight 核心可由 Linux 5090 复用，但需独立 host ID、分片计划、目标目录、SSH 密钥和 Linux 持久包装。本地全仓回归为 526 passed 和 2 个既有 warning。

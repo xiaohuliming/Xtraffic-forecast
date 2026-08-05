@@ -1,0 +1,65 @@
+{
+  "plan_version": 1,
+  "matrix_id": "protocol_v3_event_baselines_phase1_v1",
+  "host_id": "event_rtx5080_alameda_contra",
+  "canonical_manifest": "D:\\t4\\dgfix\\config\\protocol_v3\\table4_event_baselines_phase1_v1.json",
+  "canonical_manifest_sha256": "f9cdc1afa5f9f126a6a8094d4d4fc38bc565cf3de277dc4a7742f85a0d2f92ef",
+  "protocol_version": "protocol_v3_noleak_dedup",
+  "cache_schema_version": 3,
+  "cache_bundle_id": "bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4",
+  "cache_bundle_digest": "854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5",
+  "cache_dir": "C:\\Users\\ASUS\\traffic_fourier_v3_final\\outputs\\dist_net\\region_data_v3_noleak_dedup",
+  "graph_dir": "C:\\Users\\ASUS\\traffic_fourier_v3_final\\outputs\\region_graphs",
+  "python_executable": "C:\\Python313\\python.exe",
+  "expected_task_count": 22,
+  "sources": [
+    {
+      "source_id": "phase1_v2",
+      "results_root": "D:\\t4\\v3_event_phase1_5080_v2\\results",
+      "code_sha": "c16dc7a8208f834984e76a40a7b6f47f523c210b",
+      "task_ids": [
+        "v3e001_event_hl_alameda_seed42",
+        "v3e002_event_lstm_alameda_seed42",
+        "v3e003_event_dcrnn_alameda_seed42",
+        "v3e004_event_agcrn_alameda_seed42",
+        "v3e005_event_stgcn_alameda_seed42"
+      ]
+    },
+    {
+      "source_id": "gwnfix_v1",
+      "results_root": "D:\\t4\\v3_event_gwnfix_v1\\results",
+      "code_sha": "e1bea79d41be4c923fa874d20f0e9fcbf4ed5dae",
+      "task_ids": [
+        "v3e006_event_graphwavenet_alameda_seed42",
+        "v3e007_event_astgcn_alameda_seed42",
+        "v3e008_event_sttn_alameda_seed42",
+        "v3e009_event_dstagnn_alameda_seed42"
+      ]
+    },
+    {
+      "source_id": "dgfix_v1",
+      "results_root": "D:\\t4\\v3_event_dgfix_v1\\results",
+      "code_sha": "9dd7cac140d6af3ea0d504962f3ce4c99b4f8be2",
+      "task_ids": [
+        "v3e010_event_dgcrn_alameda_seed42",
+        "v3e011_event_d2stgnn_alameda_seed42",
+        "v3e012_event_hl_contracosta_seed42",
+        "v3e013_event_lstm_contracosta_seed42",
+        "v3e014_event_dcrnn_contracosta_seed42",
+        "v3e015_event_agcrn_contracosta_seed42",
+        "v3e016_event_stgcn_contracosta_seed42",
+        "v3e017_event_graphwavenet_contracosta_seed42",
+        "v3e018_event_astgcn_contracosta_seed42",
+        "v3e019_event_sttn_contracosta_seed42",
+        "v3e020_event_dstagnn_contracosta_seed42",
+        "v3e021_event_dgcrn_contracosta_seed42",
+        "v3e022_event_d2stgnn_contracosta_seed42"
+      ]
+    }
+  ],
+  "completion_gate": {
+    "results_root": "D:\\t4\\v3_event_dgfix_v1\\results",
+    "runner_exit_code": "D:\\t4\\v3_event_dgfix_v1\\control\\runner.exitcode",
+    "expected_tasks": 13
+  }
+}

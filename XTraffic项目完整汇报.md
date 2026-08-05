@@ -1095,3 +1095,13 @@ Alameda DGCRN 在 epoch 1 的最后一个单样本 partial batch 上失败。上
 18:20，Orange 四项 partial export 已进一步同步到群晖 NAS。目标为 `/var/services/homes/xhlm/Drive/XTraffic/results/protocol_v3_noleak_dedup/event_baseline_phase1/orange_4090d8_partial_4_v1`。数据先进入隐藏临时目录，NAS 本机验证清单 SHA-256 与 Mac 一致，并确认清单内 25/25 文件全部为 OK，随后在同一 Btrfs volume 内原子改名。最终包含 26 个 regular files，精确文件字节和为 `1652693542`，NAS 仍有约 427 GB 可用。该副本是 `verified_partial_disaster_backup_4`，不能代替正式结果服务器发布和最终 composite。
 
 5080 同时完成 Alameda DGCRN。其 H3、H6、H12 与 Average MAE 为 `11.284030`、`12.563134`、`14.453520` 与 `12.577300`。全矩阵正式进度达到 14/33，其中 5080 为 10 项，Orange 为 4 项。当前正在训练 Alameda D2STGNN，epoch 1 已到 batch 700/1001。
+
+## 最新进展，2026-08-05 18:38 5080 训练后自动回传 NAS
+
+5080 已安装并启动持久计划任务 `XTraffic_ProtocolV3_Event_NAS_Finalize_v1`。当前任务状态为 running，日志表明它正在等待 tasks010-022 恢复队列。该等待器与 trainer 独立，不会中断或改写当前训练。只有在恢复队列达到 13/13 completed、runner 退出码为 0、无残留 trainer 的情况下，它才进入主机结果验收。
+
+5080 的 22 项声明结果分布在三个受控结果根。旧 phase1 根包含 tasks001-005，GraphWaveNet 恢复根包含 tasks006-009，DGCRN 恢复根包含 tasks010-022。它们分别绑定代码 `c16dc7a8208f834984e76a40a7b6f47f523c210b`、`e1bea79d41be4c923fa874d20f0e9fcbf4ed5dae` 和 `9dd7cac140d6af3ea0d504962f3ce4c99b4f8be2`。前两个 queue 因训练缺陷按设计遇错停止，所以验收不要求它们整队 completed，而是对每个已接受 task 单独重算 `config_hash`，从 prediction artifact 重算 masked metric，并核对 summary 与 completed state。最后的 13 项恢复根负责整队完成门。
+
+通过 postflight 后，finalizer 根据精确 allowlist 上传到 NAS 的隐藏 incoming 目录。已存且同哈希的文件可直接复用，新文件先写 `.part`，每个文件都在 NAS 端核对 SHA-256。全树还需通过 `transfer.sha256`、精确文件名集和无符号链接检查，最后才同 volume 原子改名为 `/var/services/homes/xhlm/Drive/XTraffic/results/protocol_v3_noleak_dedup/event_baseline_phase1/hosts/event_rtx5080_alameda_contra`。任何训练、验收、容量、传输或 NAS 复验失败都会 fail closed，保留 5080 开机。
+
+专用 NAS SSH 密钥指纹为 `SHA256:Nx5BbjtFe9eRbSJh4hV/YN+reR2pw4hZuFLa9PLKMGc`。私钥只存放在 5080 的 `D:\t4\v3_event_nas_control\id_ed25519`，不进入仓库。直连 NAS 探针已成功。计划 SHA-256 为 `738bc46122f9af6466c1b605013b57c2cc05874aadcda6682cdf08fb4ed964c8`，postflight 与 finalizer SHA-256 为 `b8605c1725fe9de5ffc74d19815f460b19be812dd495f9814fe41a92eb5b1bf0` 和 `7295346daf7eb972ead64db27706f4234157ae783e68c69421097e6787349c70`。postflight 是跨平台 Python 实现，未来 5090 可复用相同验收合同和 NAS 原子发布流程，但必须使用独立 host ID、分片计划、目标目录和 SSH 密钥。这些 NAS 产物定位为可验证灾备，仍需结果服务器正式发布和最终 composite 才能恢复完整矩阵有效性。本地全仓回归为 526 passed 和 2 个既有 warning。
