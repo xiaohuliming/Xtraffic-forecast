@@ -1105,3 +1105,13 @@ Alameda DGCRN 在 epoch 1 的最后一个单样本 partial batch 上失败。上
 通过 postflight 后，finalizer 根据精确 allowlist 上传到 NAS 的隐藏 incoming 目录。已存且同哈希的文件可直接复用，新文件先写 `.part`，每个文件都在 NAS 端核对 SHA-256。全树还需通过 `transfer.sha256`、精确文件名集和无符号链接检查，最后才同 volume 原子改名为 `/var/services/homes/xhlm/Drive/XTraffic/results/protocol_v3_noleak_dedup/event_baseline_phase1/hosts/event_rtx5080_alameda_contra`。任何训练、验收、容量、传输或 NAS 复验失败都会 fail closed，保留 5080 开机。
 
 专用 NAS SSH 密钥指纹为 `SHA256:Nx5BbjtFe9eRbSJh4hV/YN+reR2pw4hZuFLa9PLKMGc`。私钥只存放在 5080 的 `D:\t4\v3_event_nas_control\id_ed25519`，不进入仓库。直连 NAS 探针已成功。计划 SHA-256 为 `738bc46122f9af6466c1b605013b57c2cc05874aadcda6682cdf08fb4ed964c8`，postflight 与 finalizer SHA-256 为 `b8605c1725fe9de5ffc74d19815f460b19be812dd495f9814fe41a92eb5b1bf0` 和 `7295346daf7eb972ead64db27706f4234157ae783e68c69421097e6787349c70`。postflight 是跨平台 Python 实现，未来 5090 可复用相同验收合同和 NAS 原子发布流程，但必须使用独立 host ID、分片计划、目标目录和 SSH 密钥。这些 NAS 产物定位为可验证灾备，仍需结果服务器正式发布和最终 composite 才能恢复完整矩阵有效性。本地全仓回归为 526 passed 和 2 个既有 warning。
+
+## 最新进展，2026-08-06 15:28 5080 D2STGNN 持续训练
+
+全矩阵 runner 层仍为 14/33，没有新的正式验收任务。5080 已验收 tasks001-010，Orange 已验收 HL、LSTM、GraphWaveNet 和 STTN。5080 当前的 tasks010-022 恢复队列为 1/13 completed，正在 `v3e011_event_d2stgnn_alameda_seed42`。15:28 时已进入 epoch 6、batch 500/1001。GPU 利用率持续 100%，显存约 15.9 GB，温度约 45 摄氏度。
+
+task011 从 2026-08-05 15:09 开始。已完成 epoch 1 至 epoch 4 的单 epoch 用时分别约为 15,923、15,943、15,942 和 15,943 秒，约为 4 小时 25 分。epoch 1 至 epoch 4 的 validation loss 为 `15.3966`、`13.8653`、`13.7192` 和 `15.6938`，epoch 3 是该时点的最佳验证。这是当前队列的明显瓶颈。它仍受 30 epoch 上限和 patience 6 控制，不因运行缓慢改动训练契约。
+
+NAS 自动回传计划任务仍为 Running，持续记录 `completed=1/13`。NAS 上的 5080 正式目标和 incoming 均不存在，这说明 finalizer 没有越过训练完成门。Orange 主机仍在 TCP 建连后立即关闭 SSH，无法得到新的落盘证据。Orange 的 4 项 NAS 灾备仍为 26 个 regular files，`/volume1` 约有 427 GB 可用。15:30 对结果服务器的实时复验显示可用空间为 `2939228160` bytes，使用率为 93%，正式结果根为 `21960917234` bytes。它仍不足以支撑完整 Orange 分片的长期存储和原子发布余量。
+
+`CLAUDE.md` 已在本次同步中从 63 KB 的历史流水改为当前导航和操作快照。已删除的内容只是与本报告和专项审计重复的启动、故障、恢复和完成流水。关键哈希、协议边界、当前队列、发布门、实验纪律和历史入口均已保留。

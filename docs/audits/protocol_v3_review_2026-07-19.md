@@ -319,3 +319,9 @@ v3 event baseline 主矩阵为 33 项。2026-08-05 18:38 的 runner 层状态为
 `scripts/remote/windows/protocol_v3_event_host_postflight.py` 对每项重新派生 `config_hash`，根据声明的代码 SHA 复验 summary，从 prediction artifact 重算 masked metric，检查必需 artifact 和 completed state，最后对白名单文件逐一哈希。它不把前两个按设计遇错停止的 queue 写成整队成功。PowerShell finalizer 实现已验证文件复用、`.part` 上传、NAS 端 SHA-256、精确树比对和原子改名。任何失败都保持主机开机。
 
 NAS 目标为 `/var/services/homes/xhlm/Drive/XTraffic/results/protocol_v3_noleak_dedup/event_baseline_phase1/hosts/event_rtx5080_alameda_contra`。专用公钥指纹为 `SHA256:Nx5BbjtFe9eRbSJh4hV/YN+reR2pw4hZuFLa9PLKMGc`，私钥未进入仓库。当前等待器正在运行，尚未触发正式上传。该副本完成后只能标记为经验证灾备，不能代替结果服务器正式发布和只读 composite。postflight 核心可由 Linux 5090 复用，但需独立 host ID、分片计划、目标目录、SSH 密钥和 Linux 持久包装。本地全仓回归为 526 passed 和 2 个既有 warning。
+
+## 2026-08-06 v3 event baseline 运行复验
+
+15:28 新加坡时间，全矩阵 runner 层仍为 14/33。5080 的已验收集合为 tasks001-010，Orange 的已验收集合为 HL、LSTM、GraphWaveNet 和 STTN。5080 恢复队列为 running、1/13 completed，当前 task011 Alameda D2STGNN 已进入 epoch 6、batch 500/1001。GPU 利用率为 100%，显存约 15.9 GB，温度约 45 摄氏度。已完成 epoch 的单轮用时约为 15,943 秒，因此 D2STGNN 是当前明显瓶颈。
+
+NAS finalizer 状态仍为 Running，最近日志持续显示 `WAIT queue_state=running completed=1/13`。NAS 的 5080 正式目录与 incoming 均不存在，说明完成门没有被越过。Orange 主机仍为 TCP 可达后由远端立即关闭 SSH，无法核对新结果。Orange 4 项 NAS 灾备仍完整，共 26 个 regular files，NAS `/volume1` 约有 427 GB 可用。15:30 结果服务器可用空间为 `2939228160` bytes，正式结果根为 `21960917234` bytes，仍不足以接受完整 Orange 分片和原子发布余量。本快照只是运维证据，不改变当前有效性标签。
