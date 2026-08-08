@@ -116,7 +116,8 @@ for region in Alameda Contra_Costa Orange; do
      '$REMOTE_SUPPORT'/\$region/adj_matrix.npy \
      \"outputs/reproduction/igstgnn_table4_official_v1/data/official_splits/\$region/\"
 done
-PYTHONPATH='$REMOTE_REPO' '$REMOTE_PYTHON' -X utf8 scripts/audit_protocol_v3_cache.py --data-dir '$REMOTE_CACHE' --no-write-manifest
+PYTHONPATH='$REMOTE_REPO' '$REMOTE_PYTHON' -X utf8 scripts/audit_protocol_v3_cache.py \
+  --data-dir '$REMOTE_CACHE' --graph-dir '$REMOTE_GRAPHS' --no-write-manifest
 PYTHONPATH='$REMOTE_REPO' '$REMOTE_PYTHON' -m pytest -q \
   tests/data/test_protocol_v3_event_extension_data.py \
   tests/remote/test_protocol_v3_event_extension_runner.py \
