@@ -98,7 +98,7 @@ git clone --quiet '$REMOTE_BASE/$(basename "$BUNDLE")' '$REMOTE_REPO'
 cd '$REMOTE_REPO'
 git checkout --quiet '$CODE_SHA'
 mkdir -p .third_party/igstgnn_table4/pristine
-tar -xzf '$REMOTE_BASE/$(basename "$UPSTREAM_BUNDLE")' \
+tar --no-same-owner -xzf '$REMOTE_BASE/$(basename "$UPSTREAM_BUNDLE")' \
   -C .third_party/igstgnn_table4/pristine
 test \"\$(git rev-parse HEAD)\" = '$CODE_SHA'
 test -z \"\$(git status --porcelain)\"" || die "remote checkout identity failed"
