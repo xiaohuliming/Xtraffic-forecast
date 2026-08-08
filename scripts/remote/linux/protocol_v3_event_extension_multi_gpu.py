@@ -138,6 +138,12 @@ def build_plan(
             for gpu, tasks in sorted(shards.items())
         },
         "task_seconds": {key: float(task_seconds[key]) for key in sorted(task_seconds)},
+        "task_microbatch_sizes": {
+            task.task_id: 8
+            for tasks in shards.values()
+            for task in tasks
+            if task.region == "Orange" and task.model in {"igstgnn", "ndr_net"}
+        },
         "shard_seconds": {
             str(gpu): float(sum(task_seconds[task.task_id] for task in tasks))
             for gpu, tasks in sorted(shards.items())
@@ -212,6 +218,13 @@ def build_extension_nas_plan(
         "extension_options": {
             "igstgnn_data_parallel": False,
             "max_microbatch_size": 0,
+            "task_microbatch_sizes": {
+                task.task_id: 8
+                for tasks in shards.values()
+                for task in tasks
+                if task.region == "Orange"
+                and task.model in {"igstgnn", "ndr_net"}
+            },
         },
         "sources": sources,
         "completion_gate": {

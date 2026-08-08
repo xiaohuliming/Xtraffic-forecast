@@ -41,6 +41,10 @@ def test_extension_plan_binds_support_and_all_nine_tasks() -> None:
     assert plan["task_count"] == 9
     assert plan["execution_layout"] == "single_host_multi_gpu_interleaved"
     assert plan["support_manifest_sha256"] == "3" * 64
+    assert plan["task_microbatch_sizes"] == {
+        "v3x008_event_igstgnn_orange_seed42": 8,
+        "v3x009_event_ndr_net_orange_seed42": 8,
+    }
     assigned = [task for values in plan["assignments"].values() for task in values]
     assert sorted(assigned) == sorted(task.task_id for task in manifest.tasks)
     assert len(plan["plan_digest"]) == 64

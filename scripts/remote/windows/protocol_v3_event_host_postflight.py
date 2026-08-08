@@ -345,11 +345,14 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
             raise PostflightError(str(exc)) from exc
         raw_options = plan.get("extension_options")
         if not isinstance(raw_options, dict) or set(raw_options) != {
-            "igstgnn_data_parallel", "max_microbatch_size"
+            "igstgnn_data_parallel",
+            "max_microbatch_size",
+            "task_microbatch_sizes",
         }:
             raise PostflightError("extension_options must contain the exact contract")
         data_parallel = raw_options.get("igstgnn_data_parallel")
         microbatch_size = raw_options.get("max_microbatch_size")
+        task_microbatch_sizes = raw_options.get("task_microbatch_sizes")
         if not isinstance(data_parallel, bool):
             raise PostflightError("igstgnn_data_parallel must be boolean")
         if (
@@ -358,6 +361,13 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
             or microbatch_size < 0
         ):
             raise PostflightError("max_microbatch_size must be a nonnegative integer")
+        expected_task_microbatches = {
+            task.task_id: 8
+            for task in manifest.tasks
+            if task.region == "Orange" and task.model in {"igstgnn", "ndr_net"}
+        }
+        if task_microbatch_sizes != expected_task_microbatches:
+            raise PostflightError("task_microbatch_sizes do not match the contract")
         extension = ExtensionInputs(
             support_root=verified_support.support_root,
             node_order=verified_support.node_order,

@@ -93,3 +93,39 @@ def test_orange_ndr_invocation_records_its_effective_microbatch(tmp_path: Path) 
     assert command[command.index("--max-microbatch-size") + 1] == "8"
     assert invocation.config["max_microbatch_size"] == 8
     assert invocation.config["early_stopping_patience"] is None
+
+
+def test_orange_igstgnn_invocation_records_its_effective_microbatch(
+    tmp_path: Path,
+) -> None:
+    manifest = load_extension_manifest(CANONICAL_MANIFEST)
+    support = verify_extension_support(
+        support_manifest_path=SUPPORT_MANIFEST,
+        support_root=(
+            PROJECT_ROOT
+            / "outputs/reproduction/igstgnn_table4_official_v1/data/official_splits"
+        ),
+        node_order=PROJECT_ROOT / "archive/node_order.npy",
+    )
+    task = next(
+        task
+        for task in manifest.tasks
+        if task.task_id == "v3x008_event_igstgnn_orange_seed42"
+    )
+    invocation = build_extension_invocation(
+        task,
+        manifest,
+        ExtensionInputs(
+            support_root=support.support_root,
+            node_order=support.node_order,
+            support_manifest_sha256=support.manifest_sha256,
+            igstgnn_data_parallel=False,
+            max_microbatch_size=0,
+        ),
+        tmp_path,
+    )
+
+    command = list(invocation.command)
+    assert command[command.index("--max-microbatch-size") + 1] == "8"
+    assert invocation.config["max_microbatch_size"] == 8
+    assert invocation.config["upstream_curriculum_applied"] is True

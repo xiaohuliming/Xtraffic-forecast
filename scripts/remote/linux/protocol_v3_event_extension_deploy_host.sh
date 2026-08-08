@@ -154,10 +154,11 @@ for region in Alameda ContraCosta Orange; do
   for method in bist igstgnn ndr_net; do
     say "  probe $region $method"
     probe_microbatch=""
-    if [ "$region" = "Orange" ] && [ "$method" = "ndr_net" ]; then
+    if [ "$region" = "Orange" ] \
+      && { [ "$method" = "igstgnn" ] || [ "$method" = "ndr_net" ]; }; then
       probe_microbatch="--max-microbatch-size 8"
     fi
-    rsh "set -eu
+    rsh "set -euo pipefail
 cd '$REMOTE_REPO'
 PYTHONPATH='$REMOTE_REPO' '$REMOTE_PYTHON' -X utf8 \
   scripts/remote/linux/protocol_v3_event_extension_gpu_probe.py \

@@ -171,7 +171,11 @@ def build_extension_invocation(
     if extension.max_microbatch_size < 0:
         raise ManifestError("max_microbatch_size must be nonnegative")
     effective_microbatch_size = extension.max_microbatch_size
-    if not effective_microbatch_size and task.model == "ndr_net" and task.region == "Orange":
+    if (
+        not effective_microbatch_size
+        and task.region == "Orange"
+        and task.model in {"igstgnn", "ndr_net"}
+    ):
         effective_microbatch_size = 8
     work = attempt_dir / "work"
     command = [
