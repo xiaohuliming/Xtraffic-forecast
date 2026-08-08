@@ -1,0 +1,93 @@
+{
+  "calibration_id": "event_baseline_5090x4_measured_v1",
+  "calibration_version": 1,
+  "contention_factor_mean": 1.846,
+  "contention_factors_measured": {
+    "d2stgnn": 1.68,
+    "dcrnn": 1.573,
+    "dgcrn": 1.665,
+    "dstagnn": 2.464
+  },
+  "epoch_seconds": {
+    "agcrn": 282.4,
+    "astgcn": 385.8,
+    "d2stgnn": 1225.0,
+    "dcrnn": 911.0,
+    "dgcrn": 1350.0,
+    "dstagnn": 887.0,
+    "graphwavenet": 200.0,
+    "hl": 1.0,
+    "lstm": 36.9,
+    "stgcn": 217.8,
+    "sttn": 498.4
+  },
+  "measured": {
+    "agcrn": true,
+    "astgcn": true,
+    "d2stgnn": true,
+    "dcrnn": true,
+    "dgcrn": true,
+    "dstagnn": true,
+    "graphwavenet": false,
+    "hl": false,
+    "lstm": true,
+    "stgcn": true,
+    "sttn": true
+  },
+  "measured_on": {
+    "agcrn": "solo_scaled_by_1.846",
+    "astgcn": "solo_scaled_by_1.846",
+    "d2stgnn": "concurrent_4way",
+    "dcrnn": "concurrent_4way",
+    "dgcrn": "concurrent_4way",
+    "dstagnn": "concurrent_4way",
+    "graphwavenet": "estimate_not_probed",
+    "hl": "analytic",
+    "lstm": "solo_scaled_by_1.846",
+    "stgcn": "solo_scaled_by_1.846",
+    "sttn": "solo_scaled_by_1.846"
+  },
+  "note": "Probed on the rented 4x5090 host at native batch 32 unless noted. dgcrn, d2stgnn, dcrnn and dstagnn were measured with four shards running at once. Lighter models were measured solo and scaled by the mean measured contention factor 1.846. graphwavenet uses a separate trainer and was not probed; its value is a conservative estimate. hl is analytic. Only the two Orange tasks exceed 32 GB at batch 32; Alameda and Contra Costa run d2stgnn and sttn natively, measured at 19.36/8.80 and 17.86/8.03 GiB peak.",
+  "peak_allocated_bytes": {
+    "agcrn": 7430562304,
+    "astgcn": 7140225024,
+    "d2stgnn": 31652866560,
+    "dcrnn": 8992643584,
+    "dgcrn": 28044145152,
+    "dstagnn": 11354335232,
+    "lstm": 4040006144,
+    "stgcn": 1185883136,
+    "sttn": 16130358272
+  },
+  "reference_host": "4x RTX 5090 32GB, driver 580.105.08, torch 2.12.1+cu130, PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True",
+  "reference_region": "Orange",
+  "region_scale": {
+    "Alameda": 0.2737,
+    "ContraCosta": 0.1329,
+    "Orange": 1.0
+  },
+  "region_scale_basis": "measured ratio of solo per-epoch seconds against Orange, averaged over d2stgnn and sttn at batch 32; replaces the a-priori node-times-sample guess",
+  "region_scale_measurements": {
+    "d2stgnn": {
+      "Alameda": 183.0,
+      "ContraCosta": 110.0,
+      "Orange": 729.0
+    },
+    "sttn": {
+      "Alameda": 80.0,
+      "ContraCosta": 31.0,
+      "Orange": 270.0
+    }
+  },
+  "region_scale_previous_estimate": {
+    "Alameda": 0.3974,
+    "ContraCosta": 0.1941,
+    "Orange": 1.0
+  },
+  "required_microbatch": {
+    "v3e030_event_sttn_orange_seed42": 16,
+    "v3e033_event_d2stgnn_orange_seed42": 16
+  },
+  "statistic": "median timed train batch extrapolated over one epoch; four-way concurrent where marked",
+  "status": "partially_measured"
+}

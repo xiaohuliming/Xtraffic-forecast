@@ -1,0 +1,59 @@
+{
+  "calibration_version": 1,
+  "calibration_id": "event_baseline_4090d_reference_v1",
+  "status": "partially_measured",
+  "reference_host": "eight-GPU RTX 4090 D, 24 GB per card, eight concurrent shards",
+  "reference_region": "Orange",
+  "statistic": "median of per-epoch time_s across all landed epochs of the longest attempt",
+  "note": "Measured from landed train.log files on the reference host, including unaccepted staging attempts. sttn, dgcrn and d2stgnn were measured under the 24 GB microbatch adapter and should drop on a 32 GB card at native batch 32. dgcrn and d2stgnn medians rest on very few epochs, so treat them as coarse. stgcn never started on the reference host and hl is analytic; both carry explicit estimates.",
+  "epoch_seconds": {
+    "hl": 1.0,
+    "lstm": 304.3,
+    "graphwavenet": 365.7,
+    "stgcn": 600.0,
+    "sttn": 1258.0,
+    "dcrnn": 2214.6,
+    "astgcn": 2893.0,
+    "dstagnn": 3087.6,
+    "agcrn": 5158.8,
+    "d2stgnn": 9252.0,
+    "dgcrn": 19943.2
+  },
+  "epoch_samples": {
+    "hl": 0,
+    "lstm": 30,
+    "graphwavenet": 30,
+    "stgcn": 0,
+    "sttn": 26,
+    "dcrnn": 19,
+    "astgcn": 12,
+    "dstagnn": 11,
+    "agcrn": 4,
+    "d2stgnn": 4,
+    "dgcrn": 2
+  },
+  "microbatch_at_measurement": {
+    "sttn": 16,
+    "dgcrn": 8,
+    "d2stgnn": 8
+  },
+  "measured": {
+    "hl": false,
+    "lstm": true,
+    "graphwavenet": true,
+    "stgcn": false,
+    "sttn": true,
+    "dcrnn": true,
+    "astgcn": true,
+    "dstagnn": true,
+    "agcrn": true,
+    "d2stgnn": true,
+    "dgcrn": true
+  },
+  "region_scale": {
+    "Alameda": 0.3974,
+    "ContraCosta": 0.1941,
+    "Orange": 1.0
+  },
+  "region_scale_basis": "nodes multiplied by train sample count, normalized to Orange: Alameda 521 by 32001, ContraCosta 496 by 16414, Orange 990 by 42372"
+}

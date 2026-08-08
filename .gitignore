@@ -72,3 +72,6 @@ outputs/remote_runs/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Local scratch for ad-hoc conversions and renders.
+tmp/

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import hashlib
 import json
 import os
@@ -12,6 +13,10 @@ import sys
 from collections import Counter
 from pathlib import Path
 from typing import Mapping, Sequence
+
+
+SOURCE_LAYOUTS = ("canonical_contiguous", "interleaved")
+ALLOWED_TASK_OVERRIDES = ("microbatch_size",)
 
 
 def _bootstrap_repo_root() -> Path:
@@ -137,6 +142,82 @@ def _collect_regular_files(path: Path) -> list[Path]:
     return files
 
 
+def _source_layout(payload: Mapping[str, object]) -> str:
+    layout = payload.get("source_layout", "canonical_contiguous")
+    if layout not in SOURCE_LAYOUTS:
+        raise PostflightError(f"unsupported source_layout: {layout!r}")
+    return str(layout)
+
+
+def _task_overrides(
+    payload: Mapping[str, object],
+    manifest,
+) -> dict[str, dict[str, int]]:
+    raw = payload.get("task_overrides")
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict) or not raw:
+        raise PostflightError("task_overrides must be a nonempty object")
+    batch_size = manifest.training.get("batch_size")
+    if isinstance(batch_size, bool) or not isinstance(batch_size, int):
+        raise PostflightError("canonical training.batch_size is invalid")
+    overrides: dict[str, dict[str, int]] = {}
+    for task_id, value in raw.items():
+        if not isinstance(task_id, str) or not isinstance(value, dict) or not value:
+            raise PostflightError(f"invalid task override entry: {task_id!r}")
+        unknown = sorted(set(value).difference(ALLOWED_TASK_OVERRIDES))
+        if unknown:
+            raise PostflightError(f"unsupported task override keys: {unknown}")
+        size = value.get("microbatch_size")
+        if isinstance(size, bool) or not isinstance(size, int):
+            raise PostflightError(
+                f"{task_id} microbatch_size must be an integer"
+            )
+        if not 1 <= size <= batch_size:
+            raise PostflightError(
+                f"{task_id} microbatch_size must be between 1 and {batch_size}"
+            )
+        overrides[task_id] = {"microbatch_size": size}
+    return overrides
+
+
+def _manifest_for_task(manifest, override: Mapping[str, int] | None):
+    if not override:
+        return manifest
+    training = dict(manifest.training)
+    training.update(override)
+    return dataclasses.replace(manifest, training=training)
+
+
+def _validate_assignment_order(
+    *,
+    layout: str,
+    assigned: Sequence[str],
+    per_source: Sequence[Sequence[str]],
+    source_ids: Sequence[str],
+    canonical_order: Sequence[str],
+) -> None:
+    present = set(assigned)
+    expected_order = [task_id for task_id in canonical_order if task_id in present]
+    if layout == "canonical_contiguous":
+        if list(assigned) != expected_order:
+            raise PostflightError("assigned tasks must follow canonical manifest order")
+        return
+    if list(source_ids) != sorted(source_ids):
+        raise PostflightError(
+            "interleaved sources must be listed in sorted source_id order"
+        )
+    position = {task_id: index for index, task_id in enumerate(canonical_order)}
+    for source_id, task_ids in zip(source_ids, per_source):
+        indices = [position[task_id] for task_id in task_ids]
+        if indices != sorted(indices):
+            raise PostflightError(
+                f"source {source_id} tasks must follow canonical manifest order"
+            )
+    if sorted(assigned) != sorted(expected_order):
+        raise PostflightError("assigned tasks must cover the canonical selection")
+
+
 def _completion_gate(plan_path: Path, payload: Mapping[str, object]) -> dict[str, object]:
     gate = payload.get("completion_gate")
     if not isinstance(gate, dict):
@@ -218,10 +299,14 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
     graph_dir = _resolve_path(plan_path, _required_string(plan, "graph_dir"))
     python_executable = _required_string(plan, "python_executable")
 
+    layout = _source_layout(plan)
+    task_overrides = _task_overrides(plan, manifest)
     raw_sources = plan.get("sources")
     if not isinstance(raw_sources, list) or not raw_sources:
         raise PostflightError("sources must be a nonempty list")
     canonical_by_id = {task.task_id: task for task in manifest.tasks}
+    per_source_tasks: list[list[str]] = []
+    ordered_source_ids: list[str] = []
     assigned: list[str] = []
     source_reports: list[dict[str, object]] = []
     task_reports: list[dict[str, object]] = []
@@ -254,6 +339,8 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
                 f"source {source_id} contains unknown tasks: {unknown}"
             )
         assigned.extend(task_ids)
+        per_source_tasks.append(list(task_ids))
+        ordered_source_ids.append(source_id)
         actual_task_root = results_root / "tasks"
         if actual_task_root.is_symlink() or not actual_task_root.is_dir():
             raise PostflightError(f"source task root is invalid: {actual_task_root}")
@@ -281,13 +368,16 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
         queue_status = _load_json(queue_path)
         for task_id in task_ids:
             task = canonical_by_id[task_id]
+            task_manifest = _manifest_for_task(
+                manifest, task_overrides.get(task_id)
+            )
             probe = results_root / ".staging" / task_id / "__POSTFLIGHT__"
             invocation = build_baseline_invocation(
-                task, manifest, run_inputs, probe
+                task, task_manifest, run_inputs, probe
             )
             config_hash = runner.derive_config_hash(
                 task,
-                manifest,
+                task_manifest,
                 run_inputs,
                 invocation_config=invocation.config,
             )
@@ -296,7 +386,7 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
                 runner.validate_result(
                     result_dir,
                     task,
-                    manifest,
+                    task_manifest,
                     run_inputs,
                     expected_config_hash=config_hash,
                     required_artifacts=invocation.required_artifacts,
@@ -366,10 +456,18 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
         raise PostflightError(
             "assigned task union must be unique and equal expected_task_count"
         )
-    canonical_order = [task.task_id for task in manifest.tasks]
-    expected_order = [task_id for task_id in canonical_order if task_id in assigned]
-    if assigned != expected_order:
-        raise PostflightError("assigned tasks must follow canonical manifest order")
+    unassigned_overrides = sorted(set(task_overrides).difference(assigned))
+    if unassigned_overrides:
+        raise PostflightError(
+            f"task_overrides name unassigned tasks: {unassigned_overrides}"
+        )
+    _validate_assignment_order(
+        layout=layout,
+        assigned=assigned,
+        per_source=per_source_tasks,
+        source_ids=ordered_source_ids,
+        canonical_order=[task.task_id for task in manifest.tasks],
+    )
     gate_report = _completion_gate(plan_path, plan)
     plan_after = _load_json(plan_path)
     if plan_after != plan:
@@ -388,6 +486,8 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
         "canonical_manifest_sha256": expected_manifest_sha,
         "plan_path": str(plan_path),
         "plan_sha256": sha256_file(plan_path),
+        "source_layout": layout,
+        "task_overrides": task_overrides,
         "validated_tasks": len(task_reports),
         "task_state_counts": dict(state_counts),
         "tasks": task_reports,

@@ -1,0 +1,50 @@
+{
+  "calibration_id": "event_baseline_5090_projected_v1",
+  "calibration_version": 1,
+  "derivation": {
+    "microbatch_relief": {
+      "d2stgnn": 4.0,
+      "dgcrn": 4.0,
+      "sttn": 2.0
+    },
+    "raw_speedup": 1.5,
+    "source_calibration_id": "event_baseline_4090d_reference_v1"
+  },
+  "epoch_seconds": {
+    "agcrn": 3439.2,
+    "astgcn": 1928.7,
+    "d2stgnn": 1542.0,
+    "dcrnn": 1476.4,
+    "dgcrn": 3323.9,
+    "dstagnn": 2058.4,
+    "graphwavenet": 243.8,
+    "hl": 0.7,
+    "lstm": 202.9,
+    "stgcn": 400.0,
+    "sttn": 419.3
+  },
+  "measured": {
+    "agcrn": false,
+    "astgcn": false,
+    "d2stgnn": false,
+    "dcrnn": false,
+    "dgcrn": false,
+    "dstagnn": false,
+    "graphwavenet": false,
+    "hl": false,
+    "lstm": false,
+    "stgcn": false,
+    "sttn": false
+  },
+  "note": "Derived from event_baseline_4090d_reference_v1 by removing the 24 GB microbatch penalty for dgcrn, d2stgnn and sttn and applying a uniform 1.5 raw speedup. Planning estimate only. Replace with the probe output before committing a final shard plan.",
+  "reference_host": "projected 32 GB RTX 5090 or 5090 D, native batch 32, one task per card",
+  "reference_region": "Orange",
+  "region_scale": {
+    "Alameda": 0.3974,
+    "ContraCosta": 0.1941,
+    "Orange": 1.0
+  },
+  "region_scale_basis": "nodes multiplied by train sample count, normalized to Orange: Alameda 521 by 32001, ContraCosta 496 by 16414, Orange 990 by 42372",
+  "statistic": "median of per-epoch time_s across all landed epochs of the longest attempt",
+  "status": "projection_not_measured"
+}

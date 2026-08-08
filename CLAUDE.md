@@ -117,10 +117,22 @@ Orange 4 项灾备已在群晖 NAS 通过 25/25 文件复验和原子改名。�
 
 完整数字、每份 artifact 哈希、主机分片和 incident 请查看 `XTraffic项目完整汇报.md` 与 `docs/audits/igstgnn_table4_*.md`。
 
+## v3 event 剩余分片的多卡主机计划
+
+2026-08-07 布防，未部署，未启动。完整记录见 `docs/audits/protocol_v3_event_cc_orange_multi_gpu_2026-08-07.md`。
+
+八卡 4090 D 实例已在无卡模式恢复，数据盘完好，Orange 4 项正式结果与 6 项 staging 都在。但代码复核确认 `train_baseline_zoo.py` 与 event runner 都没有 checkpoint 续跑路径，那 6 项 staging 必须从 epoch 0 重跑。
+
+计划把 Contra Costa 全部 11 项与 Orange 全部 11 项共 22 项放到同一台新多卡主机。Orange 重跑 11 项而不是 7 项，因为原 4 项从未做过 source-host postflight，混用会让 Orange 比较组跨主机。Alameda 留在 5080。
+
+关键实测：Orange DGCRN 在 24 GB 卡上每 epoch 20,587 秒，单项占剩余工作量的 38%，是唯一的关键路径。按实测标定 3 卡与 4 卡墙钟相同；按 32 GB 投影标定 4 卡几乎零空转。卡数必须等探针实测后再定，投影标定标记为 `projection_not_measured`，不得当证据引用。
+
+入口顺序为 `protocol_v3_event_deploy_host.sh` 到探针到 `protocol_v3_event_multi_gpu.py --plan-only` 到人工复核 plan 到 `protocol_v3_event_launch_host.sh`。回传复用已审计的 `protocol_v3_event_host_postflight.py` 契约，Linux finalizer 为 `protocol_v3_event_nas_finalize.sh`。
+
 ## 下一步顺序
 
 1. 让 5080 完成 tasks011-022，随后由持久 finalizer 严格复验并回传 NAS。
-2. 恢复 Orange 原 8 卡实例的 GPU 模式，先锁定 4 项正式结果和 staging，再按 checkpoint 契约恢复或干净重跑其余 7 项。
+2. 在新多卡主机上部署并跑探针，确定卡数与是否需要微批，再启动 Contra Costa 与 Orange 的 22 项。
 3. 将结果服务器从 40 GB 扩容到至少 60 GB，更稳妥的目标是 80 GB。2026-08-06 15:30 复验时可用空间为 `2939228160` bytes，不足以支撑完整 Orange 分片和原子发布余量。
 4. 完成所有 source-host postflight、结果服务器正式发布和只读 composite，然后生成 33 项 v3 event baseline 表。
 5. 在同一 v3 event 样本、切分和指标上增加 BiST、IGSTGNN 和 NDR-Net 适配并重跑。
