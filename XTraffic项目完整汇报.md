@@ -1128,6 +1128,16 @@ BiST 与 IGSTGNN 的前向调用不传入 future target。IGSTGNN 的 curriculum
 
 控制层已包含正式 support 哈希绑定、九项真实 CUDA 探针、按实测耗时的 LPT 装箱、plan digest 复核、九项 source-host postflight、结果服务器严格回传、发布后只读 composite 与 42 行合表器。合表器仅在 33 项与 9 项的 verified index 协议、cache bundle ID 与 digest 一致时工作。输出为 CSV、Markdown、LaTeX 和 manifest。
 
+## 最新进展，2026-08-08 22:18 无泄漏扩展 9 项已在四卡 5090 启动
+
+新增主机 `autodl-container-ae8b44827a-75976e27` 已完成正式缓存、图结构、节点顺序、模型 support 与锁定上游源码部署。缓存严格审计返回预期 bundle ID `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4` 和 digest `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。远端 23 项专项测试与三地区 support identity 门全部通过。
+
+九项真实 CUDA 探针全部通过。Orange IGSTGNN 原生 batch 24 在 32GB 上 OOM，改为 microbatch 8 后峰值分配降至约 16.58GB。该实现用三次微前向累计一次优化更新，有效 batch、全批 loss 分母与 curriculum 逻辑不变。Orange NDR-Net 同样使用 microbatch 8。两项任务级覆盖均进入正式 plan、trainer 命令、config hash 与 postflight 契约。训练代码为 `b9e7de62f81bd4dd9a047937cfabc30c7b75d5d3`，本地全仓回归为 590 passed 和 2 个既有 warning。
+
+最终计划 digest 为 `b3f029053136a559657dca768836da6673133b2a47d0c57c1304ffc5dd54f75e`。四卡 LPT 分片的探针估计为 23.06、22.82、20.29 与 22.23 小时。2026-08-08 22:16 新加坡时间启动后，队列为 running、0/9 completed、0 failed。controller PID 为 `13235`，finalizer PID 为 `14224`。
+
+Hostinger 结果服务器 checkout 已切换到同一正式提交，旧 `16e90ba` 保留为回滚。GPU 主机到 Hostinger 的专用受限 SSH 身份和约 45.1GB 可用容量已验证。9 项训练完成后会先做 source-host postflight，再逐文件 SHA-256 上传到隐藏 incoming，目标端精确复验后原子提升并执行只读 composite。全部成功才自动关机。42 行表仍必须等待独立 33 项 baseline matrix 完成并通过 composite 后生成。
+
 本地全仓回归为 589 passed 和 2 个既有 warning，所有远程 shell fail-closed 门禁通过。正式 9 项尚未运行，因此还没有 BiST、IGSTGNN 或 NDR-Net 的 v3 论文数字。下一步是租用多卡 RTX 5090，运行部署、九项探针和 plan-only，在人工复核 plan digest 后启动训练。
 
 同一时点只读复验现有 33 项矩阵仍为 0/33 completed、0 failed。Orange DGCRN、DCRNN、DSTAGNN 与 D²STGNN 分别完成 epoch 3、4、6 与 3。finalizer PID `17206` 正常等待，现有训练 checkout 没有被新实现改写。

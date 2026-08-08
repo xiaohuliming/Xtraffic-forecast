@@ -278,3 +278,17 @@ composite 使用 systemd `MemoryMax=3221225472` 和 `MemorySwapMax=4294967296`�
 本地全仓回归为 589 passed 和 2 个既有 warning。所有 `tests/remote/*.sh` 失败关闭门禁通过。
 
 实现以提交 `16e90baab74bb767a4f8d7a46f45eef6d87af44d` 推送到 `main`。Hostinger 旁路 checkout 通过 Python 编译门，之后原子切换 `/opt/xtraffic/v3_event_repo`。旧 `314d457` 目录保留为回滚。新 `/opt/xtraffic/bin/event-extension-post-publish` 与仓库脚本的 SHA-256 均为 `80f05af5b0bb87a221e703479fc034f3b717acf07fff5748b583a1a518388edc`。切换后 xray 仍为 active，swap 为 4 GB，根分区可用 `44062988` KiB。未修改 xray 配置，临时 bundle 已清理。
+
+## 2026-08-08 22:16 无泄漏扩展矩阵正式启动
+
+新增主机 `autodl-container-ae8b44827a-75976e27` 含 4 张 RTX 5090 32GB。启动前四卡均空闲，数据盘可用 50GB，系统可用内存约 712GB。正式缓存逐文件传输后通过严格审计，bundle ID 与 digest 分别为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4` 与 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。远端 23 项专项门和 support 对齐门全部通过。
+
+部署实测暴露并修复了四项控制层问题。SSH 未关闭标准输入会吞掉文件循环。缓存审计遗漏远端 graph 目录参数。Git bundle 不包含忽略的 pristine 上游 checkout。macOS tar 会携带 UID 501 与 AppleDouble 元数据。对应修复提交为 `a8b3a44`、`ac270f4`、`185c03d`、`04324d9` 与 `93cf554`。每次失败均发生在训练启动前，没有正式结果或 queue。
+
+Orange IGSTGNN 原生 batch 24 在完整反向时 OOM。microbatch 16 虽通过，但峰值分配为 `32164661760` bytes，余量不足。microbatch 8 的峰值分配为 `16575295488` bytes，三次前向累计一次优化更新，完整有效 batch 仍为 24。探针管道同时补上 `pipefail`，防止失败被 `tail` 掩盖。Orange IGSTGNN 与 Orange NDR-Net 的任务级 microbatch 8 已进入 plan、invocation config 与 postflight 精确契约。修复提交为 `b9e7de62f81bd4dd9a047937cfabc30c7b75d5d3`，本地全仓回归为 590 passed 和 2 个既有 warning。
+
+九项真实 CUDA 探针全部通过。最终 plan digest 为 `b3f029053136a559657dca768836da6673133b2a47d0c57c1304ffc5dd54f75e`。四卡实测 LPT 分片预计为 23.06、22.82、20.29 与 22.23 小时。该估计来自单 batch 耗时乘正式 train batch 数与 30 epoch，尚未包含完整验证和测试开销。
+
+14:16:14 UTC 启动 controller，PID 为 `13235`。启动复验为 running、0/9 completed、0 failed。GPU0 至 GPU3 分别执行 Orange NDR-Net、Contra Costa IGSTGNN、Alameda BiST 与 Alameda IGSTGNN。finalizer PID 为 `14224`。Hostinger checkout 已原子切换到同一提交 `b9e7de6`，旧 `16e90ba` 保留为回滚。专用受限 SSH 身份已验证，目标端可用空间为 `45083316224` bytes，4GB swap 与 xray 均正常。
+
+finalizer 只在 9/9、runner 零退出、无残留 trainer、source-host postflight、目标端逐文件 SHA-256、精确树、原子提升与 post-publish 全部通过后调用关机。任何失败都保持主机开机。若 9 项先于 33 项完成，42 行最终合表将在 33 项发布后再次执行。

@@ -1,6 +1,6 @@
 # XTraffic 项目导航与协作约定
 
-最近更新：2026-08-08 18:55，Asia/Singapore
+最近更新：2026-08-08 22:18，Asia/Singapore
 
 ## 新会话先读
 
@@ -36,9 +36,9 @@
 | BiST 与 NDR-Net native-100 | `verified_native100_dual_host_18` | index `27746081f2450d5f8ae7fe950000a23d147bd117ac8b8a5fa3ac18fdfc12314c` |
 | v3 full-window baseline | `stopped_supplementary_1_of_33` | 只保留 Alameda HL 补充结果 |
 | v3 event baseline | `running_0_of_33_on_5090x4` | 全 33 项在单台 4 卡 5090 重跑，matrix `protocol_v3_event_full33_5090x4_v1` |
-| v3 event 全方法扩展 | `implementation_verified_waiting_for_gpu` | BiST、IGSTGNN 与 NDR-Net 三地区共 9 项，尚未启动正式训练 |
+| v3 event 全方法扩展 | `running_0_of_9_on_5090x4` | BiST、IGSTGNN 与 NDR-Net 三地区共 9 项，plan digest `b3f029053136a559657dca768836da6673133b2a47d0c57c1304ffc5dd54f75e` |
 
-本地全仓回归为 589 passed 和 2 个既有 warning。
+本地全仓回归为 590 passed 和 2 个既有 warning。
 
 ## v3 正式缓存与训练身份
 
@@ -65,7 +65,15 @@ v3 缓存已通过本地两次、5080 一次和 5090 一次严格复验。缓存
 - manifest SHA-256：`f9cdc1afa5f9f126a6a8094d4d4fc38bc565cf3de277dc4a7742f85a0d2f92ef`
 - 当前正式单主机矩阵：0/33 completed，0 failed
 - 5080 的 10 项和旧 Orange 的 4 项只读保留，不进入当前矩阵
-- 尚未形成完整 baseline 表，BiST、IGSTGNN 和 NDR-Net 的 v3 event 适配已通过本地验证，尚未运行正式 9 项
+- 尚未形成完整 baseline 表。BiST、IGSTGNN 和 NDR-Net 的 v3 event 正式 9 项已在另一台 4 卡 RTX 5090 主机启动
+
+## 正在运行的 v3 event 扩展
+
+2026-08-08 22:16 新加坡时间，matrix `protocol_v3_event_extensions_5090x4_v1` 在主机 `autodl-container-ae8b44827a-75976e27` 启动。训练代码为 `b9e7de62f81bd4dd9a047937cfabc30c7b75d5d3`，计划 digest 为 `b3f029053136a559657dca768836da6673133b2a47d0c57c1304ffc5dd54f75e`。启动复验为 running、0/9 completed、0 failed，四卡分别执行 Orange NDR-Net、Contra Costa IGSTGNN、Alameda BiST 与 Alameda IGSTGNN。
+
+九项真实 CUDA 探针全部通过。实测 LPT 四个分片预计为 23.06、22.82、20.29 与 22.23 小时。Orange IGSTGNN 原生整批在 32 GB 上 OOM，因此使用 microbatch 8。该设置保留有效 batch 24，并写入计划、trainer 命令、invocation config 和 postflight 契约。Orange NDR-Net 同样使用 microbatch 8。其余方法保留原生 batch。
+
+controller PID 为 `13235`，finalizer PID 为 `14224`。finalizer 只在 9/9、runner 零退出、无残留 trainer、source-host postflight、Hostinger 逐文件复验、原子提升与 post-publish 全部通过后关机。任何失败都保持主机开机。Hostinger checkout 已切换到同一提交 `b9e7de6`，旧 `16e90ba` checkout 只读保留。
 
 ### 5080 运行快照
 
