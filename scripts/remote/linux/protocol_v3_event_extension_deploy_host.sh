@@ -19,6 +19,7 @@ LOCAL_CACHE="${LOCAL_CACHE:-outputs/dist_net/region_data_v3_noleak_dedup}"
 LOCAL_GRAPHS="${LOCAL_GRAPHS:-outputs/region_graphs}"
 LOCAL_SUPPORT="${LOCAL_SUPPORT:-outputs/reproduction/igstgnn_table4_official_v1/data/official_splits}"
 LOCAL_NODE_ORDER="${LOCAL_NODE_ORDER:-archive/node_order.npy}"
+LOCAL_UPSTREAM_ROOT="${LOCAL_UPSTREAM_ROOT:-.third_party/igstgnn_table4/pristine}"
 GPU_COUNT="${GPU_COUNT:-4}"
 CACHE_BUNDLE_ID="${CACHE_BUNDLE_ID:-bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4}"
 CACHE_BUNDLE_DIGEST="${CACHE_BUNDLE_DIGEST:-854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5}"
@@ -73,6 +74,14 @@ mkdir -p "$STAGE"
 BUNDLE="$STAGE/xtraffic-v3-event-extensions.bundle"
 git bundle create "$BUNDLE" HEAD >/dev/null 2>&1 || die "git bundle failed"
 BUNDLE_SHA="$(sha256sum "$BUNDLE" | awk '{print $1}')"
+UPSTREAM_BUNDLE="$STAGE/xtraffic-v3-event-extension-upstreams.tar.gz"
+test -d "$LOCAL_UPSTREAM_ROOT/bist_dd94adf" \
+  && test -d "$LOCAL_UPSTREAM_ROOT/igstgnn_64c6e24" \
+  || die "locked upstream checkouts are missing"
+tar -czf "$UPSTREAM_BUNDLE" -C "$LOCAL_UPSTREAM_ROOT" \
+  bist_dd94adf igstgnn_64c6e24 \
+  || die "locked upstream bundle failed"
+UPSTREAM_BUNDLE_SHA="$(sha256sum "$UPSTREAM_BUNDLE" | awk '{print $1}')"
 
 say "PREFLIGHT_REMOTE"
 rsh "set -eu; mkdir -p '$REMOTE_BASE' '$REMOTE_CONTROL' '$REMOTE_RESULTS' '$REMOTE_SUPPORT'; command -v git >/dev/null; test -x '$REMOTE_PYTHON'" \
@@ -80,12 +89,17 @@ rsh "set -eu; mkdir -p '$REMOTE_BASE' '$REMOTE_CONTROL' '$REMOTE_RESULTS' '$REMO
 
 say "SHIP_REPO"
 ship_file "$BUNDLE" "$REMOTE_BASE/$(basename "$BUNDLE")"
+ship_file "$UPSTREAM_BUNDLE" "$REMOTE_BASE/$(basename "$UPSTREAM_BUNDLE")"
 rsh "set -eu
 test \"\$(sha256sum '$REMOTE_BASE/$(basename "$BUNDLE")' | awk '{print \$1}')\" = '$BUNDLE_SHA'
+test \"\$(sha256sum '$REMOTE_BASE/$(basename "$UPSTREAM_BUNDLE")' | awk '{print \$1}')\" = '$UPSTREAM_BUNDLE_SHA'
 rm -rf '$REMOTE_REPO'
 git clone --quiet '$REMOTE_BASE/$(basename "$BUNDLE")' '$REMOTE_REPO'
 cd '$REMOTE_REPO'
 git checkout --quiet '$CODE_SHA'
+mkdir -p .third_party/igstgnn_table4/pristine
+tar -xzf '$REMOTE_BASE/$(basename "$UPSTREAM_BUNDLE")' \
+  -C .third_party/igstgnn_table4/pristine
 test \"\$(git rev-parse HEAD)\" = '$CODE_SHA'
 test -z \"\$(git status --porcelain)\"" || die "remote checkout identity failed"
 
