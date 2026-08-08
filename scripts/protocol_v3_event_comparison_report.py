@@ -107,6 +107,24 @@ def _metric(metrics: Mapping[str, object], group: str, name: str) -> float:
     return result
 
 
+def _source_identity(index: Mapping[str, object], label: str) -> dict[str, str]:
+    identity: dict[str, str] = {}
+    for name in ("matrix_id", "host_id", "execution_layout"):
+        value = index.get(name)
+        if not isinstance(value, str) or not value:
+            raise EventComparisonReportError(f"{label} {name} is missing")
+        identity[name] = value
+    code_sha = index.get("code_sha")
+    if (
+        not isinstance(code_sha, str)
+        or len(code_sha) != 40
+        or any(character not in "0123456789abcdef" for character in code_sha)
+    ):
+        raise EventComparisonReportError(f"{label} code_sha is invalid")
+    identity["code_sha"] = code_sha
+    return identity
+
+
 def _validate_index(
     *,
     path: Path | str,
@@ -216,7 +234,25 @@ def _csv(rows: Sequence[Mapping[str, str]]) -> bytes:
     return stream.getvalue().encode("utf-8")
 
 
-def _markdown(rows: Sequence[Mapping[str, str]]) -> bytes:
+def _execution_note(baseline: Mapping[str, str], extension: Mapping[str, str]) -> str:
+    if all(baseline[name] == extension[name] for name in ("host_id", "code_sha")):
+        return (
+            f"All 42 rows ran on host {baseline['host_id']} at code SHA "
+            f"{baseline['code_sha']}."
+        )
+    caveat = (
+        "Cite this table as host-stratified, not as a single-host matrix."
+        if baseline["host_id"] != extension["host_id"]
+        else "Cite this table as code-stratified, not as one homogeneous run."
+    )
+    return (
+        f"The 11 baseline methods ran on host {baseline['host_id']} at code SHA "
+        f"{baseline['code_sha']}, and BiST, IGSTGNN and NDR-Net ran on host "
+        f"{extension['host_id']} at code SHA {extension['code_sha']}. {caveat}"
+    )
+
+
+def _markdown(rows: Sequence[Mapping[str, str]], execution_note: str) -> bytes:
     header = [
         "Data", "Method", "H3 MAE", "H3 RMSE", "H3 MAPE(%)",
         "H6 MAE", "H6 RMSE", "H6 MAPE(%)", "H12 MAE", "H12 RMSE",
@@ -226,6 +262,8 @@ def _markdown(rows: Sequence[Mapping[str, str]]) -> bytes:
         "# Protocol v3 no-leak event comparison",
         "",
         "All 42 rows use seed 42, 30 epochs at most, the same target-disjoint event split and explicit observation masks.",
+        "",
+        execution_note,
         "",
         "| " + " | ".join(header) + " |",
         "| " + " | ".join(["---"] * len(header)) + " |",
@@ -291,6 +329,10 @@ def build_event_comparison_report(
     for name in ("cache_bundle_id", "cache_bundle_digest"):
         if baseline_index.get(name) != extension_index.get(name):
             raise EventComparisonReportError(f"cache bundle {name} mismatch")
+    baseline_identity = _source_identity(baseline_index, "baseline33 index")
+    extension_identity = _source_identity(extension_index, "extension9 index")
+    same_host = baseline_identity["host_id"] == extension_identity["host_id"]
+    same_code = baseline_identity["code_sha"] == extension_identity["code_sha"]
     baseline_manifest = load_baseline_manifest(BASELINE_MANIFEST)
     extension_manifest = load_extension_manifest(EXTENSION_MANIFEST)
     baseline_rows, baseline_proofs = _rows_from_index(
@@ -311,7 +353,11 @@ def build_event_comparison_report(
             rows.append(row)
     if len(rows) != 42:
         raise EventComparisonReportError("final table must contain exactly 42 rows")
-    outputs = {"table.csv": _csv(rows), "table.md": _markdown(rows), "table.tex": _latex(rows)}
+    outputs = {
+        "table.csv": _csv(rows),
+        "table.md": _markdown(rows, _execution_note(baseline_identity, extension_identity)),
+        "table.tex": _latex(rows),
+    }
     output = Path(output_dir).expanduser().resolve(strict=False)
     for name, data in outputs.items():
         _atomic_create(output / name, data)
@@ -319,7 +365,14 @@ def build_event_comparison_report(
         "report_schema_version": 1,
         "status": "verified_no_leak_comparison_generated",
         "protocol_version": EXPECTED_PROTOCOL,
-        "validity_label": "target_disjoint_event_no_leak",
+        "validity_label": (
+            "target_disjoint_event_no_leak_single_host"
+            if same_host and same_code
+            else "target_disjoint_event_no_leak_host_stratified"
+            if not same_host
+            else "target_disjoint_event_no_leak_code_stratified"
+        ),
+        "execution_layout": "single_host" if same_host else "dual_host_stratified",
         "seed_policy": "single_seed_42",
         "epoch_cap": 30,
         "training_control_scope": (
@@ -331,8 +384,16 @@ def build_event_comparison_report(
         "cache_bundle_id": baseline_index["cache_bundle_id"],
         "cache_bundle_digest": baseline_index["cache_bundle_digest"],
         "source_indexes": {
-            "baseline33": {"path": str(Path(baseline_index_path).resolve()), "sha256": baseline_index_sha256.lower()},
-            "extension9": {"path": str(Path(extension_index_path).resolve()), "sha256": extension_index_sha256.lower()},
+            "baseline33": {
+                "path": str(Path(baseline_index_path).resolve()),
+                "sha256": baseline_index_sha256.lower(),
+                **baseline_identity,
+            },
+            "extension9": {
+                "path": str(Path(extension_index_path).resolve()),
+                "sha256": extension_index_sha256.lower(),
+                **extension_identity,
+            },
         },
         "summary_proofs": baseline_proofs + extension_proofs,
         "outputs": {

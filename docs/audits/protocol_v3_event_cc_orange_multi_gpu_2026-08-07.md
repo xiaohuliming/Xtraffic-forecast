@@ -292,3 +292,17 @@ Orange IGSTGNN 原生 batch 24 在完整反向时 OOM。microbatch 16 虽通过�
 14:16:14 UTC 启动 controller，PID 为 `13235`。启动复验为 running、0/9 completed、0 failed。GPU0 至 GPU3 分别执行 Orange NDR-Net、Contra Costa IGSTGNN、Alameda BiST 与 Alameda IGSTGNN。finalizer PID 为 `14224`。Hostinger checkout 已原子切换到同一提交 `b9e7de6`，旧 `16e90ba` 保留为回滚。专用受限 SSH 身份已验证，目标端可用空间为 `45083316224` bytes，4GB swap 与 xray 均正常。
 
 finalizer 只在 9/9、runner 零退出、无残留 trainer、source-host postflight、目标端逐文件 SHA-256、精确树、原子提升与 post-publish 全部通过后调用关机。任何失败都保持主机开机。若 9 项先于 33 项完成，42 行最终合表将在 33 项发布后再次执行。
+
+## 2026-08-09 42 行合表器记录双主机执行来源
+
+33 项 baseline 与 9 项扩展跑在两台不同的租用主机上，代码 SHA 分别为 `d23a991a570fd1c59e3d2ac8315a5e4063e8097f` 与 `b9e7de62f81bd4dd9a047937cfabc30c7b75d5d3`。逐文件核对确认 `dist_net/protocol.py`、`dist_net/data.py`、`dist_net/metrics.py`、`dist_net/training_runtime.py`、`dist_net/losses.py`、`scripts/train_baseline_zoo.py` 与 `scripts/train_graphwavenet.py` 在两个 SHA 之间逐字节一致，且 `d23a991` 是 `b9e7de6` 的祖先，因此切分、mask、指标累计与缓存契约没有差异。剩余差异只是物理主机与运行时。
+
+原合表器只校验两个 index 的协议、cache bundle ID 与 digest，输出 manifest 的 `validity_label` 为无主机限定的 `target_disjoint_event_no_leak`，也不携带任一来源的 `code_sha` 或 `host_id`。这会把双主机结果呈现为同质矩阵，与 45 项矩阵必须称为 `host-stratified distributed 45` 的既有纪律不一致。
+
+合表器现在从两个 composite index 分别提取并校验 `matrix_id`、`host_id`、`execution_layout` 与 40 位 `code_sha`，写入 manifest 的 `source_indexes`。任一字段缺失或 `code_sha` 非法都 fail closed。顶层新增 `execution_layout`，`validity_label` 按实测布局取 `single_host`、`host_stratified` 或 `code_stratified` 三种后缀。`table.md` 抬头写明两个来源的主机与代码 SHA 并给出引用注意事项，因此论文表自身携带该注脚。`table.csv` 与 `table.tex` 的数据内容未改变。
+
+runtime provenance 未记录，因为 `protocol_v3_event_host_postflight.py` 与 composite 都没有采集 torch 或驱动版本。补采需要改动正在运行主机上的验收契约，本次不做。
+
+新增 7 项回归覆盖三种布局分支、Markdown 对应措辞，以及 `host_id` 为空、`matrix_id` 缺失、`code_sha` 长度错误或含非十六进制字符时必须拒绝出表。本地全仓回归为 597 passed 和 2 个既有 warning。
+
+部署顺序有硬约束。合表器运行在 Hostinger 的 `/opt/xtraffic/v3_event_repo`，由 `protocol_v3_event_merge_verified.sh` 调起，而 `protocol_v3_event_full33_post_publish.sh` 与 `protocol_v3_event_extension_post_publish.sh` 都会触发它，后完成的那个矩阵负责真正出表。`merge_verified.sh` 在 `FINAL_ROOT` 已存在时会逐字节比对四份产物，任何差异都以 `existing verified comparison differs` 退出。因此本提交必须在任一矩阵收尾之前完成 Hostinger 原子切换，否则先用旧代码发布的无限定表会挡住重新生成，需要人工清理。

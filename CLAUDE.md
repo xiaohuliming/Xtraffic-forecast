@@ -21,6 +21,7 @@
 - IGSTGNN Table 4 复现使用独立协议 `igstgnn_table4_official_v1`，有效性标签为 `official_protocol_with_known_overlap`。
 - Table 4 官方协议结果不得与 v3 无泄露结果混合。
 - NDR-Net 扩展、BiST-NDR 配对和 native-100 都是项目扩展，不是 IGSTGNN 原论文方法行。
+- 42 行无泄漏表必须按实际执行布局标注。33 项 baseline 与 9 项扩展分处两台主机，因此 `validity_label` 为 `target_disjoint_event_no_leak_host_stratified`，不得写成同质单机矩阵。
 - 所有数字必须来自落盘文件。未通过 source-host postflight、目标端逐文件复验和 composite 的结果，不能写成完整矩阵结论。
 
 ## 当前有效性快照
@@ -146,6 +147,8 @@ Orange 4 项灾备已在群晖 NAS 通过 25/25 文件复验和原子改名。�
 新增 canonical manifest 为 `config/protocol_v3/table4_event_extensions_v1.json`，精确包含 9 项。数据适配器不物化 object-pickle split，不把 `affected_mask` 放入任何训练或验证 batch。NDR-Net 的 normalization 和周内时段中位数只在唯一 raw train timestamps 上拟合，并使用 v3 显式 `flow_mask`。IGSTGNN 静态支持文件仅在 `sensors.csv order == region_idx` 且 `station_id == node_order[region_idx]` 逐项完全一致后加载。
 
 新增部署、真实 CUDA 探针、LPT 多卡控制、source-host postflight、严格回传、发布后 composite 与 42 行合表器。两个发布树必须分别验证，且协议、cache bundle ID 和 digest 全部相同，才允许输出 CSV、Markdown、LaTeX 和可追溯 manifest。正式 9 项尚未训练，不得填入任何预测数字。
+
+合表器还会从两个 composite index 分别读取 `matrix_id`、`host_id`、`execution_layout` 与 `code_sha`，写入 manifest 的 `source_indexes`，任一字段缺失或 `code_sha` 非 40 位十六进制都拒绝出表。顶层 `execution_layout` 与 `validity_label` 按实测布局取值，同主机同 SHA 为 `single_host`，主机不同为 `host_stratified`，同主机不同 SHA 为 `code_stratified`。`table.md` 抬头同时写明两个来源的主机与代码 SHA，因此论文表本身携带该注脚。runtime provenance 尚未采集，postflight 与 composite 都没有该字段。
 
 实现提交 `16e90baab74bb767a4f8d7a46f45eef6d87af44d` 已推送到 `main`。Hostinger 的 `/opt/xtraffic/v3_event_repo` 已原子切换到该提交，旧 `314d457` checkout 保留为回滚。`/opt/xtraffic/bin/event-extension-post-publish` 已安装，SHA-256 为 `80f05af5b0bb87a221e703479fc034f3b717acf07fff5748b583a1a518388edc`。切换后 xray 仍为 active，swap 仍为 4 GB，根分区约有 44.1 GB 可用。临时 bundle 已清理。
 
