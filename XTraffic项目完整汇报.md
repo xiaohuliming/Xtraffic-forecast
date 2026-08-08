@@ -1132,6 +1132,8 @@ BiST 与 IGSTGNN 的前向调用不传入 future target。IGSTGNN 的 curriculum
 
 同一时点只读复验现有 33 项矩阵仍为 0/33 completed、0 failed。Orange DGCRN、DCRNN、DSTAGNN 与 D²STGNN 分别完成 epoch 3、4、6 与 3。finalizer PID `17206` 正常等待，现有训练 checkout 没有被新实现改写。
 
+实现已以提交 `16e90baab74bb767a4f8d7a46f45eef6d87af44d` 推送到 `main`。Hostinger 结果服务器已完成旁路 checkout 验证与原子切换，旧 `314d457` checkout 保留供回滚。新 extension post-publish 入口已安装，SHA-256 为 `80f05af5b0bb87a221e703479fc034f3b717acf07fff5748b583a1a518388edc`。切换前后 xray 均为 active，4 GB swap 保持正常，根分区约有 44.1 GB 可用。没有修改代理配置，临时传输 bundle 已删除。
+
 通过 postflight 后，finalizer 根据精确 allowlist 上传到 NAS 的隐藏 incoming 目录。已存且同哈希的文件可直接复用，新文件先写 `.part`，每个文件都在 NAS 端核对 SHA-256。全树还需通过 `transfer.sha256`、精确文件名集和无符号链接检查，最后才同 volume 原子改名为 `/var/services/homes/xhlm/Drive/XTraffic/results/protocol_v3_noleak_dedup/event_baseline_phase1/hosts/event_rtx5080_alameda_contra`。任何训练、验收、容量、传输或 NAS 复验失败都会 fail closed，保留 5080 开机。
 
 专用 NAS SSH 密钥指纹为 `SHA256:Nx5BbjtFe9eRbSJh4hV/YN+reR2pw4hZuFLa9PLKMGc`。私钥只存放在 5080 的 `D:\t4\v3_event_nas_control\id_ed25519`，不进入仓库。直连 NAS 探针已成功。计划 SHA-256 为 `738bc46122f9af6466c1b605013b57c2cc05874aadcda6682cdf08fb4ed964c8`，postflight 与 finalizer SHA-256 为 `b8605c1725fe9de5ffc74d19815f460b19be812dd495f9814fe41a92eb5b1bf0` 和 `7295346daf7eb972ead64db27706f4234157ae783e68c69421097e6787349c70`。postflight 是跨平台 Python 实现，未来 5090 可复用相同验收合同和 NAS 原子发布流程，但必须使用独立 host ID、分片计划、目标目录和 SSH 密钥。这些 NAS 产物定位为可验证灾备，仍需结果服务器正式发布和最终 composite 才能恢复完整矩阵有效性。本地全仓回归为 526 passed 和 2 个既有 warning。

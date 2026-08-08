@@ -16,6 +16,8 @@
 
 剩余 BiST、IGSTGNN 和 NDR-Net 乘 3 地区共 9 项使用独立 matrix `protocol_v3_event_extensions_5090x4_v1`。canonical manifest 为 `config/protocol_v3/table4_event_extensions_v1.json`。数据适配器只读取 v3 数值缓存和显式 mask，`affected_mask` 仅在测试预测完成后用于事后分组。NDR-Net 的 normalization 和 climatology 只在唯一 raw train timestamps 上拟合。IGSTGNN 静态 support 逐项绑定 v3 `region_idx` 与全局 `node_order`。部署、CUDA 探针、多卡 LPT、postflight、严格回传、composite 和 42 行合表器已完成本地回归，正式 9 项尚未训练。当前本地全仓为 589 passed 和 2 个既有 warning。
 
+扩展实现提交为 `16e90baab74bb767a4f8d7a46f45eef6d87af44d`，已推送 `main`。Hostinger 结果服务器 checkout 已切换到该提交，旧 `314d457` 保留为回滚。extension post-publish 包装 SHA-256 为 `80f05af5b0bb87a221e703479fc034f3b717acf07fff5748b583a1a518388edc`。xray 在切换后仍为 active，4 GB swap 与约 44.1 GB 可用空间均正常。
+
 2026-07-20 22:23 新加坡时间起，正式运行口径由“5090 同机 45 项”改为双机分层矩阵。两台机器保持独立结果根、独立 `config_hash`、独立 postflight 和运行时 provenance。最终只能称为 `host-stratified distributed 45`，不得称为 homogeneous 5090 matrix。固定分片不交叉且并集严格为 45 项，所有直接 A/B 比较组保持在同一台机器。
 
 2026-07-22，用户批准的 27/18 重分片已于 22:49 新加坡时间完成原子切换。5080 分片共 27 项：tasks001-004、007-010、013-016、019-030、040-042。5090 分片共 18 项：tasks005-006、011-012、017-018、031-039、043-045。两分片互斥且并集严格为 canonical 45，所有直接比较组保持同机。task039 完整落盘后通过 `BOUNDARY_RESULT_OK`，relay ready marker 已发布且保持完好。

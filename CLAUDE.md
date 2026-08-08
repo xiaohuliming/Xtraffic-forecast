@@ -139,6 +139,8 @@ Orange 4 项灾备已在群晖 NAS 通过 25/25 文件复验和原子改名。�
 
 新增部署、真实 CUDA 探针、LPT 多卡控制、source-host postflight、严格回传、发布后 composite 与 42 行合表器。两个发布树必须分别验证，且协议、cache bundle ID 和 digest 全部相同，才允许输出 CSV、Markdown、LaTeX 和可追溯 manifest。正式 9 项尚未训练，不得填入任何预测数字。
 
+实现提交 `16e90baab74bb767a4f8d7a46f45eef6d87af44d` 已推送到 `main`。Hostinger 的 `/opt/xtraffic/v3_event_repo` 已原子切换到该提交，旧 `314d457` checkout 保留为回滚。`/opt/xtraffic/bin/event-extension-post-publish` 已安装，SHA-256 为 `80f05af5b0bb87a221e703479fc034f3b717acf07fff5748b583a1a518388edc`。切换后 xray 仍为 active，swap 仍为 4 GB，根分区约有 44.1 GB 可用。临时 bundle 已清理。
+
 ## 历史：v3 event 剩余分片的多卡主机计划
 
 2026-08-07 布防记录。

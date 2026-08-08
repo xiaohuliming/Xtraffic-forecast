@@ -276,3 +276,5 @@ composite 使用 systemd `MemoryMax=3221225472` 和 `MemorySwapMax=4294967296`�
 控制链已覆盖九项真实 CUDA 探针、实测标定、LPT 分片、plan digest 复核、任务级 config hash、source-host postflight、隐藏 incoming、逐文件 SHA-256、原子提升、发布后只读 composite 和成功后自动关机。扩展 composite 通过后，42 行合表器还会核对它与 33 项 index 的 protocol、cache schema、bundle ID 和 bundle digest。任一不一致都拒绝生成表格。
 
 本地全仓回归为 589 passed 和 2 个既有 warning。所有 `tests/remote/*.sh` 失败关闭门禁通过。
+
+实现以提交 `16e90baab74bb767a4f8d7a46f45eef6d87af44d` 推送到 `main`。Hostinger 旁路 checkout 通过 Python 编译门，之后原子切换 `/opt/xtraffic/v3_event_repo`。旧 `314d457` 目录保留为回滚。新 `/opt/xtraffic/bin/event-extension-post-publish` 与仓库脚本的 SHA-256 均为 `80f05af5b0bb87a221e703479fc034f3b717acf07fff5748b583a1a518388edc`。切换后 xray 仍为 active，swap 为 4 GB，根分区可用 `44062988` KiB。未修改 xray 配置，临时 bundle 已清理。
