@@ -602,3 +602,45 @@ def test_changing_the_gpu_count_changes_the_plan_digest(tmp_path: Path) -> None:
         ]
 
     assert digest_for(3, tmp_path / "c3") != digest_for(4, tmp_path / "c4")
+
+
+def test_alloc_conf_is_part_of_the_plan_contract(tmp_path: Path) -> None:
+    from scripts.remote.linux import protocol_v3_event_multi_gpu as ctl
+
+    def emit(control: Path, extra: list[str]) -> dict:
+        ctl.main(
+            [
+                "--control-root", str(control),
+                "--results-root", str(tmp_path / "results"),
+                "--cache-dir", str(tmp_path / "cache"),
+                "--graph-dir", str(tmp_path / "graphs"),
+                "--cache-bundle-id", "bundle-test",
+                "--cache-bundle-digest", "0" * 64,
+                "--code-sha", "a" * 40,
+                "--matrix-id", "m", "--host-id", "h",
+                "--regions", "ContraCosta", "Orange",
+                "--gpu-count", "4", "--plan-only",
+            ]
+            + extra
+        )
+        return json.loads((control / "plan.json").read_text(encoding="utf-8"))
+
+    default = emit(tmp_path / "a", [])
+    changed = emit(tmp_path / "b", ["--alloc-conf", "max_split_size_mb:128"])
+
+    assert default["alloc_conf"] == "expandable_segments:True"
+    assert changed["alloc_conf"] == "max_split_size_mb:128"
+    assert default["plan_digest"] != changed["plan_digest"]
+
+
+def test_launch_script_binds_the_finalizer_task_count_to_the_live_plan() -> None:
+    launcher = (
+        REPO_ROOT / "scripts/remote/linux/protocol_v3_event_launch_host.sh"
+    ).read_text(encoding="utf-8")
+
+    # A hardcoded task count would arm the finalizer for the wrong matrix size.
+    assert "EXPECTED_TASKS=22" not in launcher
+    assert 'EXPECTED_TASKS:?' in launcher
+    assert '[ "$LIVE_TASKS" = "$EXPECTED_TASKS" ]' in launcher
+    assert "EXPECTED_TASKS='$EXPECTED_TASKS'" in launcher
+    assert "--alloc-conf '$ALLOC_CONF'" in launcher

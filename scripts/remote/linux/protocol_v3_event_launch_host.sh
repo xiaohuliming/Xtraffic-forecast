@@ -19,6 +19,9 @@ HOST_ID="${HOST_ID:-event_rtx5090x4_cc_orange}"
 REGIONS="${REGIONS:-ContraCosta Orange}"
 GPU_COUNT="${GPU_COUNT:-4}"
 MICROBATCH_ARGS="${MICROBATCH_ARGS:-}"
+ALLOC_CONF="${ALLOC_CONF:-expandable_segments:True}"
+CALIBRATION="${CALIBRATION:-$REMOTE_CONTROL/calibration_measured.json}"
+EXPECTED_TASKS="${EXPECTED_TASKS:?EXPECTED_TASKS is required and must match the plan}"
 NAS="${NAS:-}"
 NAS_BASE="${NAS_BASE:-/var/services/homes/xhlm/Drive/XTraffic/results/protocol_v3_noleak_dedup/event_baseline_phase1/hosts}"
 NAS_KEY="${NAS_KEY:-$REMOTE_CONTROL/id_ed25519}"
@@ -36,8 +39,8 @@ CODE_SHA="$(rsh "cd '$REMOTE_REPO' && git rev-parse HEAD" | tr -d '[:space:]')"
 [ -n "$CODE_SHA" ] || die "cannot read remote code SHA"
 rsh "cd '$REMOTE_REPO' && test -z \"\$(git status --porcelain)\"" \
   || die "remote worktree is dirty"
-rsh "test -f '$REMOTE_CONTROL/calibration_measured.json'" \
-  || die "measured calibration is missing; run the deploy probe first"
+rsh "test -f '$CALIBRATION'" \
+  || die "measured calibration is missing at $CALIBRATION"
 rsh "test ! -e '$REMOTE_RESULTS/queue_status.json'" \
   || die "results root already carries a queue; refusing to overwrite"
 
@@ -58,13 +61,14 @@ cd '$REMOTE_REPO'
 mkdir -p '$REMOTE_CONTROL' '$REMOTE_RESULTS'
 PYTHONPATH='$REMOTE_REPO' nohup '$REMOTE_PYTHON' -X utf8 \
   -m scripts.remote.linux.protocol_v3_event_multi_gpu \
-  --calibration '$REMOTE_CONTROL/calibration_measured.json' \
+  --calibration '$CALIBRATION' \
   --control-root '$REMOTE_CONTROL' --results-root '$REMOTE_RESULTS' \
   --cache-dir '$REMOTE_CACHE' --graph-dir '$REMOTE_GRAPHS' \
   --cache-bundle-id '$CACHE_BUNDLE_ID' \
   --cache-bundle-digest '$CACHE_BUNDLE_DIGEST' \
   --code-sha '$CODE_SHA' --matrix-id '$MATRIX_ID' --host-id '$HOST_ID' \
   --regions $REGIONS --gpu-count $GPU_COUNT $MICROBATCH_ARGS \
+  --alloc-conf '$ALLOC_CONF' \
   --expect-plan-digest '$EXPECTED_PLAN_DIGEST' \
   --python '$REMOTE_PYTHON' \
   >>'$REMOTE_CONTROL/controller.out' 2>&1 &
@@ -84,6 +88,10 @@ LIVE_DIGEST="$(rsh "$REMOTE_PYTHON -c \"import json;print(json.load(open('$REMOT
 [ "$LIVE_DIGEST" = "$EXPECTED_PLAN_DIGEST" ] \
   || die "live plan digest $LIVE_DIGEST does not match the reviewed $EXPECTED_PLAN_DIGEST"
 
+LIVE_TASKS="$(rsh "$REMOTE_PYTHON -c \"import json;print(json.load(open('$REMOTE_CONTROL/plan.json'))['task_count'])\"" | tr -d '[:space:]')"
+[ "$LIVE_TASKS" = "$EXPECTED_TASKS" ] \
+  || die "live plan has $LIVE_TASKS tasks but the finalizer would be armed for $EXPECTED_TASKS"
+
 LIVE_STATE="$(rsh "$REMOTE_PYTHON -c \"import json;print(json.load(open('$REMOTE_CONTROL/controller_status.json'))['state'])\"" | tr -d '[:space:]')"
 [ "$LIVE_STATE" = "running" ] || die "controller state is $LIVE_STATE, expected running"
 
@@ -100,7 +108,7 @@ rsh "set -eu
 cd '$REMOTE_REPO'
 REPO='$REMOTE_REPO' CONTROL_ROOT='$REMOTE_CONTROL' RESULTS_ROOT='$REMOTE_RESULTS' \
 PYTHON='$REMOTE_PYTHON' NAS='$NAS' NAS_BASE='$NAS_BASE' HOST_ID='$HOST_ID' \
-SSH_KEY='$NAS_KEY' EXPECTED_TASKS=22 SHUTDOWN_ON_SUCCESS='$SHUTDOWN_ON_SUCCESS' \
+SSH_KEY='$NAS_KEY' EXPECTED_TASKS='$EXPECTED_TASKS' SHUTDOWN_ON_SUCCESS='$SHUTDOWN_ON_SUCCESS' \
 nohup bash scripts/remote/linux/protocol_v3_event_nas_finalize.sh \
   >>'$REMOTE_CONTROL/finalize.out' 2>&1 &
 echo \$! > '$REMOTE_CONTROL/finalize.pid'

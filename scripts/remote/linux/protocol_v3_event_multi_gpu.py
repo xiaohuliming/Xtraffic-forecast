@@ -45,8 +45,10 @@ PLAN_DIGEST_FIELDS = (
     "gpu_count",
     "task_count",
     "microbatch_sizes",
+    "alloc_conf",
     "assignments",
 )
+DEFAULT_ALLOC_CONF = "expandable_segments:True"
 
 
 class PlanError(RuntimeError):
@@ -459,6 +461,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         metavar="TASK_ID=SIZE",
         help="fallback activation limit; the task is isolated to its own shard",
     )
+    parser.add_argument(
+        "--alloc-conf",
+        default=DEFAULT_ALLOC_CONF,
+        help="PYTORCH_CUDA_ALLOC_CONF for every shard; part of the run contract "
+             "because the tightest task was measured under it",
+    )
     parser.add_argument("--python", dest="python_executable", default=sys.executable)
     parser.add_argument("--poll-seconds", type=float, default=15.0)
     parser.add_argument(
@@ -559,6 +567,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "gpu_count": args.gpu_count,
         "task_count": len(tasks),
         "microbatch_sizes": microbatch_sizes or None,
+        "alloc_conf": args.alloc_conf,
         "assignments": {
             str(gpu): [task.task_id for task in shard] for gpu, shard in shards.items()
         },
@@ -651,6 +660,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             environment = dict(os.environ)
             environment["CUDA_VISIBLE_DEVICES"] = str(gpu)
             environment["PYTHONUNBUFFERED"] = "1"
+            if args.alloc_conf:
+                environment["PYTORCH_CUDA_ALLOC_CONF"] = args.alloc_conf
             children[gpu] = subprocess.Popen(
                 command,
                 cwd=repo_root,
