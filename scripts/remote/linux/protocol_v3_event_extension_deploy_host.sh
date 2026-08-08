@@ -78,7 +78,8 @@ UPSTREAM_BUNDLE="$STAGE/xtraffic-v3-event-extension-upstreams.tar.gz"
 test -d "$LOCAL_UPSTREAM_ROOT/bist_dd94adf" \
   && test -d "$LOCAL_UPSTREAM_ROOT/igstgnn_64c6e24" \
   || die "locked upstream checkouts are missing"
-tar -czf "$UPSTREAM_BUNDLE" -C "$LOCAL_UPSTREAM_ROOT" \
+COPYFILE_DISABLE=1 tar --no-xattrs -czf "$UPSTREAM_BUNDLE" \
+  -C "$LOCAL_UPSTREAM_ROOT" \
   bist_dd94adf igstgnn_64c6e24 \
   || die "locked upstream bundle failed"
 UPSTREAM_BUNDLE_SHA="$(sha256sum "$UPSTREAM_BUNDLE" | awk '{print $1}')"
