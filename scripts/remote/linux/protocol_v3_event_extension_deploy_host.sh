@@ -32,7 +32,7 @@ cd "$REPO_ROOT"
 say() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1"; }
 die() { say "DEPLOY_BLOCKED $1"; exit 1; }
 
-ssh_command=(ssh -p "$SSH_PORT" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20)
+ssh_command=(ssh -n -p "$SSH_PORT" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20)
 scp_command=(scp -O -P "$SSH_PORT" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20)
 if [ -n "$SSH_PASSWORD" ]; then
   command -v sshpass >/dev/null || die "sshpass is required for password authentication"
