@@ -247,8 +247,12 @@ Alameda 与 Contra Costa 的 D2STGNN 与 STTN 均可原生 batch 32，峰值分�
 
 分配器设置属于运行契约的一部分，已写入 plan 并参与 plan_digest，因此不会出现「复核时是一种内存行为、实跑是另一种」的情况。
 
-### 尚未解决：回传路径
+### 回传、composite 与自动关机已武装
 
-这台是云主机，群晖 NAS 是内网地址，云主机无法直连。结果服务器当前可用空间约 2.9 GB，而 33 项结果预计 8 到 12 GB，同样不足。因此本次尚未武装自动回传，`LAUNCH_OK` 明确记录为 `nas_finalizer_skipped`。
+Hostinger `31.97.147.71` 被选为本轮结果服务器。实测空间约 49.6 GB，可用内存约 3.75 GB。已增加 4 GB swapfile，xray 服务在修改前后均为 active。隔离 Python 环境使用 Python 3.12.3 和 NumPy 2.4.6，与 5090 端 NumPy 版本一致。
 
-必须在训练结束前确定回传路径，否则会重演八卡机结果被困在数据盘的情况。可选方案为扩容结果服务器到 60 GB 以上、或经由本地机器中转到 NAS。
+5090 端专用 finalizer PID 为 `17206`。目标路径为 `/var/lib/xtraffic/published/protocol_v3_noleak_dedup/event_baseline_phase1/hosts/event_rtx5090x4_full33`。它只在 33/33、runner 零退出、无残留 trainer 和 source-host postflight 全部通过后上传。目标端再执行逐文件 SHA-256、精确 allowlist、原子提升与只读 composite。最后生成 CSV、Markdown 和 LaTeX 后才关闭 5090。任一失败都保持主机开机。
+
+composite 使用 systemd `MemoryMax=3221225472` 和 `MemorySwapMax=4294967296`。控制提交为 `314d45714b61465bce57e8a33c824ce6c47891fd`。finalizer、post-publish 包装、composite 和表格生成器的 SHA-256 分别为 `cfdf74306abb7caa8441ff36b487f94ebfa445991b7b1ceb34f98a3d2c9f70d0`、`28585a7d269218083e2ef83e440d5acf7cc7f0c03498c9d780ce3dd3400a4183`、`2da92291801e516f18ac335fd9a330e75561ce77b16e7897dbc47b99789e0d13` 和 `890006ec3f1132eeb1aa87cd42d4d668a0160b16c68de069d7304a5230a09993`。本地全仓回归为 571 passed 和 2 个既有 warning。
+
+18:24 新加坡时间复验为 0/33 completed、0 failed。四张卡仍在执行首批 Orange DGCRN、DCRNN、DSTAGNN 与 D2STGNN。当时最新完整 epoch 数分别为 2、3、4 和 2。首轮并发 epoch 慢于探针标定，原 18.7 小时只保留为排产估计。

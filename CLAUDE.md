@@ -1,6 +1,6 @@
 # XTraffic 项目导航与协作约定
 
-最近更新：2026-08-06 15:30，Asia/Singapore
+最近更新：2026-08-08 18:24，Asia/Singapore
 
 ## 新会话先读
 
@@ -37,7 +37,7 @@
 | v3 full-window baseline | `stopped_supplementary_1_of_33` | 只保留 Alameda HL 补充结果 |
 | v3 event baseline | `running_0_of_33_on_5090x4` | 全 33 项在单台 4 卡 5090 重跑，matrix `protocol_v3_event_full33_5090x4_v1` |
 
-本地全仓回归为 526 passed 和 2 个既有 warning。
+本地全仓回归为 571 passed 和 2 个既有 warning。
 
 ## v3 正式缓存与训练身份
 
@@ -62,9 +62,8 @@ v3 缓存已通过本地两次、5080 一次和 5090 一次严格复验。缓存
 
 - canonical manifest：`config/protocol_v3/table4_event_baselines_phase1_v1.json`
 - manifest SHA-256：`f9cdc1afa5f9f126a6a8094d4d4fc38bc565cf3de277dc4a7742f85a0d2f92ef`
-- 已验收：14/33
-- 5080：tasks001-010，共 10 项
-- Orange：HL、LSTM、GraphWaveNet、STTN，共 4 项
+- 当前正式单主机矩阵：0/33 completed，0 failed
+- 5080 的 10 项和旧 Orange 的 4 项只读保留，不进入当前矩阵
 - 尚未形成完整 baseline 表，BiST、IGSTGNN 和 NDR-Net 的 v3 event 适配尚未运行
 
 ### 5080 运行快照
@@ -121,11 +120,13 @@ Orange 4 项灾备已在群晖 NAS 通过 25/25 文件复验和原子改名。�
 
 2026-08-08 08:56 UTC 启动。完整记录见 `docs/audits/protocol_v3_event_cc_orange_multi_gpu_2026-08-07.md`。
 
-代码 SHA `d23a991a570fd1c59e3d2ac8315a5e4063e8097f`，plan_digest `23ed8507a1a301daef27bb613bc88d2070ec7052858de7d219e9c845c4d2cb82`，预计墙钟约 18.7 小时。三个地区全部同机，最终表不再是主机分层矩阵。5080 上已验收的 10 项 Alameda 与 4090 D 上的 4 项 Orange 保持只读，不进入本矩阵。
+代码 SHA `d23a991a570fd1c59e3d2ac8315a5e4063e8097f`，plan_digest `23ed8507a1a301daef27bb613bc88d2070ec7052858de7d219e9c845c4d2cb82`。三个地区全部同机，最终表不再是主机分层矩阵。5080 上已验收的 10 项 Alameda 与 4090 D 上的 4 项 Orange 保持只读，不进入本矩阵。原 18.7 小时是基于探针标定的排产估计，当前正式四路并发的首轮 epoch 慢于标定，完成时间须按后续实测更新。
 
 实测显示只有 Orange 的 D2STGNN 与 STTN 在 32 GB 上放不下 batch 32，两者使用 microbatch 16 并独占 GPU3。全程 `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`，该设置已写入 plan 并参与 plan_digest。
 
-尚未解决：云主机无法直连内网 NAS，结果服务器仅剩约 2.9 GB，回传路径必须在训练结束前定下来。
+回传路径已解决。Hostinger `31.97.147.71` 当前约有 49.6 GB 可用空间，已启用 4 GB swap，xray 保持 active。5090 上的 finalizer PID 为 `17206`，正在等待 33/33。成功后会执行 source-host postflight、隐藏 incoming 上传、逐文件 SHA-256、原子提升、远端只读 composite 和论文列结构表格生成，然后自动关闭 5090。任一环节失败都保持主机开机。
+
+远端 composite 在 systemd 中运行，`MemoryMax` 为 3 GB，`MemorySwapMax` 为 4 GB。控制提交为 `314d45714b61465bce57e8a33c824ce6c47891fd`。composite、表格生成器和 post-publish 包装的 SHA-256 分别为 `2da92291801e516f18ac335fd9a330e75561ce77b16e7897dbc47b99789e0d13`、`890006ec3f1132eeb1aa87cd42d4d668a0160b16c68de069d7304a5230a09993` 和 `28585a7d269218083e2ef83e440d5acf7cc7f0c03498c9d780ce3dd3400a4183`。
 
 ## 历史：v3 event 剩余分片的多卡主机计划
 
@@ -141,12 +142,10 @@ Orange 4 项灾备已在群晖 NAS 通过 25/25 文件复验和原子改名。�
 
 ## 下一步顺序
 
-1. 让 5080 完成 tasks011-022，随后由持久 finalizer 严格复验并回传 NAS。
-2. 在新多卡主机上部署并跑探针，确定卡数与是否需要微批，再启动 Contra Costa 与 Orange 的 22 项。
-3. 将结果服务器从 40 GB 扩容到至少 60 GB，更稳妥的目标是 80 GB。2026-08-06 15:30 复验时可用空间为 `2939228160` bytes，不足以支撑完整 Orange 分片和原子发布余量。
-4. 完成所有 source-host postflight、结果服务器正式发布和只读 composite，然后生成 33 项 v3 event baseline 表。
-5. 在同一 v3 event 样本、切分和指标上增加 BiST、IGSTGNN 和 NDR-Net 适配并重跑。
-6. 完成 BiST 与 BiST-NDR 30 epoch 配对矩阵的分析，再决定是否报告结构差异。
+1. 继续监控单主机 33 项矩阵，不在任务中途改动分片或训练契约。
+2. 等 finalizer 完成 source-host postflight、Hostinger 发布、只读 composite 和 33 行表格生成。
+3. 在同一 v3 event 样本、切分和指标上增加 BiST、IGSTGNN 和 NDR-Net 适配并重跑。这一步完成前，33 行 baseline 表还不是用户要求的最终全方法表。
+4. 最终表中明确标注 v3 无泄漏协议、seed 42 与单次运行口径，不与官方重叠协议的 Table 4 数字混用。
 
 ## 实验纪律
 

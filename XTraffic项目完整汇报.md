@@ -1102,6 +1102,18 @@ Alameda DGCRN 在 epoch 1 的最后一个单样本 partial batch 上失败。上
 
 5080 的 22 项声明结果分布在三个受控结果根。旧 phase1 根包含 tasks001-005，GraphWaveNet 恢复根包含 tasks006-009，DGCRN 恢复根包含 tasks010-022。它们分别绑定代码 `c16dc7a8208f834984e76a40a7b6f47f523c210b`、`e1bea79d41be4c923fa874d20f0e9fcbf4ed5dae` 和 `9dd7cac140d6af3ea0d504962f3ce4c99b4f8be2`。前两个 queue 因训练缺陷按设计遇错停止，所以验收不要求它们整队 completed，而是对每个已接受 task 单独重算 `config_hash`，从 prediction artifact 重算 masked metric，并核对 summary 与 completed state。最后的 13 项恢复根负责整队完成门。
 
+## 最新进展，2026-08-08 18:24 v3 event 单主机全 33 项与自动发布
+
+旧的 5080 和 4090 D 部分结果保持只读，不再进入本轮正式对比。正式矩阵 `protocol_v3_event_full33_5090x4_v1` 在单台 4 卡 RTX 5090 上从头执行 11 方法乘 3 地区，共 33 项。三地区使用同一训练代码、运行时和卡型，因此本轮结果不需要主机分层注脚。
+
+训练代码 SHA 为 `d23a991a570fd1c59e3d2ac8315a5e4063e8097f`，plan digest 为 `23ed8507a1a301daef27bb613bc88d2070ec7052858de7d219e9c845c4d2cb82`，cache bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。Orange D2STGNN 与 STTN 使用 microbatch 16，其余任务使用 batch 32。截至本快照为 0/33 completed、0 failed。GPU0 至 GPU3 分别在执行 Orange DGCRN、DCRNN、DSTAGNN 与 D2STGNN。首轮正式 epoch 慢于探针标定，原 18.7 小时只能作为排产估计，不再当成确定完成时间。
+
+结果发布已切换到 Hostinger `31.97.147.71`。该机约有 49.6 GB 可用空间，已启用 4 GB swap，xray 在配置前后均为 active。5090 finalizer PID `17206` 正在等待矩阵完成。它只在 queue 33/33、runner 零退出、无残留 trainer、source-host postflight、容量门、逐文件 SHA-256、精确 allowlist、隐藏 incoming 原子提升、远端 composite 和表格生成全部通过后关闭 5090。任一失败都保留主机开机。
+
+远端 composite 使用独立 systemd 单元，内存上限为 3 GB，swap 上限为 4 GB。它会在结果服务器上再次核对全部上传文件，重算每项结果的验收契约和预测指标，然后生成 33 行 CSV、Markdown 和 LaTeX。控制提交为 `314d45714b61465bce57e8a33c824ce6c47891fd`，本地全仓回归为 571 passed 和 2 个既有 warning。
+
+这张 33 行表只包含当前已接入 v3 event 协议的 11 个 baseline。用户要求的最终全方法论文表还需要 BiST、IGSTGNN 与 NDR-Net 使用同一无泄漏 event 样本、target-disjoint 切分、验证累计和指标口径重跑。官方重叠协议的旧数字不能填入 v3 表。
+
 通过 postflight 后，finalizer 根据精确 allowlist 上传到 NAS 的隐藏 incoming 目录。已存且同哈希的文件可直接复用，新文件先写 `.part`，每个文件都在 NAS 端核对 SHA-256。全树还需通过 `transfer.sha256`、精确文件名集和无符号链接检查，最后才同 volume 原子改名为 `/var/services/homes/xhlm/Drive/XTraffic/results/protocol_v3_noleak_dedup/event_baseline_phase1/hosts/event_rtx5080_alameda_contra`。任何训练、验收、容量、传输或 NAS 复验失败都会 fail closed，保留 5080 开机。
 
 专用 NAS SSH 密钥指纹为 `SHA256:Nx5BbjtFe9eRbSJh4hV/YN+reR2pw4hZuFLa9PLKMGc`。私钥只存放在 5080 的 `D:\t4\v3_event_nas_control\id_ed25519`，不进入仓库。直连 NAS 探针已成功。计划 SHA-256 为 `738bc46122f9af6466c1b605013b57c2cc05874aadcda6682cdf08fb4ed964c8`，postflight 与 finalizer SHA-256 为 `b8605c1725fe9de5ffc74d19815f460b19be812dd495f9814fe41a92eb5b1bf0` 和 `7295346daf7eb972ead64db27706f4234157ae783e68c69421097e6787349c70`。postflight 是跨平台 Python 实现，未来 5090 可复用相同验收合同和 NAS 原子发布流程，但必须使用独立 host ID、分片计划、目标目录和 SSH 密钥。这些 NAS 产物定位为可验证灾备，仍需结果服务器正式发布和最终 composite 才能恢复完整矩阵有效性。本地全仓回归为 526 passed 和 2 个既有 warning。

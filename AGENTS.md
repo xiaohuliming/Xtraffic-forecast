@@ -96,6 +96,12 @@ NDR 9 项正式树的结果服务器复验回执 SHA-256 为 `dbd9dcb355a3324707
 
 实验室共享主机、地址和密码统一明文维护在 `config/lab_hosts.env`，脚本直接加载该文件。私钥、个人令牌和个人账号凭据仍不得进入仓库。
 
+2026-08-08，v3 event baseline 正式执行改为单台 4 卡 RTX 5090 的完整 33 项矩阵。matrix ID 为 `protocol_v3_event_full33_5090x4_v1`，host ID 为 `event_rtx5090x4_full33`，训练代码 SHA 为 `d23a991a570fd1c59e3d2ac8315a5e4063e8097f`，plan digest 为 `23ed8507a1a301daef27bb613bc88d2070ec7052858de7d219e9c845c4d2cb82`。三地区、11 方法、seed 42 全部同机。Orange D2STGNN 与 STTN 使用 microbatch 16，其余任务使用 batch 32。当前为 0/33 completed、0 failed，四卡均在执行首批 Orange 任务。
+
+回传目标为 Hostinger `31.97.147.71`。该机已启用 4 GB swap，xray 保持 active。5090 finalizer PID `17206` 只在 33/33、runner 零退出、无残留 trainer、source-host postflight、目标端逐文件 SHA-256、原子提升和远端 composite 全部成功后关闭 5090。任一失败都保持主机开机。远端 composite 使用 systemd `MemoryMax=3G` 与 `MemorySwapMax=4G`。控制提交为 `314d45714b61465bce57e8a33c824ce6c47891fd`，本地全仓回归为 571 passed 和 2 个既有 warning。
+
+33 项基线完成后会先生成与论文同列结构的 CSV、Markdown 和 LaTeX。这仍不是最终全方法表。BiST、IGSTGNN 与 NDR-Net 必须接入同一 `protocol_v3_noleak_dedup` event 样本、target-disjoint 切分和指标契约后单独重跑。官方重叠协议下的旧数字不得填入该表。
+
 BiST 与 BiST-NDR 使用独立配对矩阵 `igstgnn_table4_bist_ndr_pair_18_v1`。矩阵 SHA-256 为 `90f5ceb4a0e1306d3f1ff11268b76220a289a37a922c6926665825a56c9cdeab`，配置 SHA-256 为 `b763fb35b392e265a410325efa0ef34afa3b0d16c7c2e56c71bc3243844e8764`。矩阵包含两种方法、三地区和种子 42、1、2，共 18 项。两个方法必须使用相同的 `partial_batch: retain`、测试观测集合、训练控制和全局验证 masked MAE。
 
 Mac 全仓回归为 480 passed 和 2 个既有 warning，5080 Windows 专项门为 5 passed。Orange 最大地区的两个真实 CUDA 完整优化步探针均通过。5080 正式队列于 2026-07-31 10:06:03 新加坡时间在独立 `D:\t4\bist_ndr_repo` 启动，计划任务名为 `XTraffic_BiST_NDR_Pair_v1`。首项 `pair001_bist_aligned_alameda_seed42` 已于 10:14 完成并通过五文件验收，H3、H6、H12 与 Average MAE 为 `11.205525`、`11.784402`、`12.675788` 与 `11.740657`。队列为 1/18，正在执行 `pair002_bist_aligned_alameda_seed1`。单项结果不能形成 BiST-NDR 性能结论。该矩阵不得写成 IGSTGNN 原论文方法，也不得与 v3 无泄露矩阵混合。
