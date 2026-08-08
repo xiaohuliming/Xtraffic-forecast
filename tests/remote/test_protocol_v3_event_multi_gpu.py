@@ -643,4 +643,5 @@ def test_launch_script_binds_the_finalizer_task_count_to_the_live_plan() -> None
     assert 'EXPECTED_TASKS:?' in launcher
     assert '[ "$LIVE_TASKS" = "$EXPECTED_TASKS" ]' in launcher
     assert "EXPECTED_TASKS='$EXPECTED_TASKS'" in launcher
+    assert "POST_PUBLISH_COMMAND='$POST_PUBLISH_COMMAND'" in launcher
     assert "--alloc-conf '$ALLOC_CONF'" in launcher

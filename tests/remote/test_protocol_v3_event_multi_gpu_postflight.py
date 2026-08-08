@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import sys
 from dataclasses import replace
 from pathlib import Path
@@ -78,6 +79,14 @@ def _write_result(*, task, manifest, results_root, cache_dir, graph_dir) -> None
         "code_sha": CODE_SHA,
         "config_hash": config_hash,
         "all": 1.0,
+        "h3": 1.0,
+        "h6": 1.0,
+        "h12": 1.0,
+        "mae_h": [1.0] * 12,
+        "rmse": 1.0,
+        "rmse_h": [1.0] * 12,
+        "mape": 10.0,
+        "mape_h": [10.0] * 12,
         "valid_count": 24,
     }
     (result_dir / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
@@ -109,11 +118,16 @@ def _write_result(*, task, manifest, results_root, cache_dir, graph_dir) -> None
     )
 
 
-def _build_host(tmp_path: Path, *, microbatch: dict[str, int] | None = None):
+def _build_host(
+    tmp_path: Path,
+    *,
+    microbatch: dict[str, int] | None = None,
+    regions: tuple[str, ...] = ("ContraCosta", "Orange"),
+):
     """Materialize a realistic interleaved four-GPU host and its NAS plan."""
     manifest = load_baseline_manifest(CANONICAL)
     calibration = load_calibration(CALIBRATION)
-    tasks = select_region_tasks(manifest, ["ContraCosta", "Orange"])
+    tasks = select_region_tasks(manifest, regions)
     microbatch = microbatch or {}
     shards = assign_tasks_lpt(
         tasks, 4, calibration, microbatch_sizes=microbatch
@@ -186,6 +200,50 @@ def _build_host(tmp_path: Path, *, microbatch: dict[str, int] | None = None):
     plan_path = tmp_path / "nas_backup_plan.json"
     plan_path.write_text(json.dumps(plan, indent=2), encoding="utf-8")
     return plan_path, plan, shards
+
+
+def _publish_verified_host(tmp_path: Path) -> tuple[Path, Path]:
+    from scripts.remote.windows import protocol_v3_event_host_postflight as pf
+
+    build_root = tmp_path / "source"
+    target = "v3e033_event_d2stgnn_orange_seed42"
+    plan_path, _, _ = _build_host(
+        build_root,
+        microbatch={target: 16},
+        regions=("Alameda", "ContraCosta", "Orange"),
+    )
+    control = build_root / "control_outputs"
+    report_path = control / "postflight.json"
+    file_list = control / "transfer.files"
+    transfer_manifest = control / "transfer.sha256"
+    marker = control / "_TRANSFER_COMPLETE.json"
+    report = pf.build_postflight_report(plan_path)
+    pf.write_outputs(
+        report=report,
+        report_path=report_path,
+        file_list_path=file_list,
+        transfer_manifest_path=transfer_manifest,
+        marker_path=marker,
+    )
+
+    published = tmp_path / "published" / report["host_id"]
+    results = published / "results"
+    metadata = published / "metadata"
+    metadata.mkdir(parents=True)
+    for record in report["files"]:
+        destination = results / record["path"]
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(record["source_path"], destination)
+    for source, name in (
+        (marker, "_TRANSFER_COMPLETE.json"),
+        (plan_path, plan_path.name),
+        (report_path, "postflight.json"),
+        (CANONICAL, CANONICAL.name),
+        (file_list, "transfer.files"),
+        (transfer_manifest, "transfer.sha256"),
+    ):
+        shutil.copyfile(source, metadata / name)
+    return published, plan_path
 
 
 def test_interleaved_four_gpu_host_passes_the_real_postflight(

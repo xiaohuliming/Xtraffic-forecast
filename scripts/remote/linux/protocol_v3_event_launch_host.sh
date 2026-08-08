@@ -26,6 +26,7 @@ NAS="${NAS:-}"
 NAS_BASE="${NAS_BASE:-/var/services/homes/xhlm/Drive/XTraffic/results/protocol_v3_noleak_dedup/event_baseline_phase1/hosts}"
 NAS_KEY="${NAS_KEY:-$REMOTE_CONTROL/id_ed25519}"
 SHUTDOWN_ON_SUCCESS="${SHUTDOWN_ON_SUCCESS:-0}"
+POST_PUBLISH_COMMAND="${POST_PUBLISH_COMMAND:-}"
 
 say() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1"; }
 die() { say "LAUNCH_BLOCKED $1"; exit 1; }
@@ -109,6 +110,7 @@ cd '$REMOTE_REPO'
 REPO='$REMOTE_REPO' CONTROL_ROOT='$REMOTE_CONTROL' RESULTS_ROOT='$REMOTE_RESULTS' \
 PYTHON='$REMOTE_PYTHON' NAS='$NAS' NAS_BASE='$NAS_BASE' HOST_ID='$HOST_ID' \
 SSH_KEY='$NAS_KEY' EXPECTED_TASKS='$EXPECTED_TASKS' SHUTDOWN_ON_SUCCESS='$SHUTDOWN_ON_SUCCESS' \
+POST_PUBLISH_COMMAND='$POST_PUBLISH_COMMAND' \
 nohup bash scripts/remote/linux/protocol_v3_event_nas_finalize.sh \
   >>'$REMOTE_CONTROL/finalize.out' 2>&1 &
 echo \$! > '$REMOTE_CONTROL/finalize.pid'

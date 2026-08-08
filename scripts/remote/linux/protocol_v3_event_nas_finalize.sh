@@ -18,6 +18,7 @@ RESERVE_BYTES="${RESERVE_BYTES:-134217728}"
 POLL_SECONDS="${POLL_SECONDS:-60}"
 LOG="${LOG:-$CONTROL_ROOT/finalize.log}"
 SHUTDOWN_ON_SUCCESS="${SHUTDOWN_ON_SUCCESS:-0}"
+POST_PUBLISH_COMMAND="${POST_PUBLISH_COMMAND:-}"
 
 REPORT="$CONTROL_ROOT/postflight.json"
 FILE_LIST="$CONTROL_ROOT/transfer.files"
@@ -214,7 +215,23 @@ finish_success() {
   exit 0
 }
 
+run_post_publish() {
+  [ -n "$POST_PUBLISH_COMMAND" ] || return 0
+  case "$POST_PUBLISH_COMMAND" in
+    /*) : ;;
+    *) blocked "POST_PUBLISH_COMMAND must be an absolute path" ;;
+  esac
+  case "$POST_PUBLISH_COMMAND" in
+    *[!A-Za-z0-9_./-]*) blocked "POST_PUBLISH_COMMAND contains unsafe characters" ;;
+  esac
+  log "POST_PUBLISH_START command=$POST_PUBLISH_COMMAND"
+  ssh_run "$POST_PUBLISH_COMMAND '$REMOTE_FINAL'" \
+    || blocked "remote post-publish composite failed"
+  log "POST_PUBLISH_OK"
+}
+
 if verify_remote_tree "$REMOTE_FINAL" "$files_digest" "$plan_sha"; then
+  run_post_publish
   finish_success "already_verified_bound_to_this_round"
 fi
 
@@ -289,4 +306,5 @@ sync" >/dev/null
 verify_remote_tree "$REMOTE_FINAL" "$files_digest" "$plan_sha" \
   || blocked "promoted NAS tree failed exact verification"
 
+run_post_publish
 finish_success "published"

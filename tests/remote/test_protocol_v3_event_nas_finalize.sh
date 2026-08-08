@@ -32,6 +32,9 @@ fi
 if printf '%s' "$payload" | grep -q 'sha256sum .* awk'; then
   printf 'MISSING\n'
 fi
+if printf '%s' "$*" | grep -q '/opt/xtraffic/bin/full33-post-publish'; then
+  exit "${FAKE_POST_PUBLISH_RC:-0}"
+fi
 exit "${FAKE_SSH_RC:-0}"
 SH
 chmod +x "$bin_root/ssh"
@@ -120,6 +123,8 @@ run_case() {
   EXPECTED_TASKS=22 \
   POLL_SECONDS=1 \
   SHUTDOWN_ON_SUCCESS="${CASE_SHUTDOWN:-0}" \
+  POST_PUBLISH_COMMAND="${CASE_POST_PUBLISH_COMMAND:-}" \
+  FAKE_POST_PUBLISH_RC="${FAKE_POST_PUBLISH_RC:-0}" \
   FAKE_SSH_RC="${FAKE_SSH_RC:-0}" \
   FAKE_POSTFLIGHT_RC="${FAKE_POSTFLIGHT_RC:-0}" \
   FAKE_POSTFLIGHT_HOST="${FAKE_POSTFLIGHT_HOST:-event_test_host}" \
@@ -209,6 +214,21 @@ setup_case "$case_dir" completed 22 22 null 0 0
 CASE_SHUTDOWN=1 run_case "$case_dir"
 [ -e "$case_dir/shutdown.marker" ] || { echo "FAIL opt-in shutdown did not fire"; exit 1; }
 echo "ok  shutdown only fires when explicitly requested"
+
+case_dir="$tmp_root/post_publish_failure"
+setup_case "$case_dir" completed 22 22 null 0 0
+CASE_POST_PUBLISH_COMMAND=/opt/xtraffic/bin/full33-post-publish \
+FAKE_POST_PUBLISH_RC=1 \
+  expect_blocked "post-publish composite failure blocks" "$case_dir"
+
+case_dir="$tmp_root/post_publish_success"
+setup_case "$case_dir" completed 22 22 null 0 0
+CASE_POST_PUBLISH_COMMAND=/opt/xtraffic/bin/full33-post-publish run_case "$case_dir"
+grep -q '/opt/xtraffic/bin/full33-post-publish' "$case_dir/actions.log" || {
+  echo "FAIL post-publish command did not run"; exit 1; }
+grep -q "FINALIZE_SUCCESS" "$case_dir/stdout.log" || {
+  echo "FAIL post-publish success did not finalize"; exit 1; }
+echo "ok  post-publish composite gates finalizer success"
 
 case_dir="$tmp_root/stale_unbound_tree"
 setup_case "$case_dir" completed 22 22 null 0 0
