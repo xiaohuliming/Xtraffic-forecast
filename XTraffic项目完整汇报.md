@@ -1114,6 +1114,24 @@ Alameda DGCRN 在 epoch 1 的最后一个单样本 partial batch 上失败。上
 
 这张 33 行表只包含当前已接入 v3 event 协议的 11 个 baseline。用户要求的最终全方法论文表还需要 BiST、IGSTGNN 与 NDR-Net 使用同一无泄漏 event 样本、target-disjoint 切分、验证累计和指标口径重跑。官方重叠协议的旧数字不能填入 v3 表。
 
+## 最新进展，2026-08-08 18:55 无泄漏 42 行对比表已完成训练前准备
+
+最终论文对比表固定为 14 种方法乘 3 地区，共 42 行。正在 4 卡 RTX 5090 上运行的 33 项包含 HL、LSTM、DCRNN、AGCRN、STGCN、GraphWaveNet、ASTGCN、STTN、DSTAGNN、DGCRN 和 D²STGNN。新增 9 项包含 BiST、IGSTGNN 和 NDR-Net 的三地区 seed 42 运行。新增矩阵使用 `config/protocol_v3/table4_event_extensions_v1.json`，与 33 项保持独立结果根、独立 postflight 和独立 composite。
+
+新数据适配器直接懒加载 v3 schema 3 数值缓存，不再生成 IGSTGNN 旧 object-pickle split。训练和验证 batch 只含输入、目标、显式 observation mask、时间特征与模型必需的事故特征。`affected_mask` 不进入训练或验证，只在测试预测完成后从 analysis labels 读取，用于既有 result validator 要求的事后分组 artifact。
+
+NDR-Net 的 flow normalization、weekly climatology、残差标准差与逐节点残差标准差只使用 `0:train_end` 中的唯一 raw timestamps 和显式 `flow_mask` 拟合。这避免了按重叠窗口重复计权，也不再把真实零值默认当成缺失。BiST 与 IGSTGNN 使用同一 train-only flow normalization。IGSTGNN 的公开静态 support 保留为模型图定义，但仅在三地区 `sensors.csv order` 与 v3 `region_idx` 完全相等，且 `station_id` 与 `node_order[region_idx]` 完全相等后加载。
+
+训练契约为 `protocol_v3_noleak_dedup`、cache schema 3、seed 42、30 epoch 上限、target-disjoint event split、显式观测 mask 和全部有效观测点累计的 validation masked MAE。三个扩展方法保留各自公开或项目原生 batch、optimizer、scheduler 与结构。因此这是同数据协议和同评测口径的方法对比，不应误写成所有超参完全相同。
+
+BiST 与 IGSTGNN 的前向调用不传入 future target。IGSTGNN 的 curriculum horizon 按上游 engine 相同的步骤顺序更新，当前有效 horizon 的 loss 分母只包含该范围中的显式有效观测点。Orange NDR-Net 使用 microbatch 8，这一有效值显式写入正式命令、探针与 config hash。
+
+控制层已包含正式 support 哈希绑定、九项真实 CUDA 探针、按实测耗时的 LPT 装箱、plan digest 复核、九项 source-host postflight、结果服务器严格回传、发布后只读 composite 与 42 行合表器。合表器仅在 33 项与 9 项的 verified index 协议、cache bundle ID 与 digest 一致时工作。输出为 CSV、Markdown、LaTeX 和 manifest。
+
+本地全仓回归为 589 passed 和 2 个既有 warning，所有远程 shell fail-closed 门禁通过。正式 9 项尚未运行，因此还没有 BiST、IGSTGNN 或 NDR-Net 的 v3 论文数字。下一步是租用多卡 RTX 5090，运行部署、九项探针和 plan-only，在人工复核 plan digest 后启动训练。
+
+同一时点只读复验现有 33 项矩阵仍为 0/33 completed、0 failed。Orange DGCRN、DCRNN、DSTAGNN 与 D²STGNN 分别完成 epoch 3、4、6 与 3。finalizer PID `17206` 正常等待，现有训练 checkout 没有被新实现改写。
+
 通过 postflight 后，finalizer 根据精确 allowlist 上传到 NAS 的隐藏 incoming 目录。已存且同哈希的文件可直接复用，新文件先写 `.part`，每个文件都在 NAS 端核对 SHA-256。全树还需通过 `transfer.sha256`、精确文件名集和无符号链接检查，最后才同 volume 原子改名为 `/var/services/homes/xhlm/Drive/XTraffic/results/protocol_v3_noleak_dedup/event_baseline_phase1/hosts/event_rtx5080_alameda_contra`。任何训练、验收、容量、传输或 NAS 复验失败都会 fail closed，保留 5080 开机。
 
 专用 NAS SSH 密钥指纹为 `SHA256:Nx5BbjtFe9eRbSJh4hV/YN+reR2pw4hZuFLa9PLKMGc`。私钥只存放在 5080 的 `D:\t4\v3_event_nas_control\id_ed25519`，不进入仓库。直连 NAS 探针已成功。计划 SHA-256 为 `738bc46122f9af6466c1b605013b57c2cc05874aadcda6682cdf08fb4ed964c8`，postflight 与 finalizer SHA-256 为 `b8605c1725fe9de5ffc74d19815f460b19be812dd495f9814fe41a92eb5b1bf0` 和 `7295346daf7eb972ead64db27706f4234157ae783e68c69421097e6787349c70`。postflight 是跨平台 Python 实现，未来 5090 可复用相同验收合同和 NAS 原子发布流程，但必须使用独立 host ID、分片计划、目标目录和 SSH 密钥。这些 NAS 产物定位为可验证灾备，仍需结果服务器正式发布和最终 composite 才能恢复完整矩阵有效性。本地全仓回归为 526 passed 和 2 个既有 warning。

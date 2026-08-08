@@ -44,6 +44,12 @@ from scripts.remote.windows.protocol_v3_baseline_runner import (  # noqa: E402
     build_baseline_invocation,
     load_baseline_manifest,
 )
+from scripts.remote.windows.protocol_v3_event_extension_runner import (  # noqa: E402
+    ExtensionInputs,
+    build_extension_invocation,
+    load_extension_manifest,
+    verify_extension_support,
+)
 
 
 class PostflightError(RuntimeError):
@@ -279,8 +285,15 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
     )
     if sha256_file(canonical_path) != expected_manifest_sha:
         raise PostflightError("canonical manifest SHA-256 mismatch")
+    runner_kind = plan.get("runner_kind", "baseline")
+    if runner_kind not in {"baseline", "event_extension"}:
+        raise PostflightError(f"unsupported runner_kind: {runner_kind!r}")
     try:
-        manifest = load_baseline_manifest(canonical_path)
+        manifest = (
+            load_baseline_manifest(canonical_path)
+            if runner_kind == "baseline"
+            else load_extension_manifest(canonical_path)
+        )
     except runner.ManifestError as exc:
         raise PostflightError(str(exc)) from exc
 
@@ -300,7 +313,68 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
     python_executable = _required_string(plan, "python_executable")
 
     layout = _source_layout(plan)
-    task_overrides = _task_overrides(plan, manifest)
+    if runner_kind == "baseline":
+        task_overrides = _task_overrides(plan, manifest)
+        extension = None
+        support_report: dict[str, object] = {}
+    else:
+        if plan.get("task_overrides") is not None:
+            raise PostflightError("event_extension does not accept task_overrides")
+        task_overrides = {}
+        support_manifest = _resolve_path(
+            plan_path, _required_string(plan, "support_manifest")
+        )
+        expected_support_sha = _required_sha(
+            plan, "support_manifest_sha256", 64
+        )
+        if sha256_file(support_manifest) != expected_support_sha:
+            raise PostflightError("support manifest SHA-256 mismatch")
+        support_root = _resolve_path(
+            plan_path, _required_string(plan, "support_root")
+        )
+        node_order = _resolve_path(
+            plan_path, _required_string(plan, "node_order")
+        )
+        try:
+            verified_support = verify_extension_support(
+                support_manifest_path=support_manifest,
+                support_root=support_root,
+                node_order=node_order,
+            )
+        except runner.ManifestError as exc:
+            raise PostflightError(str(exc)) from exc
+        raw_options = plan.get("extension_options")
+        if not isinstance(raw_options, dict) or set(raw_options) != {
+            "igstgnn_data_parallel", "max_microbatch_size"
+        }:
+            raise PostflightError("extension_options must contain the exact contract")
+        data_parallel = raw_options.get("igstgnn_data_parallel")
+        microbatch_size = raw_options.get("max_microbatch_size")
+        if not isinstance(data_parallel, bool):
+            raise PostflightError("igstgnn_data_parallel must be boolean")
+        if (
+            isinstance(microbatch_size, bool)
+            or not isinstance(microbatch_size, int)
+            or microbatch_size < 0
+        ):
+            raise PostflightError("max_microbatch_size must be a nonnegative integer")
+        extension = ExtensionInputs(
+            support_root=verified_support.support_root,
+            node_order=verified_support.node_order,
+            support_manifest_sha256=verified_support.manifest_sha256,
+            igstgnn_data_parallel=data_parallel,
+            max_microbatch_size=microbatch_size,
+            cache_dir=cache_dir,
+            graph_dir=graph_dir,
+            python_executable=python_executable,
+        )
+        support_report = {
+            "support_manifest": str(support_manifest),
+            "support_manifest_sha256": expected_support_sha,
+            "support_root": str(verified_support.support_root),
+            "node_order": str(verified_support.node_order),
+            "extension_options": dict(raw_options),
+        }
     raw_sources = plan.get("sources")
     if not isinstance(raw_sources, list) or not raw_sources:
         raise PostflightError("sources must be a nonempty list")
@@ -372,8 +446,12 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
                 manifest, task_overrides.get(task_id)
             )
             probe = results_root / ".staging" / task_id / "__POSTFLIGHT__"
-            invocation = build_baseline_invocation(
-                task, task_manifest, run_inputs, probe
+            invocation = (
+                build_baseline_invocation(task, task_manifest, run_inputs, probe)
+                if runner_kind == "baseline"
+                else build_extension_invocation(
+                    task, task_manifest, extension, probe  # type: ignore[arg-type]
+                )
             )
             config_hash = runner.derive_config_hash(
                 task,
@@ -476,6 +554,7 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
         raise PostflightError("export allowlist is empty")
     return {
         "status": "verified",
+        "runner_kind": runner_kind,
         "matrix_id": _required_string(plan, "matrix_id"),
         "host_id": _required_string(plan, "host_id"),
         "protocol_version": protocol_version,
@@ -497,6 +576,7 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
         "total_bytes": sum(int(record["size_bytes"]) for record in file_records),
         "files_digest": _sha256_json(file_records),
         "files": file_records,
+        **support_report,
     }
 
 

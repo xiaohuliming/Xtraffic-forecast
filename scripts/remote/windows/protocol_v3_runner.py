@@ -380,6 +380,7 @@ def load_manifest(
     valid_regions = {"Alameda", "ContraCosta", "Orange"}
     valid_kinds = {
         "baseline_zoo",
+        "event_extension",
         "staeformer_deseason",
         "staeformer_icsf",
         "graphwavenet",

@@ -1,6 +1,6 @@
 # XTraffic 项目导航与协作约定
 
-最近更新：2026-08-08 18:24，Asia/Singapore
+最近更新：2026-08-08 18:55，Asia/Singapore
 
 ## 新会话先读
 
@@ -36,8 +36,9 @@
 | BiST 与 NDR-Net native-100 | `verified_native100_dual_host_18` | index `27746081f2450d5f8ae7fe950000a23d147bd117ac8b8a5fa3ac18fdfc12314c` |
 | v3 full-window baseline | `stopped_supplementary_1_of_33` | 只保留 Alameda HL 补充结果 |
 | v3 event baseline | `running_0_of_33_on_5090x4` | 全 33 项在单台 4 卡 5090 重跑，matrix `protocol_v3_event_full33_5090x4_v1` |
+| v3 event 全方法扩展 | `implementation_verified_waiting_for_gpu` | BiST、IGSTGNN 与 NDR-Net 三地区共 9 项，尚未启动正式训练 |
 
-本地全仓回归为 571 passed 和 2 个既有 warning。
+本地全仓回归为 589 passed 和 2 个既有 warning。
 
 ## v3 正式缓存与训练身份
 
@@ -64,7 +65,7 @@ v3 缓存已通过本地两次、5080 一次和 5090 一次严格复验。缓存
 - manifest SHA-256：`f9cdc1afa5f9f126a6a8094d4d4fc38bc565cf3de277dc4a7742f85a0d2f92ef`
 - 当前正式单主机矩阵：0/33 completed，0 failed
 - 5080 的 10 项和旧 Orange 的 4 项只读保留，不进入当前矩阵
-- 尚未形成完整 baseline 表，BiST、IGSTGNN 和 NDR-Net 的 v3 event 适配尚未运行
+- 尚未形成完整 baseline 表，BiST、IGSTGNN 和 NDR-Net 的 v3 event 适配已通过本地验证，尚未运行正式 9 项
 
 ### 5080 运行快照
 
@@ -128,6 +129,16 @@ Orange 4 项灾备已在群晖 NAS 通过 25/25 文件复验和原子改名。�
 
 远端 composite 在 systemd 中运行，`MemoryMax` 为 3 GB，`MemorySwapMax` 为 4 GB。控制提交为 `314d45714b61465bce57e8a33c824ce6c47891fd`。composite、表格生成器和 post-publish 包装的 SHA-256 分别为 `2da92291801e516f18ac335fd9a330e75561ce77b16e7897dbc47b99789e0d13`、`890006ec3f1132eeb1aa87cd42d4d668a0160b16c68de069d7304a5230a09993` 和 `28585a7d269218083e2ef83e440d5acf7cc7f0c03498c9d780ce3dd3400a4183`。
 
+18:55 新加坡时间复验仍为 0/33 completed、0 failed。Orange DGCRN、DCRNN、DSTAGNN 与 D2STGNN 分别完成 epoch 3、4、6 与 3。finalizer PID `17206` 持续正常等待。
+
+## v3 无泄漏全方法 42 行表已完成代码准备
+
+最终表的固定范围为 11 个已在运行的 baseline，加 BiST、IGSTGNN 和 NDR-Net，乘三地区，共 42 行。全部使用 `protocol_v3_noleak_dedup`、cache schema 3、seed 42、30 epoch 上限、target-disjoint event split、显式观测 mask 和全部有效观测点累计的 validation masked MAE。各模型保留公开配方的 batch、optimizer 和 scheduler，表中会明确记录这些差异。
+
+新增 canonical manifest 为 `config/protocol_v3/table4_event_extensions_v1.json`，精确包含 9 项。数据适配器不物化 object-pickle split，不把 `affected_mask` 放入任何训练或验证 batch。NDR-Net 的 normalization 和周内时段中位数只在唯一 raw train timestamps 上拟合，并使用 v3 显式 `flow_mask`。IGSTGNN 静态支持文件仅在 `sensors.csv order == region_idx` 且 `station_id == node_order[region_idx]` 逐项完全一致后加载。
+
+新增部署、真实 CUDA 探针、LPT 多卡控制、source-host postflight、严格回传、发布后 composite 与 42 行合表器。两个发布树必须分别验证，且协议、cache bundle ID 和 digest 全部相同，才允许输出 CSV、Markdown、LaTeX 和可追溯 manifest。正式 9 项尚未训练，不得填入任何预测数字。
+
 ## 历史：v3 event 剩余分片的多卡主机计划
 
 2026-08-07 布防记录。
@@ -144,7 +155,7 @@ Orange 4 项灾备已在群晖 NAS 通过 25/25 文件复验和原子改名。�
 
 1. 继续监控单主机 33 项矩阵，不在任务中途改动分片或训练契约。
 2. 等 finalizer 完成 source-host postflight、Hostinger 发布、只读 composite 和 33 行表格生成。
-3. 在同一 v3 event 样本、切分和指标上增加 BiST、IGSTGNN 和 NDR-Net 适配并重跑。这一步完成前，33 行 baseline 表还不是用户要求的最终全方法表。
+3. 租用新多卡 5090 主机，先运行 9 项扩展的真实 CUDA 探针和 plan-only，人工复核 plan digest 后再启动正式训练。
 4. 最终表中明确标注 v3 无泄漏协议、seed 42 与单次运行口径，不与官方重叠协议的 Table 4 数字混用。
 
 ## 实验纪律

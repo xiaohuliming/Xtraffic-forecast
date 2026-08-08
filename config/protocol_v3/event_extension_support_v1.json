@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "support_id": "protocol_v3_event_extensions_official_model_support_v1",
+  "node_order": {
+    "bytes": 135904,
+    "sha256": "b69aae88cacbca49e0f0e4355009127f0ef3961fe7f689d2cee80d7172d486b7"
+  },
+  "regions": {
+    "Alameda": {
+      "adj_matrix.npy": {"bytes": 2171656, "sha256": "65eeff069b51e12f2c28bfffeda1cb24bb7202ead39d7b324e588ecf90a444d9"},
+      "desc_mapping.json": {"bytes": 900, "sha256": "272ea2df52590e50eef3891dc0e1014cb4969b9eb3b25cb968c40cab82c8987c"},
+      "sensors.csv": {"bytes": 119390, "sha256": "41a2f48e085bed843f359493d252b1cd4fc9c213be31e925bfe3fe7c982fdd9a"},
+      "type_mapping.json": {"bytes": 83, "sha256": "29387f266711b117cdc5ecb395993cef51d4d09ecf37ec6e4b3565513c5a00d2"}
+    },
+    "Contra_Costa": {
+      "adj_matrix.npy": {"bytes": 1968256, "sha256": "de2a74cc981853ff81dd494d6e7d212b7ae524fb9d6079c91323e56bcb22254f"},
+      "desc_mapping.json": {"bytes": 885, "sha256": "9a2ff89b2b0057f8617652d305eee79eb3f04686d4bfc58821ed3271ae8a7b71"},
+      "sensors.csv": {"bytes": 126049, "sha256": "682f3cdf75e643f0b37356ab69cbabb27389be5089f41d3b2cbc4bede3332094"},
+      "type_mapping.json": {"bytes": 83, "sha256": "6a836068bfcbea9868add90535e8efe329d684a074436ef47c5a53c257fd2a9d"}
+    },
+    "Orange": {
+      "adj_matrix.npy": {"bytes": 7840928, "sha256": "c1494ef2b4f16538c384639c2493517638acdd4ac2dc2ba5a71adebdd4362a06"},
+      "desc_mapping.json": {"bytes": 981, "sha256": "733852d2b52cb641c4e5d3bda4eac3a12cf9a3f6bff3e55161605cc9f34c46a9"},
+      "sensors.csv": {"bytes": 217013, "sha256": "f6ae8a6e4d887b36ae9bc673a5434d570c03dde97973d37256652c7e4636882f"},
+      "type_mapping.json": {"bytes": 83, "sha256": "eb1bd1dcb6bc4063eb692fcbcbc34a36308846900fa564b41e8bb90cca1e7e63"}
+    }
+  }
+}

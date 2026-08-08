@@ -91,6 +91,8 @@ for name in ("table.csv", "table.md", "table.tex"):
         raise SystemExit(f"existing table hash is invalid: {name}")
 PY
   printf 'FULL33_POST_PUBLISH_OK reused_verified=%s\n' "$FINAL_ROOT"
+  REPO="$REPO" PYTHON="$PYTHON" \
+    bash "$REPO/scripts/remote/linux/protocol_v3_event_merge_verified.sh"
   exit 0
 fi
 
@@ -99,3 +101,5 @@ trap - EXIT
 sync
 printf 'FULL33_POST_PUBLISH_OK published=%s index_sha256=%s\n' \
   "$FINAL_ROOT" "$index_sha"
+REPO="$REPO" PYTHON="$PYTHON" \
+  bash "$REPO/scripts/remote/linux/protocol_v3_event_merge_verified.sh"

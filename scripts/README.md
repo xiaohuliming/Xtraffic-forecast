@@ -123,6 +123,23 @@ posthoc
 | `remote/linux/protocol_v3_event_launch_host.sh` | 已布防，未启动 | 复验远端身份与标定后启动控制器，并按需武装 NAS finalizer |
 | `remote/linux/protocol_v3_event_nas_finalize.sh` | 已布防，未启动 | Linux 版回传 finalizer。复用 `protocol_v3_event_host_postflight.py` 契约，远程命令 base64 传输，逐文件 SHA-256、`.part` 续传、精确树比对、本轮摘要绑定和原子改名 |
 
+### v3 event 全方法扩展入口
+
+以下入口用于 BiST、IGSTGNN 和 NDR-Net 的三地区无泄漏扩展，共 9 项。它们不会改动正在运行的 33 项 baseline checkout。
+
+| 脚本 | 状态 | 用途 |
+|---|---|---|
+| `protocol_v3_event_extension_data.py` | 已验证 | v3 数值缓存懒加载、显式 mask、train-only normalization 与 climatology、IGSTGNN 节点对齐 |
+| `train_protocol_v3_event_extension.py` | 已验证，未训练 | BiST、IGSTGNN 和 NDR-Net 的 seed 42、30 epoch v3 event 训练入口 |
+| `remote/windows/protocol_v3_event_extension_runner.py` | 已验证，未训练 | 九项 canonical manifest、support 哈希绑定、config hash 和任务验收 |
+| `remote/linux/protocol_v3_event_extension_gpu_probe.py` | 已验证，未远程运行 | 复用正式 loader 与 model factory 的真实 CUDA 完整优化步探针 |
+| `remote/linux/protocol_v3_event_extension_multi_gpu.py` | 已验证，未训练 | 按九项实测耗时 LPT 装箱，写分片 manifest、聚合 queue、runner exit code 和回传计划 |
+| `remote/linux/protocol_v3_event_extension_deploy_host.sh` | 已验证，等待租卡 | 部署 clean commit、缓存与 support，执行远程门禁和九项探针，只生成待复核 plan |
+| `remote/linux/protocol_v3_event_extension_launch_host.sh` | 已验证，等待 plan | 只在 plan digest 一致时启动多卡 controller，并武装 9/9 严格发布与自动关机 |
+| `remote/linux/protocol_v3_event_extension_composite.py` | 已验证 | 结果服务器上对已发布 9 项执行全树只读复验 |
+| `protocol_v3_event_comparison_report.py` | 已验证 | 只在 verified baseline33 与 extension9 绑定同一协议和 cache bundle 时生成 42 行 CSV、Markdown、LaTeX 和 manifest |
+| `remote/linux/protocol_v3_event_extension_post_publish.sh` | 已验证 | 在受内存限制的 systemd 单元中运行 extension composite，并在 baseline index 存在时触发最终合表 |
+
 `protocol_v3_event_host_postflight.py` 为支持多卡主机做了两处向后兼容扩展。计划可声明 `source_layout`，默认 `canonical_contiguous` 与原行为完全一致，多卡主机用 `interleaved`，此时改为要求每个 source 内部按 canonical 顺序、source 按 source_id 排序、并集等于 canonical 选择集。计划还可声明 `task_overrides`，按 task_id 记录微批大小，postflight 重算 `config_hash` 时应用同一覆盖。漏声明或声明错误都会因哈希不符而 fail closed。5080 现役 finalizer 用的是部署在该机上的独立副本，不受本次修改影响。
 
 启动前必须人工复核 `plan.json`，并把其中的 `plan_digest` 通过 `EXPECTED_PLAN_DIGEST` 传给启动脚本。该摘要只覆盖决策字段，不含时间戳，控制器在正式启动时会重算并拒绝任何与复核不一致的计划。

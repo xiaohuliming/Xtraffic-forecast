@@ -117,7 +117,6 @@ def build_split(region: str, data_dir: Path, out_dir: Path,
         split = f["split"][:]
         sample_start = f["sample_start"][:]
         incident_feat = f["incident_feat"][:]                  # (S, M_max, C_e)
-        affected_mask = f["analysis_labels/affected_mask"][:]  # (S, N)
         n_active = f["n_active_incidents"][:]
         T_h = int(f.attrs["T_h"]); T_p = int(f.attrs["T_p"])
         N = int(f.attrs["N"]); M_max = int(f.attrs["M_max"])
@@ -279,7 +278,6 @@ def build_split(region: str, data_dir: Path, out_dir: Path,
                 "_history_start": hist_start,
                 "_forecast_origin": anchor,
                 "_protocol_version": PROTOCOL_VERSION,
-                "_affected_mask": affected_mask[i].astype(np.bool_),   # carried for our eval (NOT used by IGSTGNN)
             })
 
         out_file = out_region_dir / f"incident_data_{split_name}.npy"

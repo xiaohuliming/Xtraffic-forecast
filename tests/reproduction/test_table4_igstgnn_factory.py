@@ -326,3 +326,21 @@ def test_igstgnn_factory_applies_official_seed_before_model_initialization(
         torch.testing.assert_close(first_state[name], second_state[name])
     assert torch.get_num_threads() == 3
     assert first.provenance["runtime_contract"]["torch_num_threads"] == 3
+
+
+def test_igstgnn_factory_records_bounded_v3_seed_and_epoch_overrides(tmp_path):
+    arguments, _ = _factory_arguments(tmp_path)
+    result = build_igstgnn_factory(
+        **arguments,
+        manifest_frozen_seed=42,
+        max_epochs_override=30,
+    )
+
+    assert result.effective_config["seed"] == 42
+    assert result.effective_config["max_epochs"] == 30
+    assert result.engine._max_epochs == 30
+    assert result.provenance["seed_applied"] == 42
+    assert result.provenance["effective_overrides"] == {
+        "max_epochs": {"from": 100, "to": 30},
+        "seed": {"from": 2025, "to": 42},
+    }

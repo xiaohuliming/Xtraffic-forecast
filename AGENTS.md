@@ -10,7 +10,11 @@
 
 当前 XTraffic 的旧缓存、v2 缓存和既有结果均不得写成已验证论文结论，也不得覆盖旧 summary。v2 已冻结。除原有泄露问题外，复审还确认了重复 forecast origin、active event 跨 split、验证指标累计错误和训练契约不完整。5080 已停止 v2 旧队列，最先完成的 4 个 v2 结果只可视为 `contaminated preliminary`。
 
-当前修复协议为 `protocol_v3_noleak_dedup`，cache schema 为 3。正式缓存构建代码 SHA 为 clean commit `29159f626494de52c69b36fe5bba9854f13cb56c`。最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。训练 checkout 在 Mac、5080 与 5090 均为 143 passed 和 1 个既有 warning，当前本地全仓回归为 502 passed 和 2 个既有 warning。三地区正式缓存已在 `outputs/dist_net/region_data_v3_noleak_dedup` 落盘，并通过本地两次、5080 一次及 5090 一次严格复验。bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。正式样本数与 train、val、test 切分为 Alameda 45760 和 32001/6954/6805，ContraCosta 23337 和 16414/3472/3451，Orange 60015 和 42372/9098/8545。
+当前修复协议为 `protocol_v3_noleak_dedup`，cache schema 为 3。正式缓存构建代码 SHA 为 clean commit `29159f626494de52c69b36fe5bba9854f13cb56c`。最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。训练 checkout 在 Mac、5080 与 5090 均为 143 passed 和 1 个既有 warning，当前本地全仓回归为 589 passed 和 2 个既有 warning。三地区正式缓存已在 `outputs/dist_net/region_data_v3_noleak_dedup` 落盘，并通过本地两次、5080 一次及 5090 一次严格复验。bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。正式样本数与 train、val、test 切分为 Alameda 45760 和 32001/6954/6805，ContraCosta 23337 和 16414/3472/3451，Orange 60015 和 42372/9098/8545。
+
+2026-08-08，无泄漏论文对比表的最终范围固定为 14 方法乘 3 地区，共 42 行。正在 4 卡 RTX 5090 上执行的 11 个 baseline 共 33 项属于 matrix `protocol_v3_event_full33_5090x4_v1`。18:55 新加坡时间仍为 0/33 completed、0 failed，Orange DGCRN、DCRNN、DSTAGNN 与 D2STGNN 分别完成 epoch 3、4、6 与 3，finalizer PID 为 `17206`。该 checkout 固定在 `d23a991a570fd1c59e3d2ac8315a5e4063e8097f`，不得中途改动。
+
+剩余 BiST、IGSTGNN 和 NDR-Net 乘 3 地区共 9 项使用独立 matrix `protocol_v3_event_extensions_5090x4_v1`。canonical manifest 为 `config/protocol_v3/table4_event_extensions_v1.json`。数据适配器只读取 v3 数值缓存和显式 mask，`affected_mask` 仅在测试预测完成后用于事后分组。NDR-Net 的 normalization 和 climatology 只在唯一 raw train timestamps 上拟合。IGSTGNN 静态 support 逐项绑定 v3 `region_idx` 与全局 `node_order`。部署、CUDA 探针、多卡 LPT、postflight、严格回传、composite 和 42 行合表器已完成本地回归，正式 9 项尚未训练。当前本地全仓为 589 passed 和 2 个既有 warning。
 
 2026-07-20 22:23 新加坡时间起，正式运行口径由“5090 同机 45 项”改为双机分层矩阵。两台机器保持独立结果根、独立 `config_hash`、独立 postflight 和运行时 provenance。最终只能称为 `host-stratified distributed 45`，不得称为 homogeneous 5090 matrix。固定分片不交叉且并集严格为 45 项，所有直接 A/B 比较组保持在同一台机器。
 

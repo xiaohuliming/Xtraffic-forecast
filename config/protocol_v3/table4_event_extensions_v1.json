@@ -1,0 +1,29 @@
+{
+  "manifest_version": 1,
+  "protocol_version": "protocol_v3_noleak_dedup",
+  "cache_schema_version": 3,
+  "default_results_root": "outputs/protocol_v3_noleak_dedup/remote_runs/table4_event_extensions_v1",
+  "default_cache_dir": "outputs/dist_net/region_data_v3_noleak_dedup",
+  "default_graph_dir": "outputs/region_graphs",
+  "training": {
+    "epochs": 30,
+    "patience": 20,
+    "device": "cuda:0",
+    "seed": 42,
+    "checkpoint_metric": "global_validation_masked_mae_all_valid_points",
+    "evaluation_mask": "explicit_v3_flow_mask",
+    "partial_batch": "retain",
+    "training_analysis_labels": false
+  },
+  "tasks": [
+    {"task_id":"v3x001_event_bist_alameda_seed42","kind":"event_extension","region":"Alameda","model":"bist","variant":"v3_event_aligned","seed":42,"sampling_protocol":"event","output_dir":"tasks/v3x001_event_bist_alameda_seed42"},
+    {"task_id":"v3x002_event_igstgnn_alameda_seed42","kind":"event_extension","region":"Alameda","model":"igstgnn","variant":"v3_event_aligned","seed":42,"sampling_protocol":"event","output_dir":"tasks/v3x002_event_igstgnn_alameda_seed42"},
+    {"task_id":"v3x003_event_ndr_net_alameda_seed42","kind":"event_extension","region":"Alameda","model":"ndr_net","variant":"v3_event_aligned","seed":42,"sampling_protocol":"event","output_dir":"tasks/v3x003_event_ndr_net_alameda_seed42"},
+    {"task_id":"v3x004_event_bist_contracosta_seed42","kind":"event_extension","region":"ContraCosta","model":"bist","variant":"v3_event_aligned","seed":42,"sampling_protocol":"event","output_dir":"tasks/v3x004_event_bist_contracosta_seed42"},
+    {"task_id":"v3x005_event_igstgnn_contracosta_seed42","kind":"event_extension","region":"ContraCosta","model":"igstgnn","variant":"v3_event_aligned","seed":42,"sampling_protocol":"event","output_dir":"tasks/v3x005_event_igstgnn_contracosta_seed42"},
+    {"task_id":"v3x006_event_ndr_net_contracosta_seed42","kind":"event_extension","region":"ContraCosta","model":"ndr_net","variant":"v3_event_aligned","seed":42,"sampling_protocol":"event","output_dir":"tasks/v3x006_event_ndr_net_contracosta_seed42"},
+    {"task_id":"v3x007_event_bist_orange_seed42","kind":"event_extension","region":"Orange","model":"bist","variant":"v3_event_aligned","seed":42,"sampling_protocol":"event","output_dir":"tasks/v3x007_event_bist_orange_seed42"},
+    {"task_id":"v3x008_event_igstgnn_orange_seed42","kind":"event_extension","region":"Orange","model":"igstgnn","variant":"v3_event_aligned","seed":42,"sampling_protocol":"event","output_dir":"tasks/v3x008_event_igstgnn_orange_seed42"},
+    {"task_id":"v3x009_event_ndr_net_orange_seed42","kind":"event_extension","region":"Orange","model":"ndr_net","variant":"v3_event_aligned","seed":42,"sampling_protocol":"event","output_dir":"tasks/v3x009_event_ndr_net_orange_seed42"}
+  ]
+}

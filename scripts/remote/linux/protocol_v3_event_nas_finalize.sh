@@ -8,6 +8,7 @@ RESULTS_ROOT="${RESULTS_ROOT:?RESULTS_ROOT is required}"
 PYTHON="${PYTHON:-python3}"
 PLAN="${PLAN:-$CONTROL_ROOT/nas_backup_plan.json}"
 CANONICAL_MANIFEST="${CANONICAL_MANIFEST:-$REPO/config/protocol_v3/table4_event_baselines_phase1_v1.json}"
+SUPPORT_MANIFEST="${SUPPORT_MANIFEST:-}"
 POSTFLIGHT_SCRIPT="${POSTFLIGHT_SCRIPT:-$REPO/scripts/remote/windows/protocol_v3_event_host_postflight.py}"
 NAS="${NAS:?NAS is required}"
 NAS_BASE="${NAS_BASE:?NAS_BASE is required}"
@@ -30,6 +31,10 @@ REMOTE_INCOMING="$NAS_BASE/.$HOST_ID.incoming"
 REMOTE_FINAL="$NAS_BASE/$HOST_ID"
 PLAN_NAME="$(basename "$PLAN")"
 MANIFEST_NAME="$(basename "$CANONICAL_MANIFEST")"
+SUPPORT_MANIFEST_NAME=""
+if [ -n "$SUPPORT_MANIFEST" ]; then
+  SUPPORT_MANIFEST_NAME="$(basename "$SUPPORT_MANIFEST")"
+fi
 
 mkdir -p "$CONTROL_ROOT"
 : >>"$LOG"
@@ -121,6 +126,11 @@ sync" >/dev/null
 
 verify_remote_tree() {
   local root="$1" expect_files_digest="$2" expect_plan_sha="$3"
+  local expected_metadata
+  expected_metadata="'_TRANSFER_COMPLETE.json' '$PLAN_NAME' 'postflight.json' '$MANIFEST_NAME' 'transfer.files' 'transfer.sha256'"
+  if [ -n "$SUPPORT_MANIFEST_NAME" ]; then
+    expected_metadata="$expected_metadata '$SUPPORT_MANIFEST_NAME'"
+  fi
   ssh_script "set -eu
 root='$root'
 test -d \"\$root/results\"
@@ -133,7 +143,7 @@ trap 'rm -rf \"\$tmp\"' EXIT
 cut -c67- ../metadata/transfer.sha256 | LC_ALL=C sort > \"\$tmp/expected\"
 find . -type f | sed 's#^./##' | LC_ALL=C sort > \"\$tmp/actual\"
 cmp \"\$tmp/expected\" \"\$tmp/actual\"
-printf '%s\n' '_TRANSFER_COMPLETE.json' '$PLAN_NAME' 'postflight.json' '$MANIFEST_NAME' 'transfer.files' 'transfer.sha256' | LC_ALL=C sort > \"\$tmp/expected_meta\"
+printf '%s\n' $expected_metadata | LC_ALL=C sort > \"\$tmp/expected_meta\"
 find ../metadata -maxdepth 1 -type f | sed 's#^.*/##' | LC_ALL=C sort > \"\$tmp/actual_meta\"
 cmp \"\$tmp/expected_meta\" \"\$tmp/actual_meta\"
 grep -F '\"files_digest\": \"$expect_files_digest\"' ../metadata/_TRANSFER_COMPLETE.json >/dev/null
@@ -146,6 +156,10 @@ for required in "$PYTHON" "$POSTFLIGHT_SCRIPT" "$PLAN" "$CANONICAL_MANIFEST" "$S
     *) command -v "$required" >/dev/null || blocked "required command is missing: $required" ;;
   esac
 done
+if [ -n "$SUPPORT_MANIFEST" ]; then
+  [ -f "$SUPPORT_MANIFEST" ] || blocked "support manifest is missing: $SUPPORT_MANIFEST"
+  [ ! -L "$SUPPORT_MANIFEST" ] || blocked "support manifest cannot be a symlink"
+fi
 
 while true; do
   if [ ! -f "$QUEUE_STATUS" ]; then
@@ -177,7 +191,7 @@ while true; do
   fi
   runner_code="$(tr -d '[:space:]' <"$RUNNER_EXITCODE")"
   [ "$runner_code" = "0" ] || blocked "runner exit code is $runner_code"
-  trainers="$( { pgrep -f 'protocol_v3_baseline_runner|protocol_v3_event_multi_gpu|train_baseline_zoo|train_graphwavenet' 2>/dev/null || true; } | wc -l | tr -d '[:space:]')"
+  trainers="$( { pgrep -f 'protocol_v3_baseline_runner|protocol_v3_event_multi_gpu|protocol_v3_event_extension_runner|protocol_v3_event_extension_multi_gpu|train_protocol_v3_event_extension|train_baseline_zoo|train_graphwavenet' 2>/dev/null || true; } | wc -l | tr -d '[:space:]')"
   if [ "${trainers:-0}" != "0" ]; then
     log "WAIT trainer_processes=$trainers"
     sleep "$POLL_SECONDS"
@@ -296,6 +310,10 @@ for entry in \
   send_verified_file "$local_path" "$(local_sha256 "$local_path")" \
     "$REMOTE_INCOMING/metadata/$remote_name"
 done
+if [ -n "$SUPPORT_MANIFEST" ]; then
+  send_verified_file "$SUPPORT_MANIFEST" "$(local_sha256 "$SUPPORT_MANIFEST")" \
+    "$REMOTE_INCOMING/metadata/$SUPPORT_MANIFEST_NAME"
+fi
 
 verify_remote_tree "$REMOTE_INCOMING" "$files_digest" "$plan_sha" \
   || blocked "incoming NAS tree failed exact verification"

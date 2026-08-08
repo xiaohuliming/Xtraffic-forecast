@@ -21,6 +21,11 @@ from scripts.remote.windows.protocol_v3_baseline_runner import (
     build_baseline_invocation,
     load_baseline_manifest,
 )
+from scripts.remote.windows.protocol_v3_event_extension_runner import (
+    ExtensionInputs,
+    build_extension_invocation,
+    load_extension_manifest,
+)
 
 
 EXPECTED_STATUS = "verified_event_full33_single_host_33"
@@ -240,12 +245,17 @@ def _atomic_create(path: Path, payload: Mapping[str, object]) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def build_full33_composite_index(
+def _build_event_composite_index(
     *,
     published_root: Path | str,
     output_path: Path | str,
     expected_matrix_id: str,
     expected_host_id: str,
+    runner_kind: str,
+    expected_tasks: int,
+    expected_sources: int,
+    expected_status: str,
+    execution_layout: str,
 ) -> dict[str, object]:
     root = Path(published_root).expanduser()
     if root.is_symlink() or not root.is_dir():
@@ -268,23 +278,25 @@ def build_full33_composite_index(
         "matrix_id": expected_matrix_id,
         "host_id": expected_host_id,
         "protocol_version": EXPECTED_PROTOCOL,
-        "validated_tasks": EXPECTED_TASKS,
+        "validated_tasks": expected_tasks,
         "source_layout": "interleaved",
+        "runner_kind": runner_kind,
     }
     for name, expected in identity.items():
-        if report.get(name) != expected:
+        observed = report.get(name, "baseline") if name == "runner_kind" else report.get(name)
+        if observed != expected:
             raise Full33CompositeError(
-                f"{name} mismatch: expected {expected!r}, got {report.get(name)!r}"
+                f"{name} mismatch: expected {expected!r}, got {observed!r}"
             )
     if _require_int(report, "cache_schema_version") != 3:
         raise Full33CompositeError("cache_schema_version must be 3")
     sources = report.get("sources")
     tasks = report.get("tasks")
     files = report.get("files")
-    if not isinstance(sources, list) or len(sources) != EXPECTED_SOURCES:
-        raise Full33CompositeError("source-host report must contain four GPU sources")
-    if not isinstance(tasks, list) or len(tasks) != EXPECTED_TASKS:
-        raise Full33CompositeError("source-host report must contain 33 tasks")
+    if not isinstance(sources, list) or len(sources) != expected_sources:
+        raise Full33CompositeError("source-host report has the wrong GPU source count")
+    if not isinstance(tasks, list) or len(tasks) != expected_tasks:
+        raise Full33CompositeError("source-host report has the wrong task count")
     if not isinstance(files, list) or not files:
         raise Full33CompositeError("source-host report has no files")
     if report.get("files_digest") != _sha256_json(files):
@@ -302,6 +314,9 @@ def build_full33_composite_index(
         "transfer.files",
         "transfer.sha256",
     }
+    if runner_kind == "event_extension":
+        support_source = Path(_require_string(report, "support_manifest"))
+        expected_metadata.add(support_source.name)
     actual_metadata = {path.name for path in metadata_root.iterdir()}
     if actual_metadata != expected_metadata:
         raise Full33CompositeError("metadata allowlist mismatch")
@@ -318,17 +333,19 @@ def build_full33_composite_index(
         ("matrix_id", expected_matrix_id),
         ("host_id", expected_host_id),
         ("protocol_version", EXPECTED_PROTOCOL),
-        ("expected_task_count", EXPECTED_TASKS),
+        ("expected_task_count", expected_tasks),
         ("source_layout", "interleaved"),
+        ("runner_kind", runner_kind),
     ):
-        if plan.get(name) != expected:
+        observed = plan.get(name, "baseline") if name == "runner_kind" else plan.get(name)
+        if observed != expected:
             raise Full33CompositeError(f"plan {name} mismatch")
 
     marker_expected = {
         "status": "verified",
         "matrix_id": expected_matrix_id,
         "host_id": expected_host_id,
-        "validated_tasks": EXPECTED_TASKS,
+        "validated_tasks": expected_tasks,
         "file_count": report.get("file_count"),
         "total_bytes": report.get("total_bytes"),
         "files_digest": report.get("files_digest"),
@@ -364,9 +381,13 @@ def build_full33_composite_index(
         ):
             raise Full33CompositeError(f"result hash or size mismatch: {relative}")
 
-    manifest = load_baseline_manifest(manifest_path)
-    if len(manifest.tasks) != EXPECTED_TASKS:
-        raise Full33CompositeError("canonical manifest is not the 33-task matrix")
+    manifest = (
+        load_baseline_manifest(manifest_path)
+        if runner_kind == "baseline"
+        else load_extension_manifest(manifest_path)
+    )
+    if len(manifest.tasks) != expected_tasks:
+        raise Full33CompositeError("canonical manifest has the wrong task count")
     if manifest.protocol_version != EXPECTED_PROTOCOL:
         raise Full33CompositeError("canonical protocol mismatch")
     proof_by_task: dict[str, Mapping[str, object]] = {}
@@ -391,8 +412,9 @@ def build_full33_composite_index(
         if source_id in source_reports:
             raise Full33CompositeError(f"duplicate source: {source_id}")
         source_reports[source_id] = item
-    if sorted(source_reports) != ["gpu00", "gpu01", "gpu02", "gpu03"]:
-        raise Full33CompositeError("GPU source identities must be gpu00 through gpu03")
+    expected_source_ids = [f"gpu{index:02d}" for index in range(expected_sources)]
+    if sorted(source_reports) != expected_source_ids:
+        raise Full33CompositeError("GPU source identities do not match the plan")
 
     cache_bundle_id = _require_string(report, "cache_bundle_id")
     cache_bundle_digest = _require_hex(report, "cache_bundle_digest", 64)
@@ -402,6 +424,28 @@ def build_full33_composite_index(
     overrides = report.get("task_overrides")
     if not isinstance(overrides, dict):
         raise Full33CompositeError("task_overrides must be an object")
+    extension: ExtensionInputs | None = None
+    if runner_kind == "event_extension":
+        support_name = Path(_require_string(report, "support_manifest")).name
+        support_path = metadata_root / support_name
+        support_sha = _require_hex(report, "support_manifest_sha256", 64)
+        if _sha256_file(support_path) != support_sha:
+            raise Full33CompositeError("support manifest SHA-256 mismatch")
+        if plan.get("support_manifest_sha256") != support_sha:
+            raise Full33CompositeError("plan support manifest binding mismatch")
+        options = report.get("extension_options")
+        if not isinstance(options, dict):
+            raise Full33CompositeError("extension_options are missing")
+        extension = ExtensionInputs(
+            support_root=Path(_require_string(report, "support_root")),
+            node_order=Path(_require_string(report, "node_order")),
+            support_manifest_sha256=support_sha,
+            igstgnn_data_parallel=options.get("igstgnn_data_parallel") is True,
+            max_microbatch_size=_require_int(options, "max_microbatch_size"),
+            cache_dir=cache_dir,
+            graph_dir=graph_dir,
+            python_executable=python_executable,
+        )
 
     task_records: list[dict[str, object]] = []
     code_shas: set[str] = set()
@@ -430,11 +474,13 @@ def build_full33_composite_index(
         if raw_override is not None and not isinstance(raw_override, dict):
             raise Full33CompositeError(f"invalid task override: {task.task_id}")
         task_manifest = _manifest_for_task(manifest, raw_override)
-        invocation = build_baseline_invocation(
-            task,
-            task_manifest,
-            run_inputs,
-            local_source_root / ".composite_probe" / task.task_id,
+        probe = local_source_root / ".composite_probe" / task.task_id
+        invocation = (
+            build_baseline_invocation(task, task_manifest, run_inputs, probe)
+            if runner_kind == "baseline"
+            else build_extension_invocation(
+                task, task_manifest, extension, probe  # type: ignore[arg-type]
+            )
         )
         config_hash = runner.derive_config_hash(
             task,
@@ -522,8 +568,9 @@ def build_full33_composite_index(
         raise Full33CompositeError("composite index output must be outside published root")
     payload: dict[str, object] = {
         "index_schema_version": 1,
-        "status": EXPECTED_STATUS,
-        "execution_layout": "single_host_four_gpu_interleaved",
+        "status": expected_status,
+        "execution_layout": execution_layout,
+        "runner_kind": runner_kind,
         "verified_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "matrix_id": expected_matrix_id,
         "host_id": expected_host_id,
@@ -542,6 +589,47 @@ def build_full33_composite_index(
     }
     _atomic_create(output, payload)
     return payload
+
+
+def build_full33_composite_index(
+    *,
+    published_root: Path | str,
+    output_path: Path | str,
+    expected_matrix_id: str,
+    expected_host_id: str,
+) -> dict[str, object]:
+    return _build_event_composite_index(
+        published_root=published_root,
+        output_path=output_path,
+        expected_matrix_id=expected_matrix_id,
+        expected_host_id=expected_host_id,
+        runner_kind="baseline",
+        expected_tasks=EXPECTED_TASKS,
+        expected_sources=EXPECTED_SOURCES,
+        expected_status=EXPECTED_STATUS,
+        execution_layout="single_host_four_gpu_interleaved",
+    )
+
+
+def build_extension9_composite_index(
+    *,
+    published_root: Path | str,
+    output_path: Path | str,
+    expected_matrix_id: str,
+    expected_host_id: str,
+    expected_sources: int,
+) -> dict[str, object]:
+    return _build_event_composite_index(
+        published_root=published_root,
+        output_path=output_path,
+        expected_matrix_id=expected_matrix_id,
+        expected_host_id=expected_host_id,
+        runner_kind="event_extension",
+        expected_tasks=9,
+        expected_sources=expected_sources,
+        expected_status="verified_event_extensions_single_host_9",
+        execution_layout="single_host_multi_gpu_interleaved",
+    )
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:

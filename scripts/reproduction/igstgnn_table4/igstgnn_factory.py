@@ -299,6 +299,8 @@ def build_igstgnn_factory(
     dataset: str,
     data_path: Path | str,
     data_parallel: bool = False,
+    manifest_frozen_seed: int | None = None,
+    max_epochs_override: int | None = None,
 ) -> IGSTGNNFactoryResult:
     profile_set, effective, dimensions, data_directory = _validate_inputs(
         profile_effective=profile_effective,
@@ -310,12 +312,38 @@ def build_igstgnn_factory(
         dataset=dataset,
         data_path=data_path,
     )
+    runtime_effective = copy.deepcopy(effective)
+    effective_overrides: dict[str, dict[str, int]] = {}
+    if manifest_frozen_seed is not None:
+        if (
+            isinstance(manifest_frozen_seed, bool)
+            or not isinstance(manifest_frozen_seed, int)
+            or not 0 <= manifest_frozen_seed < 999999
+        ):
+            raise ValueError("manifest_frozen_seed must be an integer in [0, 999999)")
+        effective_overrides["seed"] = {
+            "from": int(effective["seed"]),
+            "to": manifest_frozen_seed,
+        }
+        runtime_effective["seed"] = manifest_frozen_seed
+    if max_epochs_override is not None:
+        if (
+            isinstance(max_epochs_override, bool)
+            or not isinstance(max_epochs_override, int)
+            or not 1 <= max_epochs_override <= int(effective["max_epochs"])
+        ):
+            raise ValueError("max_epochs_override must be within the native cap")
+        effective_overrides["max_epochs"] = {
+            "from": int(effective["max_epochs"]),
+            "to": max_epochs_override,
+        }
+        runtime_effective["max_epochs"] = max_epochs_override
     source = verify_pristine_upstream_checkout(
         source_id=IGSTGNN_SOURCE_ID,
         checkout=IGSTGNN_CHECKOUT,
     )
     upstream = _load_upstream()
-    _apply_upstream_seed(effective["seed"])
+    _apply_upstream_seed(runtime_effective["seed"])
     device_value = torch.device(device)
     adjacency_value = _coerce_adjacency(adjacency, node_num)
     normalized_adjacency = upstream.normalize_adj_mx(
@@ -399,11 +427,11 @@ def build_igstgnn_factory(
         optimizer=optimizer,
         scheduler=scheduler,
         clip_grad_value=optimizer_config["gradient_clip"],
-        max_epochs=effective["max_epochs"],
+        max_epochs=runtime_effective["max_epochs"],
         patience=effective["patience"],
         log_dir=str(output_path),
         logger=logger,
-        seed=effective["seed"],
+        seed=runtime_effective["seed"],
         cl_step=model_config["curriculum_interval"] * train_batches,
         warm_step=model_config["warm_epochs"] * train_batches,
         horizon=sequence["output_steps"],
@@ -419,7 +447,8 @@ def build_igstgnn_factory(
         "lock_digest": source["lock_digest"],
         "profile_id": profile["profile_id"],
         "profile_config_hash": profile_set["config_hashes"]["igstgnn"],
-        "seed_applied": effective["seed"],
+        "seed_applied": runtime_effective["seed"],
+        "effective_overrides": effective_overrides,
         "runtime_contract": {
             "torch_num_threads": 3,
             "cuda_deterministic": False,
@@ -442,6 +471,6 @@ def build_igstgnn_factory(
         engine=engine,
         optimizer=optimizer,
         scheduler=scheduler,
-        effective_config=effective,
+        effective_config=runtime_effective,
         provenance=provenance,
     )

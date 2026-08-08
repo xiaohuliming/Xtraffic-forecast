@@ -256,3 +256,23 @@ Hostinger `31.97.147.71` 被选为本轮结果服务器。实测空间约 49.6 G
 composite 使用 systemd `MemoryMax=3221225472` 和 `MemorySwapMax=4294967296`。控制提交为 `314d45714b61465bce57e8a33c824ce6c47891fd`。finalizer、post-publish 包装、composite 和表格生成器的 SHA-256 分别为 `cfdf74306abb7caa8441ff36b487f94ebfa445991b7b1ceb34f98a3d2c9f70d0`、`28585a7d269218083e2ef83e440d5acf7cc7f0c03498c9d780ce3dd3400a4183`、`2da92291801e516f18ac335fd9a330e75561ce77b16e7897dbc47b99789e0d13` 和 `890006ec3f1132eeb1aa87cd42d4d668a0160b16c68de069d7304a5230a09993`。本地全仓回归为 571 passed 和 2 个既有 warning。
 
 18:24 新加坡时间复验为 0/33 completed、0 failed。四张卡仍在执行首批 Orange DGCRN、DCRNN、DSTAGNN 与 D2STGNN。当时最新完整 epoch 数分别为 2、3、4 和 2。首轮并发 epoch 慢于探针标定，原 18.7 小时只保留为排产估计。
+
+## 2026-08-08 18:55 无泄漏扩展矩阵实现复审
+
+现有 33 项矩阵仍为 0/33 completed、0 failed。Orange DGCRN、DCRNN、DSTAGNN 与 D2STGNN 最新完整 epoch 数分别为 3、4、6 和 3。四张卡的已分配显存仍为 27871、9597、11551 与 31083 MiB，finalizer PID `17206` 持续每 60 秒记录等待。
+
+用户要求的最终无泄漏对比表固定为 42 行。新增矩阵 `protocol_v3_event_extensions_5090x4_v1` 包含 BiST、IGSTGNN 和 NDR-Net 乘三地区共 9 项，canonical manifest 为 `config/protocol_v3/table4_event_extensions_v1.json`。该矩阵尚未部署或训练。
+
+实现复审确认以下数据边界。
+
+1. loader 只从 v3 schema 3 数值缓存按 split index 懒加载，不产生可携带隐藏标签的 object-pickle 样本。
+2. train 和 validation batch 不含 `affected_mask` 或任何 analysis-only 字段。该 mask 仅在 test prediction 完成后读取。
+3. NDR-Net 的 normalization 与 weekly climatology 仅使用 `0:train_end` 唯一 raw timestamps 和显式 `flow_mask`。
+4. IGSTGNN support 必须同时通过逐字节 support manifest 和逐节点 identity 对齐。三地区已验证 `sensors.csv order == region_idx` 与 `station_id == node_order[region_idx]`。
+5. validation MAE 使用全部有效观测点统一累计，partial batch 在 train、validation 与 test 全部保留。
+6. BiST 与 IGSTGNN 前向不传入 future target。IGSTGNN 训练按上游 engine 的相同顺序更新 curriculum horizon，再只对当前 horizon 中的显式有效观测点反传。
+7. Orange NDR-Net 的有效 microbatch 8 同时写入正式 trainer 命令、CUDA 探针与 invocation config hash，不存在隐式容量覆盖。
+
+控制链已覆盖九项真实 CUDA 探针、实测标定、LPT 分片、plan digest 复核、任务级 config hash、source-host postflight、隐藏 incoming、逐文件 SHA-256、原子提升、发布后只读 composite 和成功后自动关机。扩展 composite 通过后，42 行合表器还会核对它与 33 项 index 的 protocol、cache schema、bundle ID 和 bundle digest。任一不一致都拒绝生成表格。
+
+本地全仓回归为 589 passed 和 2 个既有 warning。所有 `tests/remote/*.sh` 失败关闭门禁通过。
