@@ -35,7 +35,7 @@
 | BiST 与 BiST-NDR 30 epoch 配对 | `runner_completed_unanalyzed_18_of_18` | 尚未生成配对性能结论 |
 | BiST 与 NDR-Net native-100 | `verified_native100_dual_host_18` | index `27746081f2450d5f8ae7fe950000a23d147bd117ac8b8a5fa3ac18fdfc12314c` |
 | v3 full-window baseline | `stopped_supplementary_1_of_33` | 只保留 Alameda HL 补充结果 |
-| v3 event baseline | `running_14_of_33` | 5080 为 10 项，Orange 为 4 项 |
+| v3 event baseline | `running_0_of_33_on_5090x4` | 全 33 项在单台 4 卡 5090 重跑，matrix `protocol_v3_event_full33_5090x4_v1` |
 
 本地全仓回归为 526 passed 和 2 个既有 warning。
 
@@ -117,9 +117,19 @@ Orange 4 项灾备已在群晖 NAS 通过 25/25 文件复验和原子改名。�
 
 完整数字、每份 artifact 哈希、主机分片和 incident 请查看 `XTraffic项目完整汇报.md` 与 `docs/audits/igstgnn_table4_*.md`。
 
-## v3 event 剩余分片的多卡主机计划
+## v3 event 全 33 项在 4 卡 5090 上运行中
 
-2026-08-07 布防，未部署，未启动。完整记录见 `docs/audits/protocol_v3_event_cc_orange_multi_gpu_2026-08-07.md`。
+2026-08-08 08:56 UTC 启动。完整记录见 `docs/audits/protocol_v3_event_cc_orange_multi_gpu_2026-08-07.md`。
+
+代码 SHA `d23a991a570fd1c59e3d2ac8315a5e4063e8097f`，plan_digest `23ed8507a1a301daef27bb613bc88d2070ec7052858de7d219e9c845c4d2cb82`，预计墙钟约 18.7 小时。三个地区全部同机，最终表不再是主机分层矩阵。5080 上已验收的 10 项 Alameda 与 4090 D 上的 4 项 Orange 保持只读，不进入本矩阵。
+
+实测显示只有 Orange 的 D2STGNN 与 STTN 在 32 GB 上放不下 batch 32，两者使用 microbatch 16 并独占 GPU3。全程 `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`，该设置已写入 plan 并参与 plan_digest。
+
+尚未解决：云主机无法直连内网 NAS，结果服务器仅剩约 2.9 GB，回传路径必须在训练结束前定下来。
+
+## 历史：v3 event 剩余分片的多卡主机计划
+
+2026-08-07 布防记录。
 
 八卡 4090 D 实例已在无卡模式恢复，数据盘完好，Orange 4 项正式结果与 6 项 staging 都在。但代码复核确认 `train_baseline_zoo.py` 与 event runner 都没有 checkpoint 续跑路径，那 6 项 staging 必须从 epoch 0 重跑。
 

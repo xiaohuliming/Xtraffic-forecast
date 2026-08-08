@@ -224,3 +224,31 @@ Alameda 与 Contra Costa 的 D2STGNN 与 STTN 均可原生 batch 32，峰值分�
 ### 控制层补充修复
 
 微批任务原设计强制独占一张卡。33 项下这会把可用卡数从 4 压到 2，是过严约束。已改为按覆盖值分组：同一微批值的任务可以共卡，不同值必须分卡，无覆盖的任务不得与有覆盖的任务同卡。分组后按各组负载比例分配卡数，组内仍用最长任务优先装箱。
+
+
+## 2026-08-08 正式启动
+
+主机 `autodl-container-c0e9kcmfc7-9d9148dc`，4 张 RTX 5090 32GB。
+
+| 项 | 值 |
+|---|---|
+| matrix_id | `protocol_v3_event_full33_5090x4_v1` |
+| host_id | `event_rtx5090x4_full33` |
+| 代码 SHA | `d23a991a570fd1c59e3d2ac8315a5e4063e8097f` |
+| plan_digest | `23ed8507a1a301daef27bb613bc88d2070ec7052858de7d219e9c845c4d2cb82` |
+| cache bundle | `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4` |
+| bundle digest | `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5` |
+| 分配器 | `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` |
+| 微批覆盖 | `v3e033_event_d2stgnn_orange_seed42=16`，`v3e030_event_sttn_orange_seed42=16` |
+
+启动前门禁：远端 checkout 与 `d23a991` 精确一致且 worktree clean，远端 229 项 tests/remote 通过，正式缓存在该主机通过严格只读审计并返回一致的 bundle digest，人工复核 plan 后由 plan_digest 锁定，控制器重算不符即拒绝启动。
+
+08:56:23 UTC 启动，controller PID 13432，状态 running。09:00 复验四卡均在训练首批任务，GPU0 DGCRN 显存 27,871 MiB，GPU3 D2STGNN 微批 16 显存 31,083 MiB，与探针预测一致。聚合队列为 running、0/33、失败 0。
+
+分配器设置属于运行契约的一部分，已写入 plan 并参与 plan_digest，因此不会出现「复核时是一种内存行为、实跑是另一种」的情况。
+
+### 尚未解决：回传路径
+
+这台是云主机，群晖 NAS 是内网地址，云主机无法直连。结果服务器当前可用空间约 2.9 GB，而 33 项结果预计 8 到 12 GB，同样不足。因此本次尚未武装自动回传，`LAUNCH_OK` 明确记录为 `nas_finalizer_skipped`。
+
+必须在训练结束前确定回传路径，否则会重演八卡机结果被困在数据盘的情况。可选方案为扩容结果服务器到 60 GB 以上、或经由本地机器中转到 NAS。
