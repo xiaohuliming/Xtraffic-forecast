@@ -1,6 +1,6 @@
 # XTraffic 项目导航与协作约定
 
-最近更新：2026-08-08 22:18，Asia/Singapore
+最近更新：2026-08-09 12:10，Asia/Singapore
 
 ## 新会话先读
 
@@ -36,10 +36,10 @@
 | BiST 与 BiST-NDR 30 epoch 配对 | `runner_completed_unanalyzed_18_of_18` | 尚未生成配对性能结论 |
 | BiST 与 NDR-Net native-100 | `verified_native100_dual_host_18` | index `27746081f2450d5f8ae7fe950000a23d147bd117ac8b8a5fa3ac18fdfc12314c` |
 | v3 full-window baseline | `stopped_supplementary_1_of_33` | 只保留 Alameda HL 补充结果 |
-| v3 event baseline | `running_0_of_33_on_5090x4` | 全 33 项在单台 4 卡 5090 重跑，matrix `protocol_v3_event_full33_5090x4_v1` |
-| v3 event 全方法扩展 | `running_0_of_9_on_5090x4` | BiST、IGSTGNN 与 NDR-Net 三地区共 9 项，plan digest `b3f029053136a559657dca768836da6673133b2a47d0c57c1304ffc5dd54f75e` |
+| v3 event baseline | `last_verified_6_of_33_remote_unreachable` | 最后可确认 6/33、0 failed，当前 SSH 在鉴权前关闭，不得当成实时运行状态 |
+| v3 event 全方法扩展 | `eager_relaunch_prepared_last_verified_3_of_9_remote_unreachable` | 最后可确认 3/9、0 failed，预载重跑提交为 `c78b87a`，尚未远端部署 |
 
-本地全仓回归为 590 passed 和 2 个既有 warning。
+本地全仓回归为 606 passed 和 2 个既有 warning。
 
 ## v3 正式缓存与训练身份
 
@@ -58,7 +58,7 @@
 
 v3 缓存已通过本地两次、5080 一次和 5090 一次严格复验。缓存身份与某次训练代码身份必须分开记录。
 
-## 正在运行的 v3 event baseline
+## v3 event baseline 最后可确认状态
 
 主矩阵为 11 种方法乘 3 地区，共 33 项。当前固定 seed 42、上限 30 epoch、patience 6、batch 32、target-disjoint 70/15/15 切分，使用 v3 去重事件样本。
 
@@ -68,13 +68,17 @@ v3 缓存已通过本地两次、5080 一次和 5090 一次严格复验。缓存
 - 5080 的 10 项和旧 Orange 的 4 项只读保留，不进入当前矩阵
 - 尚未形成完整 baseline 表。BiST、IGSTGNN 和 NDR-Net 的 v3 event 正式 9 项已在另一台 4 卡 RTX 5090 主机启动
 
-## 正在运行的 v3 event 扩展
+## v3 event 扩展历史运行与 eager 重启准备
 
 2026-08-08 22:16 新加坡时间，matrix `protocol_v3_event_extensions_5090x4_v1` 在主机 `autodl-container-ae8b44827a-75976e27` 启动。训练代码为 `b9e7de62f81bd4dd9a047937cfabc30c7b75d5d3`，计划 digest 为 `b3f029053136a559657dca768836da6673133b2a47d0c57c1304ffc5dd54f75e`。启动复验为 running、0/9 completed、0 failed，四卡分别执行 Orange NDR-Net、Contra Costa IGSTGNN、Alameda BiST 与 Alameda IGSTGNN。
 
 九项真实 CUDA 探针全部通过。实测 LPT 四个分片预计为 23.06、22.82、20.29 与 22.23 小时。Orange IGSTGNN 原生整批在 32 GB 上 OOM，因此使用 microbatch 8。该设置保留有效 batch 24，并写入计划、trainer 命令、invocation config 和 postflight 契约。Orange NDR-Net 同样使用 microbatch 8。其余方法保留原生 batch。
 
 controller PID 为 `13235`，finalizer PID 为 `14224`。finalizer 只在 9/9、runner 零退出、无残留 trainer、source-host postflight、Hostinger 逐文件复验、原子提升与 post-publish 全部通过后关机。任何失败都保持主机开机。Hostinger checkout 已切换到同一提交 `b9e7de6`，旧 `16e90ba` checkout 只读保留。
+
+2026-08-09 复审确认旧探针遗漏逐样本 HDF5 数据构建时间，且旧 LPT 分片实测总时长约为 31.2、43.7、23.4 和 44.7 小时。Orange IGSTGNN 的 20 batch 对照中，lazy 为 28.5172 秒，eager 为 0.270774 秒，batch stream SHA-256 完全相同。提交 `c78b87a` 已把正式扩展固定为 eager traffic，增加三区域 train shuffle、val、test 字节级等价性门禁，并使用 batch 构建加完整优化步重新标定 LPT。loading audit SHA-256 会绑定进 plan、回传计划与 source-host postflight。
+
+旧扩展最后可确认 3/9 completed、0 failed，baseline 最后可确认 6/33、0 failed。2026-08-09 12:10 时两个 AutoDL 入口都表现为 TCP 可达后在 SSH 鉴权前关闭，因此不能确认训练仍在运行。没有执行远端停止、删除、上传或关机操作。恢复细节见 `docs/audits/protocol_v3_event_extension_eager_relaunch_2026-08-09.md`。
 
 ### 5080 运行快照
 
@@ -166,10 +170,11 @@ Orange 4 项灾备已在群晖 NAS 通过 25/25 文件复验和原子改名。�
 
 ## 下一步顺序
 
-1. 继续监控单主机 33 项矩阵，不在任务中途改动分片或训练契约。
-2. 等 finalizer 完成 source-host postflight、Hostinger 发布、只读 composite 和 33 行表格生成。
-3. 租用新多卡 5090 主机，先运行 9 项扩展的真实 CUDA 探针和 plan-only，人工复核 plan digest 后再启动正式训练。
-4. 最终表中明确标注 v3 无泄漏协议、seed 42 与单次运行口径，不与官方重叠协议的 Table 4 数字混用。
+1. 恢复两个 AutoDL SSH 入口，先读取真实 queue、task state、进程和 GPU 状态。
+2. baseline 不改训练契约，只在恢复后继续监控并等待严格发布。
+3. 扩展旧 3 项先做只读 incident 哈希清单，再在独立 eager v2 目录部署 `c78b87a`。
+4. 通过三区域等价性门、9 项 loader-aware CUDA 探针和 plan-only 后，复核新 plan digest，再重跑完整 9 项。
+5. 最终表中明确标注 v3 无泄漏协议、seed 42 与单次运行口径，不与官方重叠协议的 Table 4 数字混用。
 
 ## 实验纪律
 

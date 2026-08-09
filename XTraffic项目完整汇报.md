@@ -1157,3 +1157,17 @@ task011 从 2026-08-05 15:09 开始。已完成 epoch 1 至 epoch 4 的单 epoch
 NAS 自动回传计划任务仍为 Running，持续记录 `completed=1/13`。NAS 上的 5080 正式目标和 incoming 均不存在，这说明 finalizer 没有越过训练完成门。Orange 主机仍在 TCP 建连后立即关闭 SSH，无法得到新的落盘证据。Orange 的 4 项 NAS 灾备仍为 26 个 regular files，`/volume1` 约有 427 GB 可用。15:30 对结果服务器的实时复验显示可用空间为 `2939228160` bytes，使用率为 93%，正式结果根为 `21960917234` bytes。它仍不足以支撑完整 Orange 分片的长期存储和原子发布余量。
 
 `CLAUDE.md` 已在本次同步中从 63 KB 的历史流水改为当前导航和操作快照。已删除的内容只是与本报告和专项审计重复的启动、故障、恢复和完成流水。关键哈希、协议边界、当前队列、发布门、实验纪律和历史入口均已保留。
+
+## 最新进展，2026-08-09 12:10 扩展数据预载加速已完成代码门禁
+
+对 9 项无泄漏扩展的实测复审确认，旧计划把 CUDA 优化步当作完整 batch 成本，遗漏了逐样本 HDF5 数据读取。runner 状态文件显示 IGSTGNN Contra Costa、BiST Alameda 和 IGSTGNN Alameda 的单项耗时分别为 5.96、10.51 和 12.26 小时。旧四卡分片按实测速度外推的总时长约为 31.2、43.7、23.4 和 44.7 小时，原 LPT 排产已经严重失衡。
+
+Orange IGSTGNN 的 20 个真实训练 batch 对照进一步锁定根因。lazy 模式初始化为 3.862 秒，20 batch 构建为 28.5172 秒。eager 模式初始化为 11.244 秒，20 batch 构建仅为 0.270774 秒。两条路径的 batch stream SHA-256 都是 `af7f99015966b930571b3ddd9f111e60f694a537112cdcfe56dd4f76095fddb1`。数据构建速度提升约 105 倍，底层 traffic 数组总内存规模远低于主机可用内存，不需要物化逐样本张量。
+
+提交 `c78b87a` 已推送到 `main`。canonical manifest 现在显式固定 `traffic_loading: eager`。trainer 命令、invocation config、summary 与 config hash 记录同一加载模式。新增审计覆盖 Alameda、Contra Costa 与 Orange 三地区，训练集按固定 seed shuffle，验证集和测试集顺序读取，逐 batch 要求字节级一致。CUDA 探针分别测量 batch 构建和完整优化步，正式 task calibration 使用两者之和，随后重新运行 LPT。loading audit 文件及其 SHA-256 同时写入正式 plan、NAS 回传计划和 source-host postflight 契约。
+
+本地实现先建立失败测试，再完成代码。最终全仓为 606 passed 和 2 个既有 warning。Python 编译、Linux shell 语法与 diff 检查全部通过。用户自己的 `table4_副本.csv` 保持未跟踪且未修改。
+
+旧扩展最后有落盘证据的状态为 3/9 completed、0 failed，baseline 最后有证据的状态为 6/33、0 failed。2026-08-09 12:10 时，`50989` 和 `36571` 两个 AutoDL 入口均能建立 TCP，但 SSH 在鉴权前由远端关闭。通过 Hostinger 解析真实入口后再测，跨境 TCP 超时。本机直连真实 IP 仍是 TCP 成功后 SSH 关闭。现有证据不能证明训练仍在运行，也不能断言是余额、手动停机、无卡启动或平台回收。本轮没有执行任何远端停止、删除、覆盖、上传或关机动作。
+
+恢复后先读取 queue、task state、进程和 GPU 状态。扩展旧 3 项与其他 attempt 先生成只读 SHA-256 incident 清单，再在独立 `/root/autodl-tmp/v3_event_extensions_eager_v2` 部署 `c78b87a`。只有三区域等价性门、9 项 loader-aware CUDA 探针、重新排产和 plan digest 人工复核全部通过，才启动完整 9 项重跑。33 项 baseline 全程保持原训练契约。详细证据见 `docs/audits/protocol_v3_event_extension_eager_relaunch_2026-08-09.md`。

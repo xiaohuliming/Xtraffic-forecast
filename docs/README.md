@@ -18,12 +18,13 @@
 | `audits/igstgnn_table4_native100_dual_host_rebalance_2026-08-01.md` | 原生配方 100 epoch 矩阵的双机分层、incident、严格回传、composite 和最终表 |
 | `audits/protocol_v3_event_4090d8_launch_2026-08-04.md` | v3 event baseline 的八卡 Orange 分片、24 GB 显存 incident 和等效 batch 恢复 |
 | `audits/protocol_v3_event_cc_orange_multi_gpu_2026-08-07.md` | 八卡机无卡盘点、staging 不可续跑结论、落盘实测耗时、卡数分析与多卡控制层布防 |
+| `audits/protocol_v3_event_extension_eager_relaunch_2026-08-09.md` | 9 项扩展的 HDF5 I/O 根因、eager 等价性门禁、重新标定与远端不可达状态 |
 
 `XTraffic项目完整汇报.md` 仍是研究历史和数字出处的权威文档，但其中的 XTraffic 数值在 v3 复跑前均属于历史结果。当前是否可用于论文，以 v3 协议复审、数据泄露审计和有效性清单为准。
 
 当前 XTraffic 协议为 `protocol_v3_noleak_dedup`，cache schema 为 3。正式缓存构建代码 SHA 为 clean commit `29159f626494de52c69b36fe5bba9854f13cb56c`，最终训练代码 SHA 为 `3a4952837aaf6fbda1403d50b610b1bf40c6098a`。v3 正式缓存已通过本地两次、5080 一次和 5090 一次严格复验。runner 层 45/45 已完成或重新验收，5080 分片为 27/27，5090 分片为 18/18。只读 composite index 已于 2026-07-27 18:28:27 新加坡时间验证成功，矩阵有效性状态为 `verified_host_stratified_45`，index SHA-256 为 `8cf92dc2e931e3e9c3ca18cafb81a794fe68fbd0556dec3401b8650f827899fe`。同机配对、多种子统计与窗口级显著性分析已经完成。是否恢复论文主张仍由用户根据落盘证据决定。
 
-IGSTGNN Table 4 使用独立协议 `igstgnn_table4_official_v1`，不得与 v3 无泄露结果混合。原 39 项已经完成三源回传和两次完整只读 composite 复验。正式 index SHA-256 为 `3e5f6bee6eb0cd667f28c287f9538136b31c4312652673453e3f56e446edbbe2`。NDR-Net 独立 9 项扩展也已验证，index SHA-256 为 `8f4666c45b7708c47d1ee90f3a81444eaf46fee5ba1011bc0242f96c20e0983a`。BiST 与原 NDR-Net 的原生配方 100 epoch 矩阵已完成 18/18，双机 composite index SHA-256 为 `27746081f2450d5f8ae7fe950000a23d147bd117ac8b8a5fa3ac18fdfc12314c`，最终 48 行表位于 `../outputs/reproduction/igstgnn_table4_official_v1/table4_with_native100_verified_v1/`。BiST 与 BiST-NDR 的统一 30 epoch 配对队列已完成 runner 层 18/18，尚待配对分析。本地全仓回归为 502 passed 和 2 个既有 warning。完整身份、哈希和历史 incident 见对应审计报告。
+IGSTGNN Table 4 使用独立协议 `igstgnn_table4_official_v1`，不得与 v3 无泄露结果混合。原 39 项已经完成三源回传和两次完整只读 composite 复验。正式 index SHA-256 为 `3e5f6bee6eb0cd667f28c287f9538136b31c4312652673453e3f56e446edbbe2`。NDR-Net 独立 9 项扩展也已验证，index SHA-256 为 `8f4666c45b7708c47d1ee90f3a81444eaf46fee5ba1011bc0242f96c20e0983a`。BiST 与原 NDR-Net 的原生配方 100 epoch 矩阵已完成 18/18，双机 composite index SHA-256 为 `27746081f2450d5f8ae7fe950000a23d147bd117ac8b8a5fa3ac18fdfc12314c`，最终 48 行表位于 `../outputs/reproduction/igstgnn_table4_official_v1/table4_with_native100_verified_v1/`。BiST 与 BiST-NDR 的统一 30 epoch 配对队列已完成 runner 层 18/18，尚待配对分析。本地全仓回归为 606 passed 和 2 个既有 warning。完整身份、哈希和历史 incident 见对应审计报告。
 
 ## 当前方法说明
 

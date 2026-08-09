@@ -19,9 +19,11 @@
 - 完成三地区、多种子、等参数消融和一批标准基准实验。
 - 启动统一管线下的 baseline zoo，但结果尚未完成权威汇总。
 
-这些工作仍有方法设计和工程价值，但 XTraffic 上的数值证据需要按新协议重建。当前 v3 代码实现了因果填充、label-free train-only 气候态、完整目标窗切分、forecast origin 去重、active event split 隔离、可部署事故特征、显式 mask、全局有效观测点指标累计、缓存身份校验、输出隔离和 IGSTGNN 对齐。协议为 `protocol_v3_noleak_dedup`，cache schema 为 3。训练 checkout 在 Mac、5080 与 5090 均为 143 passed 和 1 个既有 warning，当前本地全仓回归为 502 passed 和 2 个既有 warning。
+这些工作仍有方法设计和工程价值，但 XTraffic 上的数值证据需要按新协议重建。当前 v3 代码实现了因果填充、label-free train-only 气候态、完整目标窗切分、forecast origin 去重、active event split 隔离、可部署事故特征、显式 mask、全局有效观测点指标累计、缓存身份校验、输出隔离和 IGSTGNN 对齐。协议为 `protocol_v3_noleak_dedup`，cache schema 为 3。训练 checkout 在 Mac、5080 与 5090 均为 143 passed 和 1 个既有 warning，当前本地全仓回归为 606 passed 和 2 个既有 warning。
 
 正式缓存位于 `outputs/dist_net/region_data_v3_noleak_dedup`。它已在本地正式路径和两个远端训练环境完成严格复验，状态均为 `verified`。bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，bundle digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。
+
+无泄漏论文对比表的目标为 14 方法乘 3 地区，共 42 行。33 项 baseline 与 9 项 BiST、IGSTGNN、NDR-Net 扩展使用同一 v3 cache、target-disjoint event split、显式 mask 和全局验证 masked MAE。9 项扩展的逐样本 HDF5 I/O 已确认是主要瓶颈。提交 `c78b87a` 增加 eager traffic、三区域 batch 等价性门禁和包含数据路径的重新标定。最后可确认的 baseline 与扩展进度分别为 6/33 和 3/9，均为 0 failed。2026-08-09 12:10 时两个 AutoDL SSH 入口都在鉴权前关闭，当前不能声称训练仍在运行。恢复计划见 [扩展预载重启审计](docs/audits/protocol_v3_event_extension_eager_relaunch_2026-08-09.md)。
 
 | 区域 | 正式样本数 | train | val | test |
 |---|---:|---:|---:|---:|
@@ -54,7 +56,7 @@ NDR-Net 的 Average MAE 为 Alameda `10.759524 ± 0.040862`、Contra Costa `11.4
 
 2026-08-03，双机正式分片已完成 18/18，失败数为 0。5090 的 6 项与 5080 的 12 项均通过 source-host postflight、结果服务器逐文件 SHA-256、精确 allowlist 和原子提升。5090 已在发布后自动关机，5080 保持开机。两次全量只读 composite 复验通过，正式 index SHA-256 为 `27746081f2450d5f8ae7fe950000a23d147bd117ac8b8a5fa3ac18fdfc12314c`，状态为 `verified_native100_dual_host_18`。
 
-最终 48 行表保留原 42 行，并追加 BiST 100ep 与 NDR-Net 100ep 的三地区三种子均值和样本标准差。可直接查看 [100 epoch 最终表](outputs/reproduction/igstgnn_table4_official_v1/table4_with_native100_verified_v1/table4_with_native100.md) 和 [CSV](outputs/reproduction/igstgnn_table4_official_v1/table4_with_native100_verified_v1/table4_with_native100.csv)。Average MAE 上，NDR-Net 在 Alameda、Contra Costa 与 Orange 分别为 `10.504639 ± 0.056600`、`11.299118 ± 0.012621` 与 `11.136362 ± 0.030750`，BiST 分别为 `10.938871 ± 0.011328`、`11.582189 ± 0.010355` 与 `11.765688 ± 0.005298`。该表继承 `official_protocol_with_known_overlap`，不能与 v3 无泄露结果混用。本地全仓回归为 502 passed 和 2 个既有 warning。完整身份、incident 和回传记录见 [双机重分片记录](docs/audits/igstgnn_table4_native100_dual_host_rebalance_2026-08-01.md)。
+最终 48 行表保留原 42 行，并追加 BiST 100ep 与 NDR-Net 100ep 的三地区三种子均值和样本标准差。可直接查看 [100 epoch 最终表](outputs/reproduction/igstgnn_table4_official_v1/table4_with_native100_verified_v1/table4_with_native100.md) 和 [CSV](outputs/reproduction/igstgnn_table4_official_v1/table4_with_native100_verified_v1/table4_with_native100.csv)。Average MAE 上，NDR-Net 在 Alameda、Contra Costa 与 Orange 分别为 `10.504639 ± 0.056600`、`11.299118 ± 0.012621` 与 `11.136362 ± 0.030750`，BiST 分别为 `10.938871 ± 0.011328`、`11.582189 ± 0.010355` 与 `11.765688 ± 0.005298`。该表继承 `official_protocol_with_known_overlap`，不能与 v3 无泄露矩阵混合。当前本地全仓回归为 606 passed 和 2 个既有 warning。完整身份、incident 和回传记录见 [双机重分片记录](docs/audits/igstgnn_table4_native100_dual_host_rebalance_2026-08-01.md)。
 
 ## 已确认的数据问题
 
