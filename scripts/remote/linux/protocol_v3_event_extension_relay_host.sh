@@ -2,6 +2,33 @@
 # Start formal extension shards as baseline GPUs become free, then aggregate them.
 set -Eeuo pipefail
 
+SHARD_PRIORITY="${SHARD_PRIORITY:-1,2,3}"
+
+validate_shard_priority() {
+  local value shard
+  local -a parsed=()
+  IFS=',' read -r -a parsed <<<"$SHARD_PRIORITY"
+  [ "${#parsed[@]}" = "3" ] \
+    || { printf 'invalid SHARD_PRIORITY: expected three shards\n' >&2; return 2; }
+  for value in 1 2 3; do
+    local matches=0
+    for shard in "${parsed[@]}"; do
+      [ "$shard" = "$value" ] && matches=$((matches + 1))
+    done
+    [ "$matches" = "1" ] \
+      || { printf 'invalid SHARD_PRIORITY: expected permutation of 1,2,3\n' >&2; return 2; }
+  done
+  PRIORITY_SHARDS=("${parsed[@]}")
+}
+
+validate_shard_priority
+if [ "${1:-}" = "--print-shard-priority" ]; then
+  for shard in "${PRIORITY_SHARDS[@]}"; do
+    printf 'gpu%02d\n' "$shard"
+  done
+  exit 0
+fi
+
 BASELINE_RESULTS="${BASELINE_RESULTS:?BASELINE_RESULTS is required}"
 REPO="${REPO:?REPO is required}"
 CONTROL_ROOT="${CONTROL_ROOT:?CONTROL_ROOT is required}"
@@ -182,8 +209,7 @@ physical_gpu_is_available() {
 
 next_unstarted_shard() {
   local shard
-  # Longest remaining formal shards are offered first.
-  for shard in 2 3 1; do
+  for shard in "${PRIORITY_SHARDS[@]}"; do
     shard_is_done "$shard" && continue
     shard_is_running "$shard" && continue
     printf '%s\n' "$shard"
@@ -193,6 +219,7 @@ next_unstarted_shard() {
 }
 
 verify_identity
+log "RELAY_PRIORITY formal_shards=$(IFS=,; printf '%s' "${PRIORITY_SHARDS[*]}") plan_digest=$PLAN_DIGEST"
 
 # gpu00 is launched before this relay because physical GPU 3 was already free.
 if ! shard_is_running 0 && ! shard_is_done 0; then
