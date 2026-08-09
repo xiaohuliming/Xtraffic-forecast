@@ -87,6 +87,10 @@ shard_pid_path() {
   printf '%s/manual_shard_gpu%02d.pid\n' "$CONTROL_ROOT" "$1"
 }
 
+shard_physical_gpu_path() {
+  printf '%s/manual_shard_gpu%02d.physical_gpu\n' "$CONTROL_ROOT" "$1"
+}
+
 shard_is_running() {
   local shard="$1" pid_path pid
   pid_path="$(shard_pid_path "$shard")"
@@ -144,7 +148,48 @@ launch_shard() {
   ) >>"$log_path" 2>&1 </dev/null &
   pid=$!
   printf '%s\n' "$pid" >"$pid_path"
+  printf '%s\n' "$physical_gpu" >"$(shard_physical_gpu_path "$shard")"
   log "LAUNCHED physical_gpu=$physical_gpu formal_shard=$shard_name pid=$pid"
+}
+
+physical_gpu_has_extension() {
+  local physical_gpu="$1" shard assignment_path assigned
+  for shard in 0 1 2 3; do
+    shard_is_done "$shard" && continue
+    shard_is_running "$shard" || continue
+    assignment_path="$(shard_physical_gpu_path "$shard")"
+    [ -f "$assignment_path" ] \
+      || blocked "running formal shard gpu$(printf '%02d' "$shard") has no physical GPU record"
+    assigned="$(tr -d '[:space:]' <"$assignment_path")"
+    [ "$assigned" != "$physical_gpu" ] || return 0
+  done
+  return 1
+}
+
+physical_gpu_is_available() {
+  local physical_gpu="$1" state
+  physical_gpu_has_extension "$physical_gpu" && return 1
+  state="$(baseline_state "$physical_gpu")"
+  case "$state" in
+    failed) blocked "baseline gpu$(printf '%02d' "$physical_gpu") failed" ;;
+    completed)
+      baseline_gpu_busy "$physical_gpu" && return 1
+      return 0
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+next_unstarted_shard() {
+  local shard
+  # Longest remaining formal shards are offered first.
+  for shard in 2 3 1; do
+    shard_is_done "$shard" && continue
+    shard_is_running "$shard" && continue
+    printf '%s\n' "$shard"
+    return 0
+  done
+  return 1
 }
 
 verify_identity
@@ -153,28 +198,15 @@ verify_identity
 if ! shard_is_running 0 && ! shard_is_done 0; then
   blocked "formal shard gpu00 is neither running nor completed"
 fi
+[ -f "$(shard_physical_gpu_path 0)" ] \
+  || printf '3\n' >"$(shard_physical_gpu_path 0)"
 
-# The longest remaining formal shard is assigned to the baseline card expected
-# to finish first. The shortest remaining shard waits for the long baseline card.
 while true; do
-  for spec in '2:2' '1:3' '0:1'; do
-    physical_gpu="${spec%%:*}"
-    shard="${spec##*:}"
-    if shard_is_running "$shard" || shard_is_done "$shard"; then
-      continue
+  for physical_gpu in 3 2 1 0; do
+    physical_gpu_is_available "$physical_gpu" || continue
+    if shard="$(next_unstarted_shard)"; then
+      launch_shard "$physical_gpu" "$shard"
     fi
-    state="$(baseline_state "$physical_gpu")"
-    case "$state" in
-      failed) blocked "baseline gpu$(printf '%02d' "$physical_gpu") failed" ;;
-      completed)
-        if baseline_gpu_busy "$physical_gpu"; then
-          log "WAIT baseline_gpu=$physical_gpu state=completed process_still_present"
-        else
-          launch_shard "$physical_gpu" "$shard"
-        fi
-        ;;
-      *) : ;;
-    esac
   done
 
   if shard_is_done 0 && shard_is_done 1 && shard_is_done 2 && shard_is_done 3; then
