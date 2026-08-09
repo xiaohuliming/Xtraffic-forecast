@@ -1,6 +1,6 @@
 # XTraffic 项目导航与协作约定
 
-最近更新：2026-08-09 14:08，Asia/Singapore
+最近更新：2026-08-09 15:03，Asia/Singapore
 
 ## 新会话先读
 
@@ -39,7 +39,7 @@
 | v3 event baseline | `running_6_of_33` | 4 卡 5090 已恢复，6/33、0 failed，三个断电任务从 epoch 0 重跑 |
 | v3 event 全方法扩展 | `running_formal_gpu00` | 三地区等价性与 9 项探针已通过，Orange NDR-Net 在物理 GPU3 运行 |
 
-本地全仓回归为 606 passed 和 2 个既有 warning。
+本地全仓回归为 611 passed 和 2 个既有 warning。
 
 ## v3 正式缓存与训练身份
 
@@ -165,6 +165,16 @@ Orange 4 项灾备已在群晖 NAS 通过 25/25 文件复验和原子改名。�
 正式扩展矩阵为 `protocol_v3_event_extensions_eager_5090x4_v2`，host ID 与 baseline 统一为 `event_rtx5090x4_full33`，plan digest 为 `2b8bc204115a32bf40d244a94938eb5db27ea229bbed1427542b74c200b4ef3a`。四个 shard 的探针保守预计为 41.86、34.52、39.49 和 37.85 小时。空闲物理 GPU3 已正式启动最长的 `v3x009_event_ndr_net_orange_seed42`，使用 eager 加载与 microbatch 8。14:08 已完成 epoch 2，validation MAE 从 `11.80291315` 降到 `11.59224552`，实际速度快于探针外推。提交 `e21baf2` 的动态接力器会在任一物理 GPU 可用时立即领取当前最长的未启动正式 shard。relay 与 finalize waiter 进程存活，控制根没有异常 exitcode。relay 脚本 SHA-256 为 `a94db88f47aface7c6d9d85958eaf5b4084c84ece8d8bb9197c33b821627eab9`。旧 host ID 修正 incident 和动态升级 incident 清单 SHA-256 为 `f209d12b952cacb39a95b765b120677b06c44e1e86a9e876bdedfe57e4778cf2` 与 `1502f5fe42a3cd1e6d15c30b51df7f84ebb37ffe131a02b50ab876d239242495`，训练进程全程未停止。
 
 baseline finalizer 已重新武装为只发布不关机。扩展 finalizer 只在 baseline 发布成功和 9 项正式 aggregate 成功后启动。Hostinger 为 xray active，4 GB swap 空闲，根分区可用 `45030260736` bytes。只有 33 项发布、9 项发布、两份只读 composite 与 42 行合表全部通过后才自动关机。任一门禁失败都保持开机。动态接力和收尾控制提交为 `e21baf2` 与 `ad70d5a`，已推送到 `main`。
+
+## 增量灾备与断点边界，2026-08-09 15:03 新加坡时间
+
+当前四张 RTX 5090 均在同一物理主机工作。baseline 占用物理 GPU0 至 GPU2，扩展 Orange NDR-Net 占用物理 GPU3。后续任一 baseline 分片释放 GPU 后，动态接力器会在同机启动剩余扩展 shard。
+
+现有 baseline 与扩展 trainer 的 `ckpt_best.pt` 只包含最佳模型权重及少量最佳指标信息。它们不包含 optimizer、scheduler、下一 epoch 游标、early-stopping 状态与随机数状态，因此不能作为严格训练断点。主机中断后，runner 会保留并跳过已完成且复验通过的正式任务，但当前正在训练的任务必须从 epoch 0 建立新 attempt。若 AutoDL 数据盘也被回收，本机已完成任务同样会丢失。
+
+新增 `scripts/remote/linux/protocol_v3_event_incremental_backup.py` 作为独立灾备侧车。它只扫描 runner 已标记 completed、已原子提升且重新通过 `validate_result` 的任务。每个任务完成后立即用低 CPU 与 idle I/O 优先级逐文件上传到 Hostinger 的隐藏 `.incremental` 灾备树，远端逐文件校验 SHA-256 后再写任务完成 marker。它不读取或上传 staging checkpoint，不修改两个训练 checkout，不改变训练代码 SHA、plan digest、config hash 或最终发布门。
+
+baseline 与扩展侧车 PID 为 `16661` 与 `16662`。脚本 SHA-256 为 `e797f2a218f7f32d0b3a6c2dc6d454f92af96132f9e1d34c541863b906e0f9aa`。首个任务 `v3e010_event_dgcrn_alameda_seed42` 已在 Hostinger 完成 6 个文件和 `168730616` bytes 的逐文件回传及任务 marker 验证。其余 5 个既有 completed baseline 任务正在补传。扩展当前尚无 completed 任务，侧车每 60 秒等待。隐藏灾备树不是正式发布，最终仍需原 finalizer 的完整 source-host postflight、精确 allowlist、原子提升和 composite。
 
 ## 历史：v3 event 剩余分片的多卡主机计划
 

@@ -1,6 +1,6 @@
 # protocol v3 event 扩展预载加速与重启审计
 
-更新时间：2026-08-09 14:08，Asia/Singapore
+更新时间：2026-08-09 15:03，Asia/Singapore
 
 ## 目标
 
@@ -76,3 +76,11 @@ baseline finalizer 已从成功后关机改为只发布。提交 `ad70d5a` 的 e
 Hostinger 结果服务器的 xray 为 active，4 GB swap 空闲，根分区可用 `45030260736` bytes。验证 checkout 为 `2754b9cdfa5ccf3baca269e83c7379ff506a0e26`。新 post-publish 主脚本与 eager v2 包装器 SHA-256 分别为 `31295bce299f8ff85db65fb033dcccd406c2a2c3cf8888706b6a3057991acb6b` 和 `341bdcd8866eed4d7032ddac8b506e4d4de889e72b95b2eb3ae51723f7700e56`。合表器将按同 host ID 与不同 code SHA 标记为 `target_disjoint_event_no_leak_code_stratified`。
 
 关机只在 baseline 发布、extension 发布、两份 composite 和 42 行合表全部成功后发生。任一失败都保持开机。
+
+## 增量灾备和断点恢复边界
+
+代码复核确认两个正式 trainer 都只维护 `ckpt_best.pt`。baseline checkpoint 包含 epoch、model state、最佳验证值和配置。扩展 checkpoint 包含 model state、最佳验证值、最佳 epoch、方法、地区和 seed。两者都没有 optimizer、scheduler、下一 epoch 游标、early-stopping 计数和随机数状态。runner 的 staging recovery 只恢复已经零退出并完整产出结果、但在结果验收或原子提升阶段失败的任务，不能恢复训练中的 epoch。因此主机中断后，completed 任务可以跳过，当前 task 必须从 epoch 0 建立新 attempt。
+
+为避免完成任务只留在 AutoDL 数据盘，新增独立脚本 `scripts/remote/linux/protocol_v3_event_incremental_backup.py`。脚本先按正式 plan 重建 invocation 和 config hash，再调用与 runner 相同的 `validate_result`。只有 task state 为 completed、returncode 为 0、final_dir 为 canonical task 目录、结果重新验收通过且目录内没有符号链接时才建立快照。上传目标是 Hostinger 各矩阵正式根下的隐藏 `.incremental` 灾备树。每个文件先按 SHA-256 检查复用，缺失文件写入唯一 `.part`，远端验证大小和哈希后原子改名，全部文件再次验证后才写 task marker。该流程不接触 `.staging`，也不会生成正式 transfer marker 或提升正式目录。
+
+侧车使用 `nice 15` 和 `ionice idle`，不占 GPU。baseline 与扩展 PID 为 `16661` 与 `16662`。脚本 SHA-256 为 `e797f2a218f7f32d0b3a6c2dc6d454f92af96132f9e1d34c541863b906e0f9aa`。首个任务 `v3e010_event_dgcrn_alameda_seed42` 已完成 6 文件和 `168730616` bytes 回传，Hostinger 上的 task marker 已复验。其余 5 个既有 completed baseline 任务正在补传。扩展侧车等待首个 completed task。本地专项测试新增 5 项，全仓回归为 611 passed 和 2 个既有 warning。

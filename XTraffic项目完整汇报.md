@@ -1183,3 +1183,13 @@ Orange IGSTGNN 的 20 个真实训练 batch 对照进一步锁定根因。lazy �
 14:08 复验时，baseline controller、三个 baseline trainer、Orange NDR-Net trainer、baseline finalizer、动态 relay 与 extension finalize waiter 全部存活。正式控制根没有异常 exitcode，尚未启动第二个扩展 shard。
 
 baseline finalizer 已改为只发布不关机。提交 `ad70d5a` 的收尾等待器只在 baseline 发布成功且 9 项 aggregate 成功后启动扩展 finalizer。Hostinger 的 xray 为 active，4 GB swap 空闲，根分区可用 `45030260736` bytes。post-publish 主脚本与 eager v2 包装器 SHA-256 为 `31295bce299f8ff85db65fb033dcccd406c2a2c3cf8888706b6a3057991acb6b` 和 `341bdcd8866eed4d7032ddac8b506e4d4de889e72b95b2eb3ae51723f7700e56`。最终表将按同主机不同代码 SHA 标记为 `target_disjoint_event_no_leak_code_stratified`。只有 baseline 严格发布、extension 严格发布、两份只读 composite 与最终 42 行表全部通过后才自动关机。任一门禁失败都保持开机。
+
+## 最新进展，2026-08-09 15:03 已完成任务开始增量灾备
+
+当前全部正式训练都在 `36571` 对应的单台 4 卡 RTX 5090 主机上。baseline 使用物理 GPU0 至 GPU2，扩展 Orange NDR-Net 使用物理 GPU3。动态接力器将在 baseline 分片释放 GPU 后继续启动剩余扩展 shard。
+
+本次复核明确了现有断点边界。baseline 的 `ckpt_best.pt` 包含 epoch、model state、最佳验证值和配置，扩展 checkpoint 包含 model state、最佳验证值与最佳 epoch。两者都不保存 optimizer、scheduler、下一 epoch 游标、early-stopping 状态或随机数状态。runner 只能跳过已经 completed 并重新验收通过的正式任务，不能从训练中断的 epoch 续跑。因此此次主机中断后 6 个 completed 任务得到保留，Orange DGCRN、Orange AGCRN 与 Alameda D²STGNN 三个进行中任务必须从 epoch 0 重跑。
+
+新增 `scripts/remote/linux/protocol_v3_event_incremental_backup.py` 作为独立灾备侧车。它不修改 baseline 或扩展训练 checkout，也不改变训练代码 SHA、plan digest、config hash 或正式发布契约。侧车按正式 plan 重建 invocation 和 config hash，复用 runner 的 `validate_result` 严格复验 completed task，再以低 CPU 与 idle I/O 优先级逐文件传到 Hostinger 隐藏 `.incremental` 树。远端先校验文件 SHA-256，再写 task marker。staging checkpoint 和运行中半成品不会上传，隐藏树也不会被当作正式发布。
+
+baseline 与扩展侧车 PID 为 `16661` 与 `16662`，脚本 SHA-256 为 `e797f2a218f7f32d0b3a6c2dc6d454f92af96132f9e1d34c541863b906e0f9aa`。首个任务 `v3e010_event_dgcrn_alameda_seed42` 已在 Hostinger 完成 6 文件、`168730616` bytes 和 task marker 的复验。其余 5 个既有 completed baseline 任务正在补传。之后每新增一个 completed task 都会自动回传。最终论文表仍必须等待两个矩阵完整 postflight、正式原子发布、两份 composite 和 42 行合表通过。本地全仓回归为 611 passed 和 2 个既有 warning。
