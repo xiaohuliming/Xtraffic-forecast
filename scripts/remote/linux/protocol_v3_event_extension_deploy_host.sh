@@ -21,6 +21,7 @@ LOCAL_SUPPORT="${LOCAL_SUPPORT:-outputs/reproduction/igstgnn_table4_official_v1/
 LOCAL_NODE_ORDER="${LOCAL_NODE_ORDER:-archive/node_order.npy}"
 LOCAL_UPSTREAM_ROOT="${LOCAL_UPSTREAM_ROOT:-.third_party/igstgnn_table4/pristine}"
 GPU_COUNT="${GPU_COUNT:-4}"
+PROBE_CUDA_VISIBLE_DEVICES="${PROBE_CUDA_VISIBLE_DEVICES:-}"
 CACHE_BUNDLE_ID="${CACHE_BUNDLE_ID:-bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4}"
 CACHE_BUNDLE_DIGEST="${CACHE_BUNDLE_DIGEST:-854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5}"
 MATRIX_ID="${MATRIX_ID:-protocol_v3_event_extensions_5090_v1}"
@@ -32,6 +33,12 @@ cd "$REPO_ROOT"
 
 say() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1"; }
 die() { say "DEPLOY_BLOCKED $1"; exit 1; }
+
+case "$PROBE_CUDA_VISIBLE_DEVICES" in
+  "") probe_cuda_env="" ;;
+  *[!0-9,]*) die "PROBE_CUDA_VISIBLE_DEVICES must be a comma-separated GPU list" ;;
+  *) probe_cuda_env="CUDA_VISIBLE_DEVICES=$PROBE_CUDA_VISIBLE_DEVICES" ;;
+esac
 
 ssh_command=(ssh -n -p "$SSH_PORT" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20)
 scp_command=(scp -O -P "$SSH_PORT" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20)
@@ -155,7 +162,7 @@ PY" || die "remote extension gates failed"
 say "EAGER_LAZY_EQUIVALENCE"
 rsh "set -euo pipefail
 cd '$REMOTE_REPO'
-PYTHONPATH='$REMOTE_REPO' '$REMOTE_PYTHON' -X utf8 \
+$probe_cuda_env PYTHONPATH='$REMOTE_REPO' '$REMOTE_PYTHON' -X utf8 \
   scripts/audit_protocol_v3_event_extension_loading.py \
   --data-dir '$REMOTE_CACHE' --graph-dir '$REMOTE_GRAPHS' \
   --support-root '$REMOTE_SUPPORT' --node-order '$REMOTE_NODE_ORDER' \
@@ -174,7 +181,7 @@ for region in Alameda ContraCosta Orange; do
     fi
     rsh "set -euo pipefail
 cd '$REMOTE_REPO'
-PYTHONPATH='$REMOTE_REPO' '$REMOTE_PYTHON' -X utf8 \
+$probe_cuda_env PYTHONPATH='$REMOTE_REPO' '$REMOTE_PYTHON' -X utf8 \
   scripts/remote/linux/protocol_v3_event_extension_gpu_probe.py \
   --method '$method' --region '$region' --data-dir '$REMOTE_CACHE' \
   --graph-dir '$REMOTE_GRAPHS' --support-root '$REMOTE_SUPPORT' \
