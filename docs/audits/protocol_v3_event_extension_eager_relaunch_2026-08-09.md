@@ -1,6 +1,6 @@
 # protocol v3 event 扩展预载加速与重启审计
 
-更新时间：2026-08-09 13:49，Asia/Singapore
+更新时间：2026-08-09 14:08，Asia/Singapore
 
 ## 目标
 
@@ -65,11 +65,11 @@ baseline 以原 plan digest `23ed8507a1a301daef27bb613bc88d2070ec7052858de7d219e
 | gpu02 | Alameda BiST、Alameda NDR-Net、Contra Costa IGSTGNN | 39.49 h |
 | gpu03 | Alameda IGSTGNN、Contra Costa BiST、Contra Costa NDR-Net、Orange BiST | 37.85 h |
 
-2026-08-09 13:40 前，空闲物理 GPU3 已启动正式 gpu00 shard，当前执行 `v3x009_event_ndr_net_orange_seed42`。它使用 eager 加载、microbatch 8 和正式四卡 plan 的 shard manifest，不是临时训练或待迁移结果。
+2026-08-09 13:40 前，空闲物理 GPU3 已启动正式 gpu00 shard，当前执行 `v3x009_event_ndr_net_orange_seed42`。它使用 eager 加载、microbatch 8 和正式四卡 plan 的 shard manifest，不是临时训练或待迁移结果。14:08 已完成 epoch 2，两轮 validation MAE 分别为 `11.80291315` 与 `11.59224552`。首轮约 22 分钟，当前实测速度快于探针外推。
 
 ## 接力、发布与关机门
 
-提交 `9048cd2` 新增可审计 GPU 接力器。baseline 物理 GPU2、GPU1 与 GPU0 各自分片完成且无残留训练进程后，它分别启动正式 gpu02、gpu03 与 gpu01 shard。四个手动 shard 全部零退出后，它使用同一 plan digest 运行完整 controller 复验并生成 aggregate queue。relay 脚本 SHA-256 为 `3448ecd78c7f97fc8d578508d87254f988b7929213e04b085f80bd338506972b`。
+提交 `e21baf2` 将接力器升级为动态最长任务优先调度。任一物理 GPU 的 baseline 分片完成且无残留训练进程后，它会领取当前预计最长的未启动正式 shard，不再依赖固定的物理 GPU 到扩展 shard 映射。四个手动 shard 全部零退出后，它使用同一 plan digest 运行完整 controller 复验并生成 aggregate queue。relay 脚本 SHA-256 为 `a94db88f47aface7c6d9d85958eaf5b4084c84ece8d8bb9197c33b821627eab9`。动态升级只暂停旧 relay 与 finalize waiter，没有停止任何训练进程。升级 incident 清单 SHA-256 为 `1502f5fe42a3cd1e6d15c30b51df7f84ebb37ffe131a02b50ab876d239242495`。14:08 复验时 relay 与 finalize waiter 均存活，正式控制根没有异常 exitcode，只有 gpu00 映射到物理 GPU3。
 
 baseline finalizer 已从成功后关机改为只发布。提交 `ad70d5a` 的 extension finalize waiter 只在 baseline finalizer 零退出和 extension relay 零退出后启动扩展 finalizer。waiter 脚本 SHA-256 为 `8405db004ff76e70309332141f1cb3d71abe4c2476bf0187969c0d8d13d2be2d`。
 

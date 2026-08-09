@@ -1,6 +1,6 @@
 # XTraffic 项目导航与协作约定
 
-最近更新：2026-08-09 13:49，Asia/Singapore
+最近更新：2026-08-09 14:08，Asia/Singapore
 
 ## 新会话先读
 
@@ -156,15 +156,15 @@ Orange 4 项灾备已在群晖 NAS 通过 25/25 文件复验和原子改名。�
 
 实现提交 `16e90baab74bb767a4f8d7a46f45eef6d87af44d` 已推送到 `main`。Hostinger 的 `/opt/xtraffic/v3_event_repo` 已原子切换到该提交，旧 `314d457` checkout 保留为回滚。`/opt/xtraffic/bin/event-extension-post-publish` 已安装，SHA-256 为 `80f05af5b0bb87a221e703479fc034f3b717acf07fff5748b583a1a518388edc`。切换后 xray 仍为 active，swap 仍为 4 GB，根分区约有 44.1 GB 可用。临时 bundle 已清理。
 
-## 当前实时运行，2026-08-09 13:49 新加坡时间
+## 当前实时运行，2026-08-09 14:08 新加坡时间
 
-`36571` 对应的单台 4 卡 RTX 5090 已恢复 SSH 和 GPU。baseline 断电前有 6/33 项完成、0 项失败。Orange DGCRN、Orange AGCRN 与 Alameda D²STGNN 三个未完成 attempt 没有 optimizer resume 证据，已从 epoch 0 建立 `attempt_0002` 重跑。恢复前 incident 的 queue、formal tree 与 staging tree 清单 SHA-256 分别为 `10ed910c7e33847fa32931153b651c6c612cd99b7c0e06658dacc99a66663deb`、`acaddda23479ba74af3b38d26d8fc139d081c06c9de4f529207513c24e476070` 与 `b385567c5410a5c0a838bbe45ed9462255d7018ed888474fe57f439dbbfc9dfd`。当前 baseline 仍为 running、6/33、0 failed。
+`36571` 对应的单台 4 卡 RTX 5090 已恢复 SSH 和 GPU。baseline 断电前有 6/33 项完成、0 项失败。Orange DGCRN、Orange AGCRN 与 Alameda D²STGNN 三个未完成 attempt 没有 optimizer resume 证据，已从 epoch 0 建立 `attempt_0002` 重跑。恢复前 incident 的 queue、formal tree 与 staging tree 清单 SHA-256 分别为 `10ed910c7e33847fa32931153b651c6c612cd99b7c0e06658dacc99a66663deb`、`acaddda23479ba74af3b38d26d8fc139d081c06c9de4f529207513c24e476070` 与 `b385567c5410a5c0a838bbe45ed9462255d7018ed888474fe57f439dbbfc9dfd`。14:08 的 baseline aggregate 仍为 running、6/33、0 failed。三个重跑任务已分别完成 epoch 1、4 与 4。
 
 旧扩展四卡机已欠费无卡，不再进入当前计划。扩展代码在同机隔离目录 `/root/autodl-tmp/v3_event_extensions_eager_v2` 部署，训练代码 SHA 为 `2754b9cdfa5ccf3baca269e83c7379ff506a0e26`。三地区 train shuffle、val 和 test 数据流的 eager 与 lazy 字节级对照全部为 `exact_match`，audit SHA-256 为 `083f9554fd305beed8ccea91385b59230479dd6edd965974959b23cdd9981f6e`。9 项真实 CUDA 探针全部为 `PROBE_OK`，probes 与 calibration 的 SHA-256 为 `4004d54e282e3b13fb2d12821e1c7c84a8180c9ede9b435b18257441fb59b4a9` 与 `00f89733654d306f5accc370ab8063fafe5f106aa0d4df7e2bf5d4b36436b8fa`。
 
-正式扩展矩阵为 `protocol_v3_event_extensions_eager_5090x4_v2`，host ID 与 baseline 统一为 `event_rtx5090x4_full33`，plan digest 为 `2b8bc204115a32bf40d244a94938eb5db27ea229bbed1427542b74c200b4ef3a`。四个 shard 的实测预计时长为 41.86、34.52、39.49 和 37.85 小时。空闲物理 GPU3 已正式启动最长的 `v3x009_event_ndr_net_orange_seed42`，使用 eager 加载与 microbatch 8。接力器会在 baseline GPU2、GPU1 和 GPU0 各自分片完成后，分别启动剩余的正式 gpu02、gpu03 和 gpu01 shard。旧 host ID 修正 incident 清单 SHA-256 为 `f209d12b952cacb39a95b765b120677b06c44e1e86a9e876bdedfe57e4778cf2`，训练进程全程未停止。
+正式扩展矩阵为 `protocol_v3_event_extensions_eager_5090x4_v2`，host ID 与 baseline 统一为 `event_rtx5090x4_full33`，plan digest 为 `2b8bc204115a32bf40d244a94938eb5db27ea229bbed1427542b74c200b4ef3a`。四个 shard 的探针保守预计为 41.86、34.52、39.49 和 37.85 小时。空闲物理 GPU3 已正式启动最长的 `v3x009_event_ndr_net_orange_seed42`，使用 eager 加载与 microbatch 8。14:08 已完成 epoch 2，validation MAE 从 `11.80291315` 降到 `11.59224552`，实际速度快于探针外推。提交 `e21baf2` 的动态接力器会在任一物理 GPU 可用时立即领取当前最长的未启动正式 shard。relay 与 finalize waiter 进程存活，控制根没有异常 exitcode。relay 脚本 SHA-256 为 `a94db88f47aface7c6d9d85958eaf5b4084c84ece8d8bb9197c33b821627eab9`。旧 host ID 修正 incident 和动态升级 incident 清单 SHA-256 为 `f209d12b952cacb39a95b765b120677b06c44e1e86a9e876bdedfe57e4778cf2` 与 `1502f5fe42a3cd1e6d15c30b51df7f84ebb37ffe131a02b50ab876d239242495`，训练进程全程未停止。
 
-baseline finalizer 已重新武装为只发布不关机。扩展 finalizer 只在 baseline 发布成功和 9 项正式 aggregate 成功后启动。Hostinger 为 xray active，4 GB swap 空闲，根分区可用 `45030260736` bytes。只有 33 项发布、9 项发布、两份只读 composite 与 42 行合表全部通过后才自动关机。任一门禁失败都保持开机。接力和收尾控制提交为 `9048cd2` 与 `ad70d5a`，已推送到 `main`。
+baseline finalizer 已重新武装为只发布不关机。扩展 finalizer 只在 baseline 发布成功和 9 项正式 aggregate 成功后启动。Hostinger 为 xray active，4 GB swap 空闲，根分区可用 `45030260736` bytes。只有 33 项发布、9 项发布、两份只读 composite 与 42 行合表全部通过后才自动关机。任一门禁失败都保持开机。动态接力和收尾控制提交为 `e21baf2` 与 `ad70d5a`，已推送到 `main`。
 
 ## 历史：v3 event 剩余分片的多卡主机计划
 
