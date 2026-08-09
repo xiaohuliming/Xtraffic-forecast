@@ -21,7 +21,11 @@ if [ "${XTRAFFIC_COMPOSITE_WORKER:-0}" != "1" ]; then
   exec systemd-run --quiet --wait --pipe --collect --unit="$unit" \
     --property=MemoryMax=3221225472 --property=MemorySwapMax=4294967296 \
     --property=TasksMax=128 --property=Nice=10 \
-    --setenv=XTRAFFIC_COMPOSITE_WORKER=1 "$script" "$PUBLISHED_ROOT"
+    --setenv=XTRAFFIC_COMPOSITE_WORKER=1 \
+    --setenv="REPO=$REPO" --setenv="PYTHON=$PYTHON" \
+    --setenv="STATE_BASE=$STATE_BASE" --setenv="MATRIX_ID=$MATRIX_ID" \
+    --setenv="HOST_ID=$HOST_ID" --setenv="EXPECTED_SOURCES=$EXPECTED_SOURCES" \
+    "$script" "$PUBLISHED_ROOT"
 fi
 
 [ -x "$PYTHON" ] || fail "verified Python environment is missing"
@@ -53,6 +57,6 @@ else
   sync
 fi
 
-REPO="$REPO" PYTHON="$PYTHON" \
+REPO="$REPO" PYTHON="$PYTHON" EXTENSION_STATE="$FINAL_ROOT" \
   bash "$REPO/scripts/remote/linux/protocol_v3_event_merge_verified.sh"
 printf 'EVENT_EXTENSION_POST_PUBLISH_OK state=%s\n' "$FINAL_ROOT"
