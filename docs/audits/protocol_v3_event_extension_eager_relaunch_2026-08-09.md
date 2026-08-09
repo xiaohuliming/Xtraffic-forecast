@@ -1,12 +1,12 @@
 # protocol v3 event 扩展预载加速与重启审计
 
-更新时间：2026-08-09 12:10，Asia/Singapore
+更新时间：2026-08-09 13:49，Asia/Singapore
 
 ## 目标
 
 最终目标不变：在 `protocol_v3_noleak_dedup` 下完成 33 项 baseline 与 BiST、IGSTGNN、NDR-Net 三地区 9 项扩展，生成可用于论文的 42 行无数据泄露对比表。
 
-本次只优化 9 项扩展的数据读取和排产。33 项 baseline 的训练契约、结果根和控制进程不做修改。
+本次只优化 9 项扩展的数据读取和排产。33 项 baseline 保持原训练契约和结果根。
 
 ## 根因证据
 
@@ -27,47 +27,52 @@ Orange IGSTGNN 的 20 个真实训练 batch 数据构建对照如下：
 | lazy HDF5 | 3.862 s | 28.5172 s | 1.42586 s |
 | eager memory | 11.244 s | 0.270774 s | 0.0135387 s |
 
-两条路径的 batch stream SHA-256 均为 `af7f99015966b930571b3ddd9f111e60f694a537112cdcfe56dd4f76095fddb1`。数据构建提速约 105 倍，支持逐样本 HDF5 I/O 是主要瓶颈的判断。
+两条路径的 batch stream SHA-256 均为 `af7f99015966b930571b3ddd9f111e60f694a537112cdcfe56dd4f76095fddb1`。数据构建提速约 105 倍，主要瓶颈是逐样本 HDF5 I/O。
 
-## 实现与门禁
+## 实现与本地门禁
 
 提交 `c78b87a` 已推送到 `main`，包含以下变更：
 
 1. canonical manifest 显式固定 `traffic_loading: eager`。
 2. trainer 命令、invocation config、summary 和 config hash 记录同一加载模式。
-3. 新增三区域 eager 与 lazy 等价性审计。训练集先使用固定 seed shuffle，验证集和测试集保持顺序读取，逐 batch 做字节级 SHA-256 对照。
+3. 新增三区域 eager 与 lazy 等价性审计。训练集使用固定 seed shuffle，验证集和测试集顺序读取，逐 batch 做字节级 SHA-256 对照。
 4. CUDA 探针分别记录 batch 构建时间和完整优化步时间，正式 task calibration 使用两者之和。
 5. LPT 依据新 task calibration 重新装箱。
-6. loading audit 文件及其 SHA-256 写入正式 plan 和 NAS 回传计划，source-host postflight 会再次复验该文件。
+6. loading audit 文件及其 SHA-256 写入正式 plan、NAS 回传计划和 source-host postflight 契约。
 
-本地专项测试先按 TDD 形成失败门，再完成实现。最终全仓结果为 606 passed 和 2 个既有 warning。Python 编译、shell 语法与 `git diff --check` 均通过。
+本地最终全仓结果为 606 passed 和 2 个既有 warning。Python 编译、shell 语法与 `git diff --check` 全部通过。
 
-## 旧结果处理
+## baseline 恢复与 incident
 
-旧扩展运行最后一次有证据的快照为 3/9 completed、0 failed。三项已完成结果和其他中间 attempt 不删除。切换时应生成逐文件 SHA-256 incident 清单，并标记为 `superseded_by_eager_loader_relaunch`。旧结果不得与新代码的 6 项混合，因为 extension composite 要求所有 9 项使用唯一 code SHA。
+`36571` 于 2026-08-09 恢复为原 4 卡 RTX 5090 容器。baseline queue 为 6/33 completed、0 failed，但 controller、trainer 与 finalizer 均已停止。六个正式结果保留。Orange DGCRN、Orange AGCRN 与 Alameda D²STGNN 三个中断 attempt 不含 optimizer state 和 epoch cursor，必须从 epoch 0 重跑。
 
-## 当前远端状态
+恢复前只读 incident 位于 `/root/autodl-tmp/v3_event_cc_orange/control/incidents/reboot_interruption_20260809T051637Z`。queue、formal tree 与 staging tree 清单 SHA-256 分别为 `10ed910c7e33847fa32931153b651c6c612cd99b7c0e06658dacc99a66663deb`、`acaddda23479ba74af3b38d26d8fc139d081c06c9de4f529207513c24e476070` 和 `b385567c5410a5c0a838bbe45ed9462255d7018ed888474fe57f439dbbfc9dfd`。
 
-2026-08-09 12:10 新加坡时间，本机对两个 AutoDL 入口的 TCP 连接均成功，但 SSH 在鉴权前由远端关闭：
+baseline 以原 plan digest `23ed8507a1a301daef27bb613bc88d2070ec7052858de7d219e9c845c4d2cb82` 恢复。三个中断任务使用 `attempt_0002`。13:49 的实时状态为 running、6/33、0 failed。
 
-| 入口 | 用途 | 观测 |
-|---|---|---|
-| `connect.westc.seetacloud.com:50989` | 9 项扩展四卡机 | TCP 成功，SSH 立即关闭 |
-| `connect.westd.seetacloud.com:36571` | 33 项 baseline 四卡机 | TCP 成功，SSH 立即关闭 |
+## 等价性、探针与正式计划
 
-从 Hostinger 结果服务器解析到真实入口后再次探测，跨境 TCP 超时。本机直连真实 IP 时仍表现为 TCP 成功后 SSH 关闭。现有证据只能说明两个容器当前不可通过 SSH 访问，不能断言具体是余额、手动停机、无卡启动还是平台回收。
+旧扩展四卡机已欠费无卡，本轮不再依赖该主机。新扩展全部位于同机隔离目录 `/root/autodl-tmp/v3_event_extensions_eager_v2`，不改写 baseline checkout 与结果根。
 
-本轮没有在远端执行停止、删除、覆盖、上传或关机操作。最后可确认的 baseline 进度为 6/33，0 failed，扩展进度为 3/9，0 failed。它们不是当前实时状态。
+远端扩展门禁为 39 passed 和 5 个上游 warning。三地区 train、val 与 test 数据流的 eager 与 lazy 对照全部为 `exact_match`，loading audit SHA-256 为 `083f9554fd305beed8ccea91385b59230479dd6edd965974959b23cdd9981f6e`。九个 CUDA 探针全部为 `PROBE_OK`，probes 与 calibration SHA-256 分别为 `4004d54e282e3b13fb2d12821e1c7c84a8180c9ede9b435b18257441fb59b4a9` 和 `00f89733654d306f5accc370ab8063fafe5f106aa0d4df7e2bf5d4b36436b8fa`。
 
-## 恢复后的执行顺序
+正式矩阵为 `protocol_v3_event_extensions_eager_5090x4_v2`，host ID 与 baseline 统一为 `event_rtx5090x4_full33`，训练代码 SHA 为 `2754b9cdfa5ccf3baca269e83c7379ff506a0e26`。plan digest 为 `2b8bc204115a32bf40d244a94938eb5db27ea229bbed1427542b74c200b4ef3a`，plan 文件 SHA-256 为 `5a43e9224572d3413e8ca6753691a8923bc92c49617871f14eafc23d000302d4`。修正前的不同 host ID 会让合表器误标为跨主机。修正只暂停接力与收尾等待器，四个训练进程均未停止。旧计划 incident 清单 SHA-256 为 `f209d12b952cacb39a95b765b120677b06c44e1e86a9e876bdedfe57e4778cf2`。
 
-1. 重新读取两台主机的 hostname、queue、task state、runner、trainer、finalizer 和 GPU 状态。
-2. 如果扩展旧数据盘恢复，先为 3 项正式结果和全部 attempt 生成只读 incident 清单。
-3. 使用独立目录 `/root/autodl-tmp/v3_event_extensions_eager_v2` 部署提交 `c78b87a`，不覆盖旧 checkout 和结果根。
-4. 运行三区域 loading equivalence gate。
-5. 停止旧扩展 controller 和 finalizer，不动 baseline。
-6. 依次运行 9 项 loader-aware CUDA 探针，生成新 calibration 和 plan-only。
-7. 人工复核 4 个 shard 的 task union、microbatch、预计墙钟与 plan digest。
-8. 启动新的 9 项正式队列，重新武装 Hostinger 严格回传和成功后自动关机。
+| 正式 shard | 任务 | 预计时长 |
+|---|---|---:|
+| gpu00 | Orange NDR-Net | 41.86 h |
+| gpu01 | Orange IGSTGNN | 34.52 h |
+| gpu02 | Alameda BiST、Alameda NDR-Net、Contra Costa IGSTGNN | 39.49 h |
+| gpu03 | Alameda IGSTGNN、Contra Costa BiST、Contra Costa NDR-Net、Orange BiST | 37.85 h |
 
-在第 7 步完成前，不启动新正式训练。
+2026-08-09 13:40 前，空闲物理 GPU3 已启动正式 gpu00 shard，当前执行 `v3x009_event_ndr_net_orange_seed42`。它使用 eager 加载、microbatch 8 和正式四卡 plan 的 shard manifest，不是临时训练或待迁移结果。
+
+## 接力、发布与关机门
+
+提交 `9048cd2` 新增可审计 GPU 接力器。baseline 物理 GPU2、GPU1 与 GPU0 各自分片完成且无残留训练进程后，它分别启动正式 gpu02、gpu03 与 gpu01 shard。四个手动 shard 全部零退出后，它使用同一 plan digest 运行完整 controller 复验并生成 aggregate queue。relay 脚本 SHA-256 为 `3448ecd78c7f97fc8d578508d87254f988b7929213e04b085f80bd338506972b`。
+
+baseline finalizer 已从成功后关机改为只发布。提交 `ad70d5a` 的 extension finalize waiter 只在 baseline finalizer 零退出和 extension relay 零退出后启动扩展 finalizer。waiter 脚本 SHA-256 为 `8405db004ff76e70309332141f1cb3d71abe4c2476bf0187969c0d8d13d2be2d`。
+
+Hostinger 结果服务器的 xray 为 active，4 GB swap 空闲，根分区可用 `45030260736` bytes。验证 checkout 为 `2754b9cdfa5ccf3baca269e83c7379ff506a0e26`。新 post-publish 主脚本与 eager v2 包装器 SHA-256 分别为 `31295bce299f8ff85db65fb033dcccd406c2a2c3cf8888706b6a3057991acb6b` 和 `341bdcd8866eed4d7032ddac8b506e4d4de889e72b95b2eb3ae51723f7700e56`。合表器将按同 host ID 与不同 code SHA 标记为 `target_disjoint_event_no_leak_code_stratified`。
+
+关机只在 baseline 发布、extension 发布、两份 composite 和 42 行合表全部成功后发生。任一失败都保持开机。

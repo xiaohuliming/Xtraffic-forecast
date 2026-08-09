@@ -1,6 +1,6 @@
 # XTraffic 项目导航与协作约定
 
-最近更新：2026-08-09 12:10，Asia/Singapore
+最近更新：2026-08-09 13:49，Asia/Singapore
 
 ## 新会话先读
 
@@ -21,7 +21,7 @@
 - IGSTGNN Table 4 复现使用独立协议 `igstgnn_table4_official_v1`，有效性标签为 `official_protocol_with_known_overlap`。
 - Table 4 官方协议结果不得与 v3 无泄露结果混合。
 - NDR-Net 扩展、BiST-NDR 配对和 native-100 都是项目扩展，不是 IGSTGNN 原论文方法行。
-- 42 行无泄漏表必须按实际执行布局标注。33 项 baseline 与 9 项扩展分处两台主机，因此 `validity_label` 为 `target_disjoint_event_no_leak_host_stratified`，不得写成同质单机矩阵。
+- 42 行无泄漏表必须按实际执行布局标注。33 项 baseline 与 9 项扩展使用同一物理主机身份，但训练代码 SHA 不同，因此预期 `validity_label` 为 `target_disjoint_event_no_leak_code_stratified`。
 - 所有数字必须来自落盘文件。未通过 source-host postflight、目标端逐文件复验和 composite 的结果，不能写成完整矩阵结论。
 
 ## 当前有效性快照
@@ -36,8 +36,8 @@
 | BiST 与 BiST-NDR 30 epoch 配对 | `runner_completed_unanalyzed_18_of_18` | 尚未生成配对性能结论 |
 | BiST 与 NDR-Net native-100 | `verified_native100_dual_host_18` | index `27746081f2450d5f8ae7fe950000a23d147bd117ac8b8a5fa3ac18fdfc12314c` |
 | v3 full-window baseline | `stopped_supplementary_1_of_33` | 只保留 Alameda HL 补充结果 |
-| v3 event baseline | `last_verified_6_of_33_remote_unreachable` | 最后可确认 6/33、0 failed，当前 SSH 在鉴权前关闭，不得当成实时运行状态 |
-| v3 event 全方法扩展 | `eager_relaunch_prepared_last_verified_3_of_9_remote_unreachable` | 最后可确认 3/9、0 failed，预载重跑提交为 `c78b87a`，尚未远端部署 |
+| v3 event baseline | `running_6_of_33` | 4 卡 5090 已恢复，6/33、0 failed，三个断电任务从 epoch 0 重跑 |
+| v3 event 全方法扩展 | `running_formal_gpu00` | 三地区等价性与 9 项探针已通过，Orange NDR-Net 在物理 GPU3 运行 |
 
 本地全仓回归为 606 passed 和 2 个既有 warning。
 
@@ -64,9 +64,9 @@ v3 缓存已通过本地两次、5080 一次和 5090 一次严格复验。缓存
 
 - canonical manifest：`config/protocol_v3/table4_event_baselines_phase1_v1.json`
 - manifest SHA-256：`f9cdc1afa5f9f126a6a8094d4d4fc38bc565cf3de277dc4a7742f85a0d2f92ef`
-- 当前正式单主机矩阵：0/33 completed，0 failed
+- 当前正式单主机矩阵：6/33 completed，0 failed
 - 5080 的 10 项和旧 Orange 的 4 项只读保留，不进入当前矩阵
-- 尚未形成完整 baseline 表。BiST、IGSTGNN 和 NDR-Net 的 v3 event 正式 9 项已在另一台 4 卡 RTX 5090 主机启动
+- 尚未形成完整 baseline 表。BiST、IGSTGNN 和 NDR-Net 的 v3 event 正式 9 项已在同一物理主机的独立结果根启动
 
 ## v3 event 扩展历史运行与 eager 重启准备
 
@@ -150,11 +150,21 @@ Orange 4 项灾备已在群晖 NAS 通过 25/25 文件复验和原子改名。�
 
 新增 canonical manifest 为 `config/protocol_v3/table4_event_extensions_v1.json`，精确包含 9 项。数据适配器不物化 object-pickle split，不把 `affected_mask` 放入任何训练或验证 batch。NDR-Net 的 normalization 和周内时段中位数只在唯一 raw train timestamps 上拟合，并使用 v3 显式 `flow_mask`。IGSTGNN 静态支持文件仅在 `sensors.csv order == region_idx` 且 `station_id == node_order[region_idx]` 逐项完全一致后加载。
 
-新增部署、真实 CUDA 探针、LPT 多卡控制、source-host postflight、严格回传、发布后 composite 与 42 行合表器。两个发布树必须分别验证，且协议、cache bundle ID 和 digest 全部相同，才允许输出 CSV、Markdown、LaTeX 和可追溯 manifest。正式 9 项尚未训练，不得填入任何预测数字。
+新增部署、真实 CUDA 探针、LPT 多卡控制、source-host postflight、严格回传、发布后 composite 与 42 行合表器。两个发布树必须分别验证，且协议、cache bundle ID 和 digest 全部相同，才允许输出 CSV、Markdown、LaTeX 和可追溯 manifest。正式 9 项已于 2026-08-09 启动第一个 shard，任务未完成前不得填入预测数字。
 
 合表器还会从两个 composite index 分别读取 `matrix_id`、`host_id`、`execution_layout` 与 `code_sha`，写入 manifest 的 `source_indexes`，任一字段缺失或 `code_sha` 非 40 位十六进制都拒绝出表。顶层 `execution_layout` 与 `validity_label` 按实测布局取值，同主机同 SHA 为 `single_host`，主机不同为 `host_stratified`，同主机不同 SHA 为 `code_stratified`。`table.md` 抬头同时写明两个来源的主机与代码 SHA，因此论文表本身携带该注脚。runtime provenance 尚未采集，postflight 与 composite 都没有该字段。
 
 实现提交 `16e90baab74bb767a4f8d7a46f45eef6d87af44d` 已推送到 `main`。Hostinger 的 `/opt/xtraffic/v3_event_repo` 已原子切换到该提交，旧 `314d457` checkout 保留为回滚。`/opt/xtraffic/bin/event-extension-post-publish` 已安装，SHA-256 为 `80f05af5b0bb87a221e703479fc034f3b717acf07fff5748b583a1a518388edc`。切换后 xray 仍为 active，swap 仍为 4 GB，根分区约有 44.1 GB 可用。临时 bundle 已清理。
+
+## 当前实时运行，2026-08-09 13:49 新加坡时间
+
+`36571` 对应的单台 4 卡 RTX 5090 已恢复 SSH 和 GPU。baseline 断电前有 6/33 项完成、0 项失败。Orange DGCRN、Orange AGCRN 与 Alameda D²STGNN 三个未完成 attempt 没有 optimizer resume 证据，已从 epoch 0 建立 `attempt_0002` 重跑。恢复前 incident 的 queue、formal tree 与 staging tree 清单 SHA-256 分别为 `10ed910c7e33847fa32931153b651c6c612cd99b7c0e06658dacc99a66663deb`、`acaddda23479ba74af3b38d26d8fc139d081c06c9de4f529207513c24e476070` 与 `b385567c5410a5c0a838bbe45ed9462255d7018ed888474fe57f439dbbfc9dfd`。当前 baseline 仍为 running、6/33、0 failed。
+
+旧扩展四卡机已欠费无卡，不再进入当前计划。扩展代码在同机隔离目录 `/root/autodl-tmp/v3_event_extensions_eager_v2` 部署，训练代码 SHA 为 `2754b9cdfa5ccf3baca269e83c7379ff506a0e26`。三地区 train shuffle、val 和 test 数据流的 eager 与 lazy 字节级对照全部为 `exact_match`，audit SHA-256 为 `083f9554fd305beed8ccea91385b59230479dd6edd965974959b23cdd9981f6e`。9 项真实 CUDA 探针全部为 `PROBE_OK`，probes 与 calibration 的 SHA-256 为 `4004d54e282e3b13fb2d12821e1c7c84a8180c9ede9b435b18257441fb59b4a9` 与 `00f89733654d306f5accc370ab8063fafe5f106aa0d4df7e2bf5d4b36436b8fa`。
+
+正式扩展矩阵为 `protocol_v3_event_extensions_eager_5090x4_v2`，host ID 与 baseline 统一为 `event_rtx5090x4_full33`，plan digest 为 `2b8bc204115a32bf40d244a94938eb5db27ea229bbed1427542b74c200b4ef3a`。四个 shard 的实测预计时长为 41.86、34.52、39.49 和 37.85 小时。空闲物理 GPU3 已正式启动最长的 `v3x009_event_ndr_net_orange_seed42`，使用 eager 加载与 microbatch 8。接力器会在 baseline GPU2、GPU1 和 GPU0 各自分片完成后，分别启动剩余的正式 gpu02、gpu03 和 gpu01 shard。旧 host ID 修正 incident 清单 SHA-256 为 `f209d12b952cacb39a95b765b120677b06c44e1e86a9e876bdedfe57e4778cf2`，训练进程全程未停止。
+
+baseline finalizer 已重新武装为只发布不关机。扩展 finalizer 只在 baseline 发布成功和 9 项正式 aggregate 成功后启动。Hostinger 为 xray active，4 GB swap 空闲，根分区可用 `45030260736` bytes。只有 33 项发布、9 项发布、两份只读 composite 与 42 行合表全部通过后才自动关机。任一门禁失败都保持开机。接力和收尾控制提交为 `9048cd2` 与 `ad70d5a`，已推送到 `main`。
 
 ## 历史：v3 event 剩余分片的多卡主机计划
 
@@ -170,10 +180,10 @@ Orange 4 项灾备已在群晖 NAS 通过 25/25 文件复验和原子改名。�
 
 ## 下一步顺序
 
-1. 恢复两个 AutoDL SSH 入口，先读取真实 queue、task state、进程和 GPU 状态。
-2. baseline 不改训练契约，只在恢复后继续监控并等待严格发布。
-3. 扩展旧 3 项先做只读 incident 哈希清单，再在独立 eager v2 目录部署 `c78b87a`。
-4. 通过三区域等价性门、9 项 loader-aware CUDA 探针和 plan-only 后，复核新 plan digest，再重跑完整 9 项。
+1. 持续监控 baseline 的 6/33 恢复队列和 Orange NDR-Net 正式 shard。
+2. 确认每个 baseline shard 完成时，接力器只在对应物理 GPU 无残留训练进程后启动扩展 shard。
+3. 等待 9/9 后运行正式 aggregate，再等 baseline finalizer 发布成功。
+4. 扩展 finalizer 执行 source-host postflight、Hostinger 严格发布、只读 composite 和 42 行合表。
 5. 最终表中明确标注 v3 无泄漏协议、seed 42 与单次运行口径，不与官方重叠协议的 Table 4 数字混用。
 
 ## 实验纪律
