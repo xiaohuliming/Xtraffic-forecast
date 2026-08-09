@@ -10,6 +10,7 @@
 | `build_impact_labels.py` | 分析专用 | 生成事后 severity 与 affected，不得作为可部署特征 |
 | `build_event_rel_feat.py` | v3 正式缓存已验证 | 校验缓存协议、样本身份和事件排序后生成事故与节点关系特征 |
 | `audit_protocol_v3_cache.py` | v3 最终验收入口 | 校验三地区正式缓存、关系特征、split、哈希和 bundle identity |
+| `audit_protocol_v3_event_extension_loading.py` | v3 扩展加载门禁 | 逐地区比较 eager 与 lazy 的 train shuffle、val 和 test batch 流，要求逐 batch 字节级一致 |
 | `build_region_sampling_graph.py` | 可复用 | 区域采样图 |
 | `build_igstgnn_data_from_h5.py` | v3 已修复，待正式缓存 | 与 RegionData 使用同一 forecast origin、anchor event 和显式 x/y mask |
 | `export_to_igstgnn.py` | 历史入口 | 独立的旧 IGSTGNN 导出管线 |
@@ -129,11 +130,11 @@ posthoc
 
 | 脚本 | 状态 | 用途 |
 |---|---|---|
-| `protocol_v3_event_extension_data.py` | 已验证 | v3 数值缓存懒加载、显式 mask、train-only normalization 与 climatology、IGSTGNN 节点对齐 |
+| `protocol_v3_event_extension_data.py` | 已验证 | v3 数值缓存 eager 或 lazy 加载、显式 mask、train-only normalization 与 climatology、IGSTGNN 节点对齐 |
 | `train_protocol_v3_event_extension.py` | 已验证，未训练 | BiST、IGSTGNN 和 NDR-Net 的 seed 42、30 epoch v3 event 训练入口 |
 | `remote/windows/protocol_v3_event_extension_runner.py` | 已验证，未训练 | 九项 canonical manifest、support 哈希绑定、config hash 和任务验收 |
-| `remote/linux/protocol_v3_event_extension_gpu_probe.py` | 已验证，未远程运行 | 复用正式 loader 与 model factory 的真实 CUDA 完整优化步探针 |
-| `remote/linux/protocol_v3_event_extension_multi_gpu.py` | 已验证，未训练 | 按九项实测耗时 LPT 装箱，写分片 manifest、聚合 queue、runner exit code 和回传计划 |
+| `remote/linux/protocol_v3_event_extension_gpu_probe.py` | 已验证，待重新标定 | 复用正式 loader 与 model factory，实测 batch 构建和真实 CUDA 完整优化步 |
+| `remote/linux/protocol_v3_event_extension_multi_gpu.py` | 已验证，待重排 | 按包含数据路径的九项实测耗时做 LPT 装箱，并把加载等价性审计哈希绑定进计划 |
 | `remote/linux/protocol_v3_event_extension_deploy_host.sh` | 已验证，等待租卡 | 部署 clean commit、缓存与 support，执行远程门禁和九项探针，只生成待复核 plan |
 | `remote/linux/protocol_v3_event_extension_launch_host.sh` | 已验证，等待 plan | 只在 plan digest 一致时启动多卡 controller，并武装 9/9 严格发布与自动关机 |
 | `remote/linux/protocol_v3_event_extension_composite.py` | 已验证 | 结果服务器上对已发布 9 项执行全树只读复验 |

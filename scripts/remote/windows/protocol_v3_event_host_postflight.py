@@ -329,6 +329,14 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
         )
         if sha256_file(support_manifest) != expected_support_sha:
             raise PostflightError("support manifest SHA-256 mismatch")
+        loading_audit = _resolve_path(
+            plan_path, _required_string(plan, "loading_audit")
+        )
+        expected_loading_audit_sha = _required_sha(
+            plan, "loading_audit_sha256", 64
+        )
+        if sha256_file(loading_audit) != expected_loading_audit_sha:
+            raise PostflightError("loading audit SHA-256 mismatch")
         support_root = _resolve_path(
             plan_path, _required_string(plan, "support_root")
         )
@@ -381,6 +389,8 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
         support_report = {
             "support_manifest": str(support_manifest),
             "support_manifest_sha256": expected_support_sha,
+            "loading_audit": str(loading_audit),
+            "loading_audit_sha256": expected_loading_audit_sha,
             "support_root": str(verified_support.support_root),
             "node_order": str(verified_support.node_order),
             "extension_options": dict(raw_options),

@@ -63,7 +63,9 @@ git diff --quiet && git diff --cached --quiet \
 CODE_SHA="$(git rev-parse HEAD)"
 /opt/anaconda3/bin/python -m pytest -q \
   tests/data/test_protocol_v3_event_extension_data.py \
+  tests/data/test_protocol_v3_event_extension_loading_audit.py \
   tests/remote/test_protocol_v3_event_extension_runner.py \
+  tests/remote/test_protocol_v3_event_extension_gpu_probe.py \
   tests/remote/test_protocol_v3_event_extension_multi_gpu.py \
   tests/remote/test_protocol_v3_event_extension_postflight.py \
   tests/remote/test_protocol_v3_event_comparison_report.py \
@@ -135,7 +137,9 @@ PYTHONPATH='$REMOTE_REPO' '$REMOTE_PYTHON' -X utf8 scripts/audit_protocol_v3_cac
   --data-dir '$REMOTE_CACHE' --graph-dir '$REMOTE_GRAPHS' --no-write-manifest
 PYTHONPATH='$REMOTE_REPO' '$REMOTE_PYTHON' -m pytest -q \
   tests/data/test_protocol_v3_event_extension_data.py \
+  tests/data/test_protocol_v3_event_extension_loading_audit.py \
   tests/remote/test_protocol_v3_event_extension_runner.py \
+  tests/remote/test_protocol_v3_event_extension_gpu_probe.py \
   tests/remote/test_protocol_v3_event_extension_multi_gpu.py \
   tests/remote/test_protocol_v3_event_extension_postflight.py \
   tests/remote/test_protocol_v3_event_comparison_report.py \
@@ -147,6 +151,16 @@ value=verify_extension_support(
  support_root='$REMOTE_SUPPORT', node_order='$REMOTE_NODE_ORDER')
 print('SUPPORT_OK',value.manifest_sha256)
 PY" || die "remote extension gates failed"
+
+say "EAGER_LAZY_EQUIVALENCE"
+rsh "set -euo pipefail
+cd '$REMOTE_REPO'
+PYTHONPATH='$REMOTE_REPO' '$REMOTE_PYTHON' -X utf8 \
+  scripts/audit_protocol_v3_event_extension_loading.py \
+  --data-dir '$REMOTE_CACHE' --graph-dir '$REMOTE_GRAPHS' \
+  --support-root '$REMOTE_SUPPORT' --node-order '$REMOTE_NODE_ORDER' \
+  --batch-limit 20 --output '$REMOTE_CONTROL/loading_equivalence.json'" \
+  || die "eager/lazy loading equivalence gate failed"
 
 say "REAL_CUDA_PROBES"
 rsh "rm -f '$REMOTE_CONTROL/probes.jsonl' '$REMOTE_CONTROL/calibration.json'"
@@ -164,7 +178,8 @@ PYTHONPATH='$REMOTE_REPO' '$REMOTE_PYTHON' -X utf8 \
   scripts/remote/linux/protocol_v3_event_extension_gpu_probe.py \
   --method '$method' --region '$region' --data-dir '$REMOTE_CACHE' \
   --graph-dir '$REMOTE_GRAPHS' --support-root '$REMOTE_SUPPORT' \
-  --node-order '$REMOTE_NODE_ORDER' --device cuda:0 $probe_microbatch | tail -n 1 \
+  --node-order '$REMOTE_NODE_ORDER' --device cuda:0 \
+  --traffic-loading eager --loader-batches 20 $probe_microbatch | tail -n 1 \
   >> '$REMOTE_CONTROL/probes.jsonl'" || die "CUDA probe failed for $region $method"
   done
 done
@@ -182,13 +197,14 @@ manifest=load_extension_manifest('config/protocol_v3/table4_event_extensions_v1.
 seconds={}
 for task in manifest.tasks:
  p=by[(task.region,task.model)]
- seconds[task.task_id]=p['elapsed_seconds']*p['train_batches']*30
+ seconds[task.task_id]=p['estimated_task_seconds']
 Path('$REMOTE_CONTROL/calibration.json').write_text(json.dumps({'schema_version':1,'task_seconds':seconds},indent=2,sort_keys=True)+'\\n')
 PY
 PYTHONPATH='$REMOTE_REPO' '$REMOTE_PYTHON' -X utf8 \
   -m scripts.remote.linux.protocol_v3_event_extension_multi_gpu \
   --manifest '$REMOTE_REPO/config/protocol_v3/table4_event_extensions_v1.json' \
   --support-manifest '$REMOTE_REPO/config/protocol_v3/event_extension_support_v1.json' \
+  --loading-audit '$REMOTE_CONTROL/loading_equivalence.json' \
   --calibration '$REMOTE_CONTROL/calibration.json' --repo-root '$REMOTE_REPO' \
   --control-root '$REMOTE_CONTROL' --results-root '$REMOTE_RESULTS' \
   --cache-dir '$REMOTE_CACHE' --graph-dir '$REMOTE_GRAPHS' \

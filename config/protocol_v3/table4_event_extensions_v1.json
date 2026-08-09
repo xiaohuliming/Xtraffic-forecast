@@ -13,6 +13,7 @@
     "checkpoint_metric": "global_validation_masked_mae_all_valid_points",
     "evaluation_mask": "explicit_v3_flow_mask",
     "partial_batch": "retain",
+    "traffic_loading": "eager",
     "training_analysis_labels": false
   },
   "tasks": [

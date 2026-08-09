@@ -35,12 +35,14 @@ def test_extension_plan_binds_support_and_all_nine_tasks() -> None:
         cache_bundle_id="bundle-test",
         cache_bundle_digest="2" * 64,
         support_manifest_sha256="3" * 64,
+        loading_audit_sha256="4" * 64,
         task_seconds=costs,
         gpu_count=4,
     )
     assert plan["task_count"] == 9
     assert plan["execution_layout"] == "single_host_multi_gpu_interleaved"
     assert plan["support_manifest_sha256"] == "3" * 64
+    assert plan["loading_audit_sha256"] == "4" * 64
     assert plan["task_microbatch_sizes"] == {
         "v3x008_event_igstgnn_orange_seed42": 8,
         "v3x009_event_ndr_net_orange_seed42": 8,

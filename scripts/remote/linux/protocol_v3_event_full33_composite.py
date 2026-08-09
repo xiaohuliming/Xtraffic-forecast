@@ -433,6 +433,9 @@ def _build_event_composite_index(
             raise Full33CompositeError("support manifest SHA-256 mismatch")
         if plan.get("support_manifest_sha256") != support_sha:
             raise Full33CompositeError("plan support manifest binding mismatch")
+        loading_audit_sha = _require_hex(report, "loading_audit_sha256", 64)
+        if plan.get("loading_audit_sha256") != loading_audit_sha:
+            raise Full33CompositeError("plan loading audit binding mismatch")
         options = report.get("extension_options")
         if not isinstance(options, dict):
             raise Full33CompositeError("extension_options are missing")

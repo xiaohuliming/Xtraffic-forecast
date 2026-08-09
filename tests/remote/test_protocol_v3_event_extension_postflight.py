@@ -179,6 +179,8 @@ def _build_extension_host(tmp_path: Path):
         encoding="utf-8",
     )
     (control_root / "runner.exitcode").write_text("0\n", encoding="ascii")
+    loading_audit = control_root / "loading_equivalence.json"
+    loading_audit.write_text('{"status":"EAGER_LAZY_EQUIVALENCE_OK"}\n', encoding="utf-8")
     plan = build_extension_nas_plan(
         matrix_id="protocol_v3_event_extensions_test",
         host_id="event_extensions_test",
@@ -187,6 +189,8 @@ def _build_extension_host(tmp_path: Path):
         canonical_manifest_sha256=_sha256(CANONICAL_MANIFEST),
         support_manifest=SUPPORT_MANIFEST,
         support_manifest_sha256=support.manifest_sha256,
+        loading_audit=loading_audit,
+        loading_audit_sha256=_sha256(loading_audit),
         support_root=support.support_root,
         node_order=support.node_order,
         shards=shards,
@@ -214,6 +218,9 @@ def test_extension_host_passes_the_shared_read_only_postflight(tmp_path: Path) -
     assert report["runner_kind"] == "event_extension"
     assert report["validated_tasks"] == 9
     assert report["support_manifest_sha256"] == _sha256(SUPPORT_MANIFEST)
+    assert report["loading_audit_sha256"] == _sha256(
+        Path(report["loading_audit"])
+    )
     assert report["task_state_counts"] == {"completed": 9}
 
 

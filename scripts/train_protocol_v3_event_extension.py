@@ -83,6 +83,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--out-dir", type=Path, required=True)
     parser.add_argument("--max-microbatch-size", type=int, default=0)
     parser.add_argument("--igstgnn-data-parallel", action="store_true")
+    parser.add_argument(
+        "--traffic-loading", choices=("eager", "lazy"), required=True
+    )
     return parser.parse_args()
 
 
@@ -425,7 +428,7 @@ def main() -> None:
         args.region,
         args.data_dir,
         args.graph_dir,
-        lazy=True,
+        lazy=args.traffic_loading == "lazy",
         require_rel_feat=True,
         include_analysis_labels=False,
         verify_artifact_hashes=True,
@@ -456,8 +459,9 @@ def main() -> None:
         logger = FileLogger(handle)
         with contextlib.redirect_stdout(handle), contextlib.redirect_stderr(handle):
             logger.info(
-                "method=%s region=%s protocol=protocol_v3_noleak_dedup seed=%d",
-                args.method, args.region, args.seed,
+                "method=%s region=%s protocol=protocol_v3_noleak_dedup seed=%d "
+                "traffic_loading=%s",
+                args.method, args.region, args.seed, args.traffic_loading,
             )
             logger.info(
                 "train=%d val=%d test=%d train_valid_points=%d",
@@ -615,6 +619,7 @@ def main() -> None:
             "explicit_observation_masks": True,
             "checkpoint_metric": "global_validation_masked_mae_all_valid_points",
             "partial_batch": "retain_for_train_val_test",
+            "traffic_loading": args.traffic_loading,
             "early_stopping_patience": (
                 None if args.method == "ndr_net" else args.patience
             ),

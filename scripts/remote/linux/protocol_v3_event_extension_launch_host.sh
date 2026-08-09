@@ -16,6 +16,7 @@ REMOTE_CONTROL="${REMOTE_CONTROL:-$REMOTE_BASE/control}"
 REMOTE_RESULTS="${REMOTE_RESULTS:-$REMOTE_BASE/results}"
 REMOTE_PYTHON="${REMOTE_PYTHON:-/root/miniconda3/bin/python}"
 CALIBRATION="${CALIBRATION:-$REMOTE_CONTROL/calibration.json}"
+LOADING_AUDIT="${LOADING_AUDIT:-$REMOTE_CONTROL/loading_equivalence.json}"
 GPU_COUNT="${GPU_COUNT:-4}"
 CACHE_BUNDLE_ID="${CACHE_BUNDLE_ID:-bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4}"
 CACHE_BUNDLE_DIGEST="${CACHE_BUNDLE_DIGEST:-854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5}"
@@ -42,7 +43,7 @@ CODE_SHA="$(rsh "cd '$REMOTE_REPO' && git rev-parse HEAD" | tr -d '[:space:]')"
 [ -n "$CODE_SHA" ] || die "cannot read remote code SHA"
 rsh "cd '$REMOTE_REPO' && test -z \"\$(git status --porcelain)\"" \
   || die "remote worktree is dirty"
-rsh "test -s '$CALIBRATION'; test -f '$NAS_KEY'; test ! -e '$REMOTE_RESULTS/queue_status.json'" \
+rsh "test -s '$CALIBRATION'; test -s '$LOADING_AUDIT'; test -f '$NAS_KEY'; test ! -e '$REMOTE_RESULTS/queue_status.json'" \
   || die "calibration, transfer key, or clean results root gate failed"
 
 rsh "set -eu
@@ -59,6 +60,7 @@ PYTHONPATH='$REMOTE_REPO' nohup '$REMOTE_PYTHON' -X utf8 \
   -m scripts.remote.linux.protocol_v3_event_extension_multi_gpu \
   --manifest '$REMOTE_REPO/config/protocol_v3/table4_event_extensions_v1.json' \
   --support-manifest '$REMOTE_REPO/config/protocol_v3/event_extension_support_v1.json' \
+  --loading-audit '$LOADING_AUDIT' \
   --calibration '$CALIBRATION' --repo-root '$REMOTE_REPO' \
   --control-root '$REMOTE_CONTROL' --results-root '$REMOTE_RESULTS' \
   --cache-dir '$REMOTE_CACHE' --graph-dir '$REMOTE_GRAPHS' \

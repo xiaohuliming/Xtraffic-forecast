@@ -87,6 +87,39 @@ def load_task_calibration(path: Path | str, tasks: Sequence[Task]) -> dict[str, 
     return result
 
 
+def verify_loading_audit(path: Path | str) -> str:
+    audit_path = Path(path)
+    value = json.loads(audit_path.read_text(encoding="utf-8"))
+    regions = value.get("regions") if isinstance(value, dict) else None
+    if (
+        value.get("schema_version") != 1
+        or value.get("status") != "EAGER_LAZY_EQUIVALENCE_OK"
+        or not isinstance(regions, list)
+        or {row.get("region") for row in regions if isinstance(row, dict)}
+        != {"Alameda", "ContraCosta", "Orange"}
+        or len(regions) != 3
+    ):
+        raise ValueError("extension loading equivalence audit is invalid")
+    for row in regions:
+        streams = row.get("streams") if isinstance(row, dict) else None
+        if (
+            row.get("status") != "exact_match"
+            or not isinstance(streams, dict)
+            or set(streams) != {"train", "val", "test"}
+            or any(
+                not isinstance(streams[split], dict)
+                or streams[split].get("status") != "exact_match"
+                or type(streams[split].get("batch_count")) is not int
+                or streams[split]["batch_count"] <= 0
+                or not isinstance(streams[split].get("stream_sha256"), str)
+                or len(streams[split]["stream_sha256"]) != 64
+                for split in ("train", "val", "test")
+            )
+        ):
+            raise ValueError("extension loading equivalence audit is incomplete")
+    return _sha256_file(audit_path)
+
+
 def assign_tasks_lpt(
     tasks: Sequence[Task],
     *,
@@ -119,6 +152,7 @@ def build_plan(
     cache_bundle_id: str,
     cache_bundle_digest: str,
     support_manifest_sha256: str,
+    loading_audit_sha256: str,
     task_seconds: Mapping[str, float],
     gpu_count: int,
 ) -> dict[str, object]:
@@ -131,6 +165,7 @@ def build_plan(
         "cache_bundle_id": cache_bundle_id,
         "cache_bundle_digest": cache_bundle_digest,
         "support_manifest_sha256": support_manifest_sha256,
+        "loading_audit_sha256": loading_audit_sha256,
         "gpu_count": gpu_count,
         "task_count": sum(len(tasks) for tasks in shards.values()),
         "assignments": {
@@ -162,6 +197,8 @@ def build_extension_nas_plan(
     canonical_manifest_sha256: str,
     support_manifest: Path,
     support_manifest_sha256: str,
+    loading_audit: Path,
+    loading_audit_sha256: str,
     support_root: Path,
     node_order: Path,
     shards: Mapping[int, Sequence[Task]],
@@ -204,6 +241,8 @@ def build_extension_nas_plan(
         "canonical_manifest_sha256": canonical_manifest_sha256,
         "support_manifest": str(support_manifest),
         "support_manifest_sha256": support_manifest_sha256,
+        "loading_audit": str(loading_audit),
+        "loading_audit_sha256": loading_audit_sha256,
         "support_root": str(support_root),
         "node_order": str(node_order),
         "protocol_version": manifest.protocol_version,
@@ -240,6 +279,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--manifest", type=Path, default=CANONICAL_MANIFEST)
     parser.add_argument("--support-manifest", type=Path, default=SUPPORT_MANIFEST)
     parser.add_argument("--calibration", type=Path, required=True)
+    parser.add_argument("--loading-audit", type=Path, required=True)
     parser.add_argument("--repo-root", type=Path, default=PROJECT_ROOT)
     parser.add_argument("--control-root", type=Path, required=True)
     parser.add_argument("--results-root", type=Path, required=True)
@@ -283,6 +323,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         support_root=args.support_root,
         node_order=args.node_order,
     )
+    loading_audit_sha256 = verify_loading_audit(args.loading_audit)
     costs = load_task_calibration(args.calibration, manifest.tasks)
     shards = assign_tasks_lpt(
         manifest.tasks, gpu_count=args.gpu_count, task_seconds=costs
@@ -304,6 +345,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         cache_bundle_id=args.cache_bundle_id,
         cache_bundle_digest=args.cache_bundle_digest.lower(),
         support_manifest_sha256=support.manifest_sha256,
+        loading_audit_sha256=loading_audit_sha256,
         task_seconds=costs,
         gpu_count=args.gpu_count,
     )
@@ -314,6 +356,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "support_manifest": str(args.support_manifest.resolve()),
             "calibration": str(args.calibration.resolve()),
             "calibration_sha256": _sha256_file(args.calibration.resolve()),
+            "loading_audit": str(args.loading_audit.resolve()),
             "cache_dir": str(args.cache_dir.resolve()),
             "graph_dir": str(args.graph_dir.resolve()),
             "support_root": str(support.support_root),
@@ -336,6 +379,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         canonical_manifest_sha256=_sha256_file(args.manifest.resolve()),
         support_manifest=args.support_manifest.resolve(),
         support_manifest_sha256=support.manifest_sha256,
+        loading_audit=args.loading_audit.resolve(),
+        loading_audit_sha256=loading_audit_sha256,
         support_root=support.support_root,
         node_order=support.node_order,
         shards=shards,

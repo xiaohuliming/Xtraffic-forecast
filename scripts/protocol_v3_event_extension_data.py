@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Strict lazy data adapter for v3 event BiST, IGSTGNN, and NDR-Net runs."""
+"""Strict numeric data adapter for v3 event BiST, IGSTGNN, and NDR-Net runs."""
 
 from __future__ import annotations
 

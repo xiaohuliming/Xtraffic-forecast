@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Measure one real v3 extension optimization step without creating a result."""
+"""Measure v3 extension batch loading and one real optimization step."""
 
 from __future__ import annotations
 
@@ -46,12 +46,38 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--max-microbatch-size", type=int, default=0)
     parser.add_argument("--igstgnn-data-parallel", action="store_true")
+    parser.add_argument(
+        "--traffic-loading", choices=("eager", "lazy"), required=True
+    )
+    parser.add_argument("--loader-batches", type=int, default=20)
     return parser.parse_args()
+
+
+def estimate_training_seconds(
+    *,
+    batch_build_seconds: float,
+    optimization_seconds: float,
+    train_batches: int,
+    epochs: int,
+) -> float:
+    if batch_build_seconds < 0 or optimization_seconds <= 0:
+        raise ValueError("probe timings must be nonnegative and optimization positive")
+    if type(train_batches) is not int or train_batches <= 0:
+        raise ValueError("train_batches must be positive")
+    if type(epochs) is not int or epochs <= 0:
+        raise ValueError("epochs must be positive")
+    return (
+        float(batch_build_seconds) + float(optimization_seconds)
+    ) * train_batches * epochs
 
 
 def main() -> int:
     args = parse_args()
-    if args.seed != 42 or args.max_microbatch_size < 0:
+    if (
+        args.seed != 42
+        or args.max_microbatch_size < 0
+        or args.loader_batches <= 0
+    ):
         raise ValueError("probe seed must be 42 and microbatch must be nonnegative")
     device = torch.device(args.device)
     if device.type != "cuda" or not torch.cuda.is_available():
@@ -61,7 +87,7 @@ def main() -> int:
         args.region,
         args.data_dir,
         args.graph_dir,
-        lazy=True,
+        lazy=args.traffic_loading == "lazy",
         require_rel_feat=True,
         include_analysis_labels=False,
         verify_artifact_hashes=True,
@@ -99,7 +125,18 @@ def main() -> int:
                 output_dir=Path(directory),
                 igstgnn_data_parallel=args.igstgnn_data_parallel,
             )
-        batch = next(loaders["train"].get_iterator())
+        loaders["train"].shuffle()
+        loader_started = time.perf_counter()
+        iterator = loaders["train"].get_iterator()
+        measured_batches = min(args.loader_batches, loaders["train"].num_batch)
+        batch = None
+        for _ in range(measured_batches):
+            batch = next(iterator)
+        batch_build_seconds = (
+            time.perf_counter() - loader_started
+        ) / measured_batches
+        if batch is None:
+            raise RuntimeError("loader probe produced no training batch")
         optimizer.zero_grad(set_to_none=True)
         torch.cuda.empty_cache()
         torch.cuda.reset_peak_memory_stats()
@@ -156,6 +193,13 @@ def main() -> int:
             torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
         optimizer.step()
         torch.cuda.synchronize()
+        optimization_seconds = time.perf_counter() - started
+        estimated_task_seconds = estimate_training_seconds(
+            batch_build_seconds=batch_build_seconds,
+            optimization_seconds=optimization_seconds,
+            train_batches=loaders["train"].num_batch,
+            epochs=30,
+        )
         result = {
             "status": "PROBE_OK",
             "method": args.method,
@@ -167,7 +211,12 @@ def main() -> int:
             "prediction_shape": list(shape),
             "valid_count": valid_count,
             "loss": float(loss),
-            "elapsed_seconds": time.perf_counter() - started,
+            "traffic_loading": args.traffic_loading,
+            "loader_batches_measured": measured_batches,
+            "batch_build_seconds": batch_build_seconds,
+            "optimization_seconds": optimization_seconds,
+            "elapsed_seconds": optimization_seconds,
+            "estimated_task_seconds": estimated_task_seconds,
             "peak_allocated_bytes": int(torch.cuda.max_memory_allocated()),
             "peak_reserved_bytes": int(torch.cuda.max_memory_reserved()),
             "visible_gpu_count": torch.cuda.device_count(),

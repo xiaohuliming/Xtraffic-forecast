@@ -136,6 +136,7 @@ def load_extension_manifest(
         "checkpoint_metric": "global_validation_masked_mae_all_valid_points",
         "evaluation_mask": "explicit_v3_flow_mask",
         "partial_batch": "retain",
+        "traffic_loading": "eager",
         "training_analysis_labels": False,
     }
     if dict(manifest.training) != expected_training:
@@ -193,6 +194,7 @@ def build_extension_invocation(
         "--support-root", str(extension.support_root),
         "--node-order", str(extension.node_order),
         "--out-dir", str(work),
+        "--traffic-loading", str(manifest.training["traffic_loading"]),
     ]
     if effective_microbatch_size:
         command += ["--max-microbatch-size", str(effective_microbatch_size)]

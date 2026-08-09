@@ -63,6 +63,8 @@ def test_checked_support_and_invocation_bind_the_v3_adapter(tmp_path: Path) -> N
     )
     assert invocation.config["support_manifest_sha256"] == support.manifest_sha256
     assert invocation.config["upstream_curriculum_applied"] is True
+    assert command[command.index("--traffic-loading") + 1] == "eager"
+    assert invocation.config["traffic_loading"] == "eager"
 
 
 def test_orange_ndr_invocation_records_its_effective_microbatch(tmp_path: Path) -> None:
