@@ -176,6 +176,14 @@ baseline finalizer 已重新武装为只发布不关机。扩展 finalizer 只�
 
 baseline 与扩展侧车 PID 为 `16661` 与 `16662`。脚本 SHA-256 为 `e797f2a218f7f32d0b3a6c2dc6d454f92af96132f9e1d34c541863b906e0f9aa`。首个任务 `v3e010_event_dgcrn_alameda_seed42` 已在 Hostinger 完成 6 个文件和 `168730616` bytes 的逐文件回传及任务 marker 验证。其余 5 个既有 completed baseline 任务正在补传。扩展当前尚无 completed 任务，侧车每 60 秒等待。隐藏灾备树不是正式发布，最终仍需原 finalizer 的完整 source-host postflight、精确 allowlist、原子提升和 composite。
 
+## Orange IGSTGNN 关键路径优先接力，2026-08-09 20:26 新加坡时间
+
+Orange NDR-Net 的实际运行显著快于单个完整优化步探针外推。旧接力顺序会先启动探针预计更长的 gpu02 和 gpu03，让实际关键路径 Orange IGSTGNN 最后启动。提交 `0648b76` 把剩余正式 shard 顺序改为显式且严格校验的 `gpu01,gpu02,gpu03`。顺序缺项、重复或包含非法 shard 时接力器会 fail closed。该改动只决定空闲物理 GPU 领取哪个既有正式 shard，不修改 plan、manifest、训练 checkout、config hash 或任务身份。
+
+远端切换前只暂停 relay 和 finalize waiter，四个训练进程均未停止。切换 incident 清单 SHA-256 为 `c3261aa55b14d92bc0b70f16b44fde2433c1dc2635d2e56669c70c5a4c6b22e5`。新 relay 脚本 SHA-256 为 `97633145e9605678d92678ebbb03ea2b7d892072c0bb02fe2936c435df0252f3`，plan 文件 SHA-256 仍为 `5a43e9224572d3413e8ca6753691a8923bc92c49617871f14eafc23d000302d4`。relay 与 finalize waiter 的新 PID 为 `50215` 和 `50364`。
+
+Orange NDR-Net 于 20:25:45 完成五文件验收，正式 gpu00 queue 为 completed、1/1、退出码 0。summary SHA-256 为 `598d5e2838433d1ad8b3ddb503b554ee0f5b10be81900fcedb1b1c0e621815f0`。20:25:54，接力器把物理 GPU3 交给正式 gpu01，启动 `v3x008_event_igstgnn_orange_seed42`。启动复验为 running、0/1，CUDA 利用率 95%，显存使用 16505 MiB。同期 baseline 为 10/33、0 failed，扩展为 1/9、0 failed。本地全仓回归为 613 passed 和 2 个既有 warning。
+
 ## 历史：v3 event 剩余分片的多卡主机计划
 
 2026-08-07 布防记录。

@@ -1193,3 +1193,13 @@ baseline finalizer 已改为只发布不关机。提交 `ad70d5a` 的收尾等�
 新增 `scripts/remote/linux/protocol_v3_event_incremental_backup.py` 作为独立灾备侧车。它不修改 baseline 或扩展训练 checkout，也不改变训练代码 SHA、plan digest、config hash 或正式发布契约。侧车按正式 plan 重建 invocation 和 config hash，复用 runner 的 `validate_result` 严格复验 completed task，再以低 CPU 与 idle I/O 优先级逐文件传到 Hostinger 隐藏 `.incremental` 树。远端先校验文件 SHA-256，再写 task marker。staging checkpoint 和运行中半成品不会上传，隐藏树也不会被当作正式发布。
 
 baseline 与扩展侧车 PID 为 `16661` 与 `16662`，脚本 SHA-256 为 `e797f2a218f7f32d0b3a6c2dc6d454f92af96132f9e1d34c541863b906e0f9aa`。首个任务 `v3e010_event_dgcrn_alameda_seed42` 已在 Hostinger 完成 6 文件、`168730616` bytes 和 task marker 的复验。其余 5 个既有 completed baseline 任务正在补传。之后每新增一个 completed task 都会自动回传。最终论文表仍必须等待两个矩阵完整 postflight、正式原子发布、两份 composite 和 42 行合表通过。本地全仓回归为 611 passed 和 2 个既有 warning。
+
+## 最新进展，2026-08-09 20:26 Orange IGSTGNN 关键路径已启动
+
+Orange NDR-Net 的实际训练从 13:40 运行到 20:25，明显快于 41.86 小时的单步探针外推。旧动态接力器仍按探针的 shard 总量排序，下一项会选择 gpu02，而不是实际剩余关键路径 gpu01 的 Orange IGSTGNN。继续该顺序会让 Orange IGSTGNN 延后约 5 到 7 小时。
+
+提交 `0648b76` 把接力优先级改为显式且严格校验的 `gpu01,gpu02,gpu03`。非法、缺失或重复顺序会 fail closed。该优先级只改变哪个空闲物理 GPU 领取哪个既有正式 shard。九项正式 plan digest 仍为 `2b8bc204115a32bf40d244a94938eb5db27ea229bbed1427542b74c200b4ef3a`，plan 文件 SHA-256 仍为 `5a43e9224572d3413e8ca6753691a8923bc92c49617871f14eafc23d000302d4`。训练 checkout、manifest、config hash、有效 batch 和结果身份均未改变。
+
+远端切换时只暂停原 relay 与 finalize waiter，baseline 三个 trainer 和 Orange NDR-Net trainer 全程存活。旧控制层快照保存在 `relay_priority_reorder_20260809T1218Z`，清单 SHA-256 为 `c3261aa55b14d92bc0b70f16b44fde2433c1dc2635d2e56669c70c5a4c6b22e5`。新 relay 脚本 SHA-256 为 `97633145e9605678d92678ebbb03ea2b7d892072c0bb02fe2936c435df0252f3`。新 relay 与 finalize waiter PID 为 `50215` 和 `50364`，均为独立持久会话。
+
+Orange NDR-Net 于 20:25:45 通过 runner 五文件验收，gpu00 queue 为 completed、1/1、退出码 0，summary SHA-256 为 `598d5e2838433d1ad8b3ddb503b554ee0f5b10be81900fcedb1b1c0e621815f0`。接力器在 9 秒后的 20:25:54 把同一物理 GPU3 分配给正式 gpu01，启动 `v3x008_event_igstgnn_orange_seed42`。复验时 queue 为 running、0/1，CUDA 利用率为 95%，显存使用 16505 MiB。baseline 同期为 10/33、0 failed，扩展为 1/9、0 failed。全仓回归为 613 passed 和 2 个既有 warning。

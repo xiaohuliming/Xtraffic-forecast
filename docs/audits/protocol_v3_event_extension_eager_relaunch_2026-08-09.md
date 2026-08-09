@@ -84,3 +84,11 @@ Hostinger 结果服务器的 xray 为 active，4 GB swap 空闲，根分区可�
 为避免完成任务只留在 AutoDL 数据盘，新增独立脚本 `scripts/remote/linux/protocol_v3_event_incremental_backup.py`。脚本先按正式 plan 重建 invocation 和 config hash，再调用与 runner 相同的 `validate_result`。只有 task state 为 completed、returncode 为 0、final_dir 为 canonical task 目录、结果重新验收通过且目录内没有符号链接时才建立快照。上传目标是 Hostinger 各矩阵正式根下的隐藏 `.incremental` 灾备树。每个文件先按 SHA-256 检查复用，缺失文件写入唯一 `.part`，远端验证大小和哈希后原子改名，全部文件再次验证后才写 task marker。该流程不接触 `.staging`，也不会生成正式 transfer marker 或提升正式目录。
 
 侧车使用 `nice 15` 和 `ionice idle`，不占 GPU。baseline 与扩展 PID 为 `16661` 与 `16662`。脚本 SHA-256 为 `e797f2a218f7f32d0b3a6c2dc6d454f92af96132f9e1d34c541863b906e0f9aa`。首个任务 `v3e010_event_dgcrn_alameda_seed42` 已完成 6 文件和 `168730616` bytes 回传，Hostinger 上的 task marker 已复验。其余 5 个既有 completed baseline 任务正在补传。扩展侧车等待首个 completed task。本地专项测试新增 5 项，全仓回归为 611 passed 和 2 个既有 warning。
+
+## 关键路径优先接力
+
+Orange NDR-Net 的 30 epoch 实际耗时约 6 小时 45 分钟，证明单步 CUDA 探针对 NDR-Net 的训练总时长存在明显高估。原接力顺序 `gpu02,gpu03,gpu01` 会让 Orange IGSTGNN 最后领取资源。提交 `0648b76` 将顺序改为显式参数，默认值为 `gpu01,gpu02,gpu03`，并要求它严格构成 1、2、3 的排列。错误顺序会在读取任何正式环境前 fail closed。
+
+控制层切换发生在 Orange NDR-Net epoch 29 到 30 之间。只暂停 relay 和 finalize waiter，没有停止 baseline 或扩展 trainer。旧控制快照、正式 plan、gpu00 queue 和 PID 文件组成的 incident 清单 SHA-256 为 `c3261aa55b14d92bc0b70f16b44fde2433c1dc2635d2e56669c70c5a4c6b22e5`。新 relay 脚本 SHA-256 为 `97633145e9605678d92678ebbb03ea2b7d892072c0bb02fe2936c435df0252f3`。正式 plan 文件 SHA-256 保持为 `5a43e9224572d3413e8ca6753691a8923bc92c49617871f14eafc23d000302d4`。
+
+Orange NDR-Net 于 2026-08-09 20:25:45 新加坡时间完成并通过 runner 验收。gpu00 为 completed、1/1，manual shard 退出码为 0，summary SHA-256 为 `598d5e2838433d1ad8b3ddb503b554ee0f5b10be81900fcedb1b1c0e621815f0`。20:25:54，relay 日志记录 `LAUNCH physical_gpu=3 formal_shard=gpu01`，随后正式任务 `v3x008_event_igstgnn_orange_seed42` 进入 running。CUDA 复验为 95% 利用率和 16505 MiB 显存。同期 baseline 为 10/33、0 failed，扩展为 1/9、0 failed。专项测试新增 2 项，全仓回归为 613 passed 和 2 个既有 warning。
