@@ -35,10 +35,11 @@ import h5py
 import numpy as np
 import torch
 from torch.optim import Adam
-from torch.optim.lr_scheduler import MultiStepLR, StepLR
+from torch.optim.lr_scheduler import CosineAnnealingLR, MultiStepLR, StepLR
 
 from dist_net.data import MultiRegionDataset, FullWindowRegionData, RegionData, make_loader
 from dist_net.metrics import MaskedMAEAccumulator
+from dist_net.training_diagnostics import TrainingDiagnostics
 from dist_net.training_runtime import TrainingRunContext
 from graph_algo import normalize_adj_mx, calculate_cheb_poly
 
@@ -53,6 +54,114 @@ TPD = 288  # 5-min steps per day (LargeST used 96 on 15-min data)
 # DSTAGNN's block residual only supports single-channel input (original paper
 # uses flow only); every other model follows LargeST's [flow, tod, dow].
 IN_CH = {"dstagnn": 1}
+
+
+def resolve_training_recipe(name: str, profile: str = "fixed30") -> dict[str, object]:
+    """Return the auditable optimizer recipe without constructing a model.
+
+    ``fixed30`` preserves the already-published v3 matrix exactly. The
+    ``convergence100`` profile restores source-aligned 100-epoch schedules
+    where the fixed-budget run had compressed or omitted them.
+    """
+    if profile not in {"fixed30", "convergence100"}:
+        raise ValueError(f"unsupported recipe profile: {profile}")
+    if name not in MODELS or name == "hl":
+        raise ValueError(f"no trainable baseline recipe for: {name}")
+
+    recipe: dict[str, object] = {
+        "lr": 1e-3,
+        "wd": 1e-4,
+        "clip": 5.0,
+        "scheduler": None,
+    }
+    if name == "stgcn":
+        recipe.update(
+            wd=5e-4,
+            clip=0.0,
+            scheduler={"type": "StepLR", "step_size": 10, "gamma": 0.95},
+        )
+    elif name == "agcrn":
+        recipe.update(wd=0.0, clip=0.0)
+    elif name == "astgcn" and profile == "convergence100":
+        recipe["scheduler"] = {
+            "type": "CosineAnnealingLR",
+            "T_max": 100,
+            "eta_min": 1e-6,
+        }
+    elif name == "dcrnn":
+        recipe.update(
+            lr=1e-2,
+            wd=0.0,
+            scheduler={
+                "type": "MultiStepLR",
+                "milestones": (
+                    [10, 20, 27]
+                    if profile == "fixed30"
+                    else [10, 50, 90]
+                ),
+                "gamma": 0.1,
+            },
+        )
+    elif name == "d2stgnn":
+        recipe.update(
+            lr=2e-3,
+            wd=1e-5,
+            scheduler={
+                "type": "MultiStepLR",
+                "milestones": (
+                    [1, 11, 14, 17, 20, 23, 26]
+                    if profile == "fixed30"
+                    else [1, 38, 46, 54, 62, 70, 80]
+                ),
+                "gamma": 0.5,
+            },
+        )
+    elif name == "dstagnn":
+        recipe.update(lr=1e-4, wd=0.0, clip=0.0)
+    return recipe
+
+
+def validate_training_contract(args: argparse.Namespace) -> None:
+    if args.recipe_profile != "convergence100":
+        return
+    if args.epochs != 100:
+        raise ValueError("convergence100 requires exactly 100 epochs")
+    if args.patience != 30:
+        raise ValueError("convergence100 requires patience 30")
+    if args.seed != 42:
+        raise ValueError("convergence100 seed audit is fixed to seed 42")
+    if getattr(args, "smoke", False):
+        raise ValueError("convergence100 formal runs do not allow smoke mode")
+
+
+def build_scheduler(
+    optimizer: torch.optim.Optimizer,
+    scheduler_spec: object,
+) -> torch.optim.lr_scheduler.LRScheduler | None:
+    if scheduler_spec is None:
+        return None
+    if not isinstance(scheduler_spec, dict):
+        raise TypeError("scheduler recipe must be a mapping or null")
+    kind = scheduler_spec["type"]
+    if kind == "MultiStepLR":
+        return MultiStepLR(
+            optimizer,
+            milestones=scheduler_spec["milestones"],
+            gamma=float(scheduler_spec["gamma"]),
+        )
+    if kind == "StepLR":
+        return StepLR(
+            optimizer,
+            step_size=int(scheduler_spec["step_size"]),
+            gamma=float(scheduler_spec["gamma"]),
+        )
+    if kind == "CosineAnnealingLR":
+        return CosineAnnealingLR(
+            optimizer,
+            T_max=int(scheduler_spec["T_max"]),
+            eta_min=float(scheduler_spec["eta_min"]),
+        )
+    raise ValueError(f"unsupported scheduler type: {kind}")
 
 
 def initialize_like_largest_engine(model: torch.nn.Module) -> None:
@@ -84,6 +193,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--train_frac", type=float, default=0.7, help="full_window only")
     p.add_argument("--val_frac", type=float, default=0.1, help="full_window only")
     p.add_argument("--patience", type=int, default=0)
+    p.add_argument(
+        "--recipe-profile",
+        choices=("fixed30", "convergence100"),
+        default="fixed30",
+    )
     p.add_argument(
         "--microbatch-size",
         type=int,
@@ -146,7 +260,8 @@ def build_model(name: str, N: int, device: torch.device, A: np.ndarray,
     T_h, T_p = 12, 12
     C_in = IN_CH.get(name, 3)
     base = dict(node_num=N, input_dim=C_in, output_dim=1, seq_len=T_h, horizon=T_p)
-    cfg = {"lr": 1e-3, "wd": 1e-4, "clip": 5.0, "sched": None}
+    recipe_profile = getattr(args, "recipe_profile", "fixed30")
+    cfg = resolve_training_recipe(name, recipe_profile)
 
     if name == "lstm":
         from lstm import LSTM
@@ -163,7 +278,6 @@ def build_model(name: str, N: int, device: torch.device, A: np.ndarray,
         blocks += [[128, 128]] if Ko > 0 else [[128]]
         blocks += [[T_p]]
         model = STGCN(gso=gso, blocks=blocks, Kt=Kt, Ks=Ks, dropout=0.5, **base)
-        cfg.update(wd=5e-4, clip=0.0, sched=lambda opt: StepLR(opt, step_size=10, gamma=0.95))
         return model, False, cfg
     if name == "agcrn":
         from agcrn import AGCRN
@@ -171,7 +285,6 @@ def build_model(name: str, N: int, device: torch.device, A: np.ndarray,
         # LargeST's AGCRN_Engine re-inits all params (weights_pool/bias_pool are
         # torch.FloatTensor allocations, i.e. uninitialized memory)
         initialize_like_largest_engine(model)
-        cfg.update(wd=0.0, clip=0.0)
         return model, False, cfg
     if name == "astgcn":
         from astgcn import ASTGCN
@@ -195,8 +308,6 @@ def build_model(name: str, N: int, device: torch.device, A: np.ndarray,
         model = DCRNN(device=device, adj_mx=A, n_filters=64, max_diffusion_step=2,
                       filter_type="doubletransition", num_rnn_layers=2,
                       cl_decay_steps=2000, **base)
-        cfg.update(lr=1e-2, wd=0.0,
-                   sched=lambda opt: MultiStepLR(opt, milestones=[10, 20, 27], gamma=0.1))
         return model, True, cfg
     if name == "dgcrn":
         from dgcrn import DGCRN
@@ -215,9 +326,6 @@ def build_model(name: str, N: int, device: torch.device, A: np.ndarray,
                      layer=5, k_t=3, k_s=2, gap=3, tpd=TPD, dropout=0.1,
                      adjs=adjs, seq_len=T_h, horizon=T_p, node_num=N)
         model = D2STGNN(model_args=margs, **base)
-        cfg.update(lr=2e-3, wd=1e-5,
-                   sched=lambda opt: MultiStepLR(opt, milestones=[1, 11, 14, 17, 20, 23, 26],
-                                                 gamma=0.5))
         return model, False, cfg
     if name == "dstagnn":
         from dstagnn import DSTAGNN
@@ -230,7 +338,6 @@ def build_model(name: str, N: int, device: torch.device, A: np.ndarray,
                         nb_chev_filter=32, nb_time_filter=32, time_stride=1,
                         adj_pa=adj_pa, d_model=512, d_k=32, d_v=32, n_head=3, **base)
         initialize_like_largest_engine(model)
-        cfg.update(lr=1e-4, wd=0.0, clip=0.0)
         return model, False, cfg
     raise ValueError(name)
 
@@ -399,6 +506,7 @@ def evaluate(
 
 def main() -> None:
     args = parse_args()
+    validate_training_contract(args)
     if args.microbatch_size < 0 or args.microbatch_size > args.batch_size:
         raise ValueError("microbatch-size must be 0 or at most batch-size")
     max_microbatch_size = args.microbatch_size or args.batch_size
@@ -464,7 +572,25 @@ def main() -> None:
     print(f"{args.model} params: {n_params:,}", flush=True)
 
     optimizer = Adam(model.parameters(), lr=cfg["lr"], weight_decay=cfg["wd"])
-    scheduler = cfg["sched"](optimizer) if cfg["sched"] else None
+    scheduler = build_scheduler(optimizer, cfg["scheduler"])
+    diagnostics = None
+    if args.recipe_profile == "convergence100":
+        diagnostics = TrainingDiagnostics(
+            experiment_role="seed42_convergence_audit",
+            method=args.model,
+            region=args.region,
+            seed=args.seed,
+            max_epochs=args.epochs,
+            patience=args.patience,
+            checkpoint_metric="global_validation_masked_mae_all_valid_points",
+            optimizer={
+                "type": "Adam",
+                "learning_rate": cfg["lr"],
+                "weight_decay": cfg["wd"],
+                "gradient_clip": cfg["clip"],
+            },
+            scheduler=cfg["scheduler"],
+        )
     train_loader = make_loader(train_ds, batch_size=args.batch_size, shuffle=True, seed=args.seed)
     val_loader = make_loader(val_ds, batch_size=args.batch_size, shuffle=False)
     test_loader = make_loader(test_ds, batch_size=args.batch_size, shuffle=False)
@@ -476,11 +602,16 @@ def main() -> None:
 
     epochs = 1 if args.smoke else args.epochs
     best_val = float("inf")
+    best_epoch = 0
     no_improve = 0
     iter_cnt = 0
     history = []
+    epochs_run = 0
+    stop_reason = "smoke_completed" if args.smoke else "max_epochs_reached"
     with open(out_dir / "train.log", "w", encoding="utf-8") as lf:
         for epoch in range(1, epochs + 1):
+            epochs_run = epoch
+            learning_rate_used = float(optimizer.param_groups[0]["lr"])
             t0 = time.time()
             model.train()
             sum_loss, n = 0.0, 0
@@ -518,6 +649,7 @@ def main() -> None:
                           flush=True)
             if scheduler is not None:
                 scheduler.step()
+            learning_rate_next = float(optimizer.param_groups[0]["lr"])
             train_avg = sum_loss / max(n, 1)
             val = evaluate(
                 model,
@@ -540,6 +672,7 @@ def main() -> None:
             lf.flush()
             if val < best_val:
                 best_val = val
+                best_epoch = epoch
                 no_improve = 0
                 torch.save({"epoch": epoch, "model_state": model.state_dict(),
                             "val_L_main": val, "config": vars(args) | {"n_params": n_params},
@@ -549,9 +682,28 @@ def main() -> None:
                 print("    saved best", flush=True)
             else:
                 no_improve += 1
-                if args.patience and no_improve >= args.patience:
-                    print(f"    early stop after {args.patience} stale epochs", flush=True)
-                    break
+            if diagnostics is not None:
+                diagnostics.record_epoch(
+                    epoch=epoch,
+                    train_objective=train_avg,
+                    validation_mae=val,
+                    learning_rate_used=learning_rate_used,
+                    learning_rate_next=learning_rate_next,
+                    stale_epochs=no_improve,
+                    best_epoch=best_epoch,
+                )
+            if args.patience and no_improve >= args.patience:
+                stop_reason = "early_stopping_patience_exhausted"
+                print(f"    early stop after {args.patience} stale epochs", flush=True)
+                break
+
+    if diagnostics is not None:
+        diagnostics.finalize(
+            out_dir / "training_diagnostics.json",
+            best_epoch=best_epoch,
+            epochs_run=epochs_run,
+            stop_reason=stop_reason,
+        )
 
     print(f"\nbest val L_main: {best_val:.4f}", flush=True)
 

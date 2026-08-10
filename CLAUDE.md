@@ -1,6 +1,6 @@
 # XTraffic 项目导航与协作约定
 
-最近更新：2026-08-10 14:52，Asia/Singapore
+最近更新：2026-08-11，Asia/Singapore
 
 ## 新会话先读
 
@@ -39,8 +39,17 @@
 | v3 event baseline | `verified_event_full33_single_host_33` | 33/33、0 failed，composite index `2a6ad2eadfd1ecf5af3604bee632eaa339e1aed7add59e915a71f9d422dd767e` |
 | v3 event 全方法扩展 | `verified_event_extensions_single_host_9` | 9/9、0 failed，composite index `3a3970c627af6f709100ec9ebeeab215f834e0f1f65fc359423197ec29bf9ed4` |
 | v3 event 无泄漏论文表 | `verified_no_leak_comparison_generated` | 42 行，CSV SHA-256 `9817f5086f836f17265d87071271cc3b724b62420a2db2f2f4f5401e2f37651c` |
+| v3 seed 42 收敛审计 | `code_ready_not_started_39` | 13 个可训练方法乘 3 地区，100 epoch 上限，尚无新结果 |
 
-本地全仓回归为 614 passed 和 2 个既有 warning。
+本地全仓回归为 633 passed 和 2 个既有 warning。
+
+## v3 seed 42 收敛审计准备状态
+
+2026-08-11，现有 42 行固定 30 epoch 表保持只读。新增独立矩阵 `protocol_v3_event_convergence_seed42_39_v1`，范围为 13 个可训练方法乘三地区，共 39 项，不含无参数 HL。该矩阵固定使用 v3 无泄漏缓存、target-disjoint event split、显式观测 mask、seed 42 和最多 100 epoch。它只用于检查收敛与排序稳定性，不是最终多种子论文表。
+
+DCRNN 恢复 100 epoch 的 scheduler 里程碑 `[10, 50, 90]`，baseline patience 为 30。BiST 与 IGSTGNN patience 为 20。NDR-Net 不启用 early stopping，但测试前仍恢复最佳验证 checkpoint。每个任务新增必需产物 `training_diagnostics.json`，逐轮记录实际学习率、验证 MAE、最佳轮次、stale 计数和停止原因。
+
+多卡层已新增 39 项 CUDA 探针、task 级 calibration、微批组隔离 LPT 控制器和 `event_convergence` source-host postflight。已知显存兜底为 Orange STTN 与 D²STGNN 使用 microbatch 16，Orange IGSTGNN 与 NDR-Net 使用 microbatch 8。正式租卡后必须先运行全 39 项探针和 plan-only，人工复核 plan digest 后才能启动训练。当前没有新 GPU 训练和新性能数字。完整记录见 `docs/audits/protocol_v3_event_convergence_seed42_preflight_2026-08-11.md`。
 
 ## v3 event 无泄漏 42 行表最终状态
 

@@ -1,6 +1,23 @@
+from argparse import Namespace
+
+import pytest
 import torch
 
-from scripts.train_graphwavenet import evaluate, region_data_kwargs
+from scripts.train_graphwavenet import (
+    evaluate,
+    region_data_kwargs,
+    validate_training_contract,
+)
+
+
+def test_graphwavenet_convergence_contract_requires_seed42_100_epoch_budget() -> None:
+    validate_training_contract(
+        Namespace(run_contract="convergence100", epochs=100, patience=30, seed=42)
+    )
+    with pytest.raises(ValueError, match="100 epochs"):
+        validate_training_contract(
+            Namespace(run_contract="convergence100", epochs=30, patience=30, seed=42)
+        )
 
 
 class _FlowEchoModel:

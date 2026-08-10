@@ -1217,3 +1217,15 @@ baseline composite 状态为 `verified_event_full33_single_host_33`，index SHA-
 收尾时发现两项控制层契约缺陷。GraphWaveNet 的正式 producer 只承诺 scalar MAE，旧 composite 错误要求 summary 中存在 12 步 `mae_h`、`rmse_h` 和 `mape_h`。提交 `7fff5baf43fa37d850fc07118a91d9b1f930b2f9` 改为从已绑定的 `test_predictions.npz` 只读重算表格指标，并对其他模型继续核对 summary 与 prediction artifact。42 份正式结果的逐项数值复验显示，非 GraphWaveNet 指标最大差为约 `3.55e-14`，GraphWaveNet scalar MAE 的最大 float32 舍入差为约 `5.83e-7`。另一项缺陷是扩展聚合器会把已存在且重新验证通过的正式任务标记为 `skipped_valid`，旧 postflight 只接受字面值 `completed`。提交 `d98907e9a0513fa7abb8170a534ec194893ace4b` 在继续验证任务身份、`config_hash` 与全部 artifact 的前提下接受这两种 runner 终态。两项修复均未改写任何训练 summary、checkpoint 或 prediction artifact。
 
 第一次 baseline post-publish 因 GraphWaveNet summary 契约不匹配而 fail closed。一次无卡模式 baseline postflight 因 2 GB cgroup 内存上限被杀，失败退出码均已归档。extension 第一次 postflight 因 `skipped_valid` 状态被旧门禁拒绝，失败回执同样保留。恢复后 baseline 与 extension 均重新完整运行 source-host postflight。extension 最终闭环日志明确包含 `POST_PUBLISH_START`、`POST_PUBLISH_OK` 和 `FINALIZE_SUCCESS`，fresh composite 与已有 42 行表逐字节一致。最终控制提交 `d98907e` 的全仓回归为 614 passed 和 2 个既有 warning。
+
+## 最新进展，2026-08-11 seed 42 收敛审计已完成训练前代码门禁
+
+现有无泄漏 42 行表保持只读。它统一使用 seed 42 与最多 30 epoch，适合作为固定训练预算下的描述性比较，但部分方法在预算上限附近仍在改善，因此不能把现有领先幅度直接写成充分收敛后的差距。
+
+新增独立矩阵 `protocol_v3_event_convergence_seed42_39_v1`。矩阵包含 13 个可训练方法乘 Alameda、ContraCosta 与 Orange，共 39 项，不含无参数 HL。数据仍固定为 `protocol_v3_noleak_dedup`、cache schema 3、target-disjoint event split、显式观测 mask 与同一组 H3、H6、H12、Average 指标。当前阶段只运行 seed 42，用来判断训练预算与 scheduler 修复是否稳定改变排序。它不是最终多种子论文表，也不覆盖既有 42 行结果。
+
+baseline 最大训练轮次提高到 100，patience 为 30。DCRNN 恢复原 100 epoch 里程碑 `[10,50,90]`，避免 patience 在关键降学习率前误杀。D²STGNN 恢复 `[1,38,46,54,62,70,80]`。BiST 与 IGSTGNN patience 为 20。NDR-Net 不启用 early stopping，但测试前恢复最佳验证 checkpoint。每项新增必需的 `training_diagnostics.json`，逐轮记录训练目标、全局验证 MAE、实际学习率、下一轮学习率、stale 计数、最佳轮次与停止原因。
+
+多卡控制层统一调度十个 baseline、BiST、IGSTGNN 与 NDR-Net。正式启动前会在目标主机对 39 项逐项运行 loader 加完整优化步探针，并生成 task 级 calibration。控制器按实测工时做最长任务优先装箱，并隔离不同微批组。历史显存兜底为 Orange STTN 与 D²STGNN 使用 microbatch 16，Orange IGSTGNN 与 NDR-Net 使用 microbatch 8。新主机实测探针与 plan digest 人工复核完成前，不启动正式训练。
+
+混合 runner、100 epoch 契约、统一诊断产物、GraphWaveNet 探针、39 项 calibration、多卡控制器和 `event_convergence` source-host postflight 已通过本地门禁。全仓回归为 633 passed 和 2 个既有 warning。当前状态为 `code_ready_not_started_39`，尚无新 GPU 训练和新性能数字。完整训练前记录见 `docs/audits/protocol_v3_event_convergence_seed42_preflight_2026-08-11.md`。

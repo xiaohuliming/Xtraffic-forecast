@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -17,6 +18,7 @@ from scripts.protocol_v3_event_extension_data import (
 from scripts.train_protocol_v3_event_extension import (
     _backward_standard_batch,
     _forward_standard,
+    validate_training_contract,
 )
 
 
@@ -66,6 +68,37 @@ class _FakeRegionData:
             "sample_start": np.int64(self.sample_start[index]),
             "region_code": np.int64(0),
         }
+
+
+def test_extension_convergence_contract_preserves_method_specific_early_stopping() -> None:
+    assert validate_training_contract(
+        SimpleNamespace(
+            run_contract="convergence100",
+            method="bist",
+            epochs=100,
+            patience=20,
+            seed=42,
+        )
+    ) == 20
+    assert validate_training_contract(
+        SimpleNamespace(
+            run_contract="convergence100",
+            method="ndr_net",
+            epochs=100,
+            patience=20,
+            seed=42,
+        )
+    ) is None
+    with pytest.raises(ValueError, match="100 epochs"):
+        validate_training_contract(
+            SimpleNamespace(
+                run_contract="convergence100",
+                method="igstgnn",
+                epochs=30,
+                patience=20,
+                seed=42,
+            )
+        )
 
 
 def _write_sensors(path: Path, *, station_ids: list[int], orders: list[int]) -> None:

@@ -36,6 +36,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 from dist_net.data import MultiRegionDataset, FullWindowRegionData, RegionData, make_loader
 from dist_net.graph import bidirectional_random_walk_supports
 from dist_net.metrics import MaskedMAEAccumulator, masked_mae_loss
+from dist_net.training_diagnostics import TrainingDiagnostics
 from dist_net.training_runtime import TrainingRunContext
 from model import gwnet
 
@@ -69,7 +70,23 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--val_frac", type=float, default=0.1, help="full_window only")
     p.add_argument("--patience", type=int, default=0,
                    help="early-stop if val doesn't improve for N epochs (0 = off)")
+    p.add_argument(
+        "--run-contract",
+        choices=("fixed30", "convergence100"),
+        default="fixed30",
+    )
     return p.parse_args()
+
+
+def validate_training_contract(args: argparse.Namespace) -> None:
+    if args.run_contract != "convergence100":
+        return
+    if args.epochs != 100:
+        raise ValueError("convergence100 requires exactly 100 epochs")
+    if args.patience != 30:
+        raise ValueError("convergence100 requires patience 30")
+    if args.seed != 42:
+        raise ValueError("convergence100 seed audit is fixed to seed 42")
 
 
 def pick_device(name: str | None) -> torch.device:
@@ -138,6 +155,7 @@ def evaluate(model, loader, device, supports) -> dict[str, float]:
 
 def main() -> None:
     args = parse_args()
+    validate_training_contract(args)
     torch.manual_seed(args.seed)
     device = pick_device(args.device)
     print(f"device: {device}", flush=True)
@@ -204,13 +222,41 @@ def main() -> None:
     n_batches = (len(train_ds) + args.batch_size - 1) // args.batch_size
     scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs * n_batches,
                                    eta_min=args.lr * 1e-2)
+    diagnostics = None
+    if args.run_contract == "convergence100":
+        diagnostics = TrainingDiagnostics(
+            experiment_role="seed42_convergence_audit",
+            method="graphwavenet",
+            region=args.region,
+            seed=args.seed,
+            max_epochs=args.epochs,
+            patience=args.patience,
+            checkpoint_metric="global_validation_masked_mae_all_valid_points",
+            optimizer={
+                "type": "Adam",
+                "learning_rate": args.lr,
+                "weight_decay": args.weight_decay,
+                "gradient_clip": 5.0,
+            },
+            scheduler={
+                "type": "CosineAnnealingLR",
+                "step_unit": "optimizer_step",
+                "T_max": args.epochs * n_batches,
+                "eta_min": args.lr * 1e-2,
+            },
+        )
 
     best_val = float("inf")
+    best_epoch = 0
     no_improve = 0
+    epochs_run = 0
+    stop_reason = "max_epochs_reached"
     log_path = out_dir / "train.log"
     history = []
     with open(log_path, "w", encoding="utf-8") as lf:
         for epoch in range(1, args.epochs + 1):
+            epochs_run = epoch
+            learning_rate_used = float(optimizer.param_groups[0]["lr"])
             t0 = time.time()
             model.train()
             sum_loss, n = 0.0, 0
@@ -242,6 +288,7 @@ def main() -> None:
             lf.flush()
             if val["L_main"] < best_val:
                 best_val = val["L_main"]
+                best_epoch = epoch
                 no_improve = 0
                 torch.save({
                     "epoch": epoch, "model_state": model.state_dict(),
@@ -251,9 +298,28 @@ def main() -> None:
                 print(f"    saved best", flush=True)
             else:
                 no_improve += 1
-                if args.patience and no_improve >= args.patience:
-                    print(f"    early stop: no val improvement for {args.patience} epochs", flush=True)
-                    break
+            if diagnostics is not None:
+                diagnostics.record_epoch(
+                    epoch=epoch,
+                    train_objective=train_avg,
+                    validation_mae=val["L_main"],
+                    learning_rate_used=learning_rate_used,
+                    learning_rate_next=float(optimizer.param_groups[0]["lr"]),
+                    stale_epochs=no_improve,
+                    best_epoch=best_epoch,
+                )
+            if args.patience and no_improve >= args.patience:
+                stop_reason = "early_stopping_patience_exhausted"
+                print(f"    early stop: no val improvement for {args.patience} epochs", flush=True)
+                break
+
+    if diagnostics is not None:
+        diagnostics.finalize(
+            out_dir / "training_diagnostics.json",
+            best_epoch=best_epoch,
+            epochs_run=epochs_run,
+            stop_reason=stop_reason,
+        )
 
     print(f"\nbest val L_main: {best_val:.4f}", flush=True)
 

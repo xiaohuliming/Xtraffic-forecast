@@ -191,7 +191,7 @@ while true; do
   fi
   runner_code="$(tr -d '[:space:]' <"$RUNNER_EXITCODE")"
   [ "$runner_code" = "0" ] || blocked "runner exit code is $runner_code"
-  trainers="$( { pgrep -f 'protocol_v3_baseline_runner|protocol_v3_event_multi_gpu|protocol_v3_event_extension_runner|protocol_v3_event_extension_multi_gpu|train_protocol_v3_event_extension|train_baseline_zoo|train_graphwavenet' 2>/dev/null || true; } | wc -l | tr -d '[:space:]')"
+  trainers="$( { pgrep -f 'protocol_v3_baseline_runner|protocol_v3_event_multi_gpu|protocol_v3_event_extension_runner|protocol_v3_event_extension_multi_gpu|protocol_v3_event_convergence_runner|protocol_v3_event_convergence_multi_gpu|train_protocol_v3_event_extension|train_baseline_zoo|train_graphwavenet' 2>/dev/null || true; } | wc -l | tr -d '[:space:]')"
   if [ "${trainers:-0}" != "0" ]; then
     log "WAIT trainer_processes=$trainers"
     sleep "$POLL_SECONDS"

@@ -4,6 +4,7 @@ import pytest
 
 from scripts.remote.linux.protocol_v3_event_extension_gpu_probe import (
     estimate_training_seconds,
+    parse_args,
 )
 
 
@@ -35,3 +36,31 @@ def test_calibration_rejects_invalid_measurements(key: str, value: float) -> Non
     arguments[key] = value
     with pytest.raises(ValueError):
         estimate_training_seconds(**arguments)
+
+
+def test_extension_probe_accepts_convergence_budget_and_task_binding(tmp_path) -> None:
+    args = parse_args(
+        [
+            "--method",
+            "ndr_net",
+            "--region",
+            "Orange",
+            "--data-dir",
+            str(tmp_path / "cache"),
+            "--graph-dir",
+            str(tmp_path / "graphs"),
+            "--support-root",
+            str(tmp_path / "support"),
+            "--node-order",
+            str(tmp_path / "node_order.npy"),
+            "--traffic-loading",
+            "eager",
+            "--epochs",
+            "100",
+            "--task-id",
+            "v3c039_event_ndr_net_orange_seed42",
+        ]
+    )
+
+    assert args.epochs == 100
+    assert args.task_id == "v3c039_event_ndr_net_orange_seed42"

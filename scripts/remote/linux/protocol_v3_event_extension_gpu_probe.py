@@ -9,6 +9,7 @@ import tempfile
 import time
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Sequence
 
 import numpy as np
 import torch
@@ -34,7 +35,7 @@ from scripts.train_protocol_v3_event_extension import (
 )
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--method", required=True, choices=METHODS)
     parser.add_argument("--region", required=True, choices=tuple(REGION_TO_SUPPORT))
@@ -50,7 +51,9 @@ def parse_args() -> argparse.Namespace:
         "--traffic-loading", choices=("eager", "lazy"), required=True
     )
     parser.add_argument("--loader-batches", type=int, default=20)
-    return parser.parse_args()
+    parser.add_argument("--epochs", type=int, default=30)
+    parser.add_argument("--task-id")
+    return parser.parse_args(argv)
 
 
 def estimate_training_seconds(
@@ -77,6 +80,7 @@ def main() -> int:
         args.seed != 42
         or args.max_microbatch_size < 0
         or args.loader_batches <= 0
+        or args.epochs <= 0
     ):
         raise ValueError("probe seed must be 42 and microbatch must be nonnegative")
     device = torch.device(args.device)
@@ -120,7 +124,7 @@ def main() -> int:
                 support_dir=support_dir,
                 device=device,
                 seed=args.seed,
-                epochs=30,
+                epochs=args.epochs,
                 logger=logger,
                 output_dir=Path(directory),
                 igstgnn_data_parallel=args.igstgnn_data_parallel,
@@ -198,12 +202,14 @@ def main() -> int:
             batch_build_seconds=batch_build_seconds,
             optimization_seconds=optimization_seconds,
             train_batches=loaders["train"].num_batch,
-            epochs=30,
+            epochs=args.epochs,
         )
         result = {
             "status": "PROBE_OK",
+            "task_id": args.task_id,
             "method": args.method,
             "region": args.region,
+            "epochs": args.epochs,
             "batch_size": int(batch["x_data"].shape[0]),
             "train_batches": loaders["train"].num_batch,
             "max_microbatch_size": args.max_microbatch_size or int(batch["x_data"].shape[0]),

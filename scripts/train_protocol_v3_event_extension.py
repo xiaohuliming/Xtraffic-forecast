@@ -16,6 +16,7 @@ import numpy as np
 import torch
 
 from dist_net.data import RegionData
+from dist_net.training_diagnostics import TrainingDiagnostics
 from dist_net.training_runtime import TrainingRunContext
 from scripts.protocol_v3_event_extension_data import (
     V3EventBatchLoader,
@@ -86,7 +87,52 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--traffic-loading", choices=("eager", "lazy"), required=True
     )
+    parser.add_argument(
+        "--run-contract",
+        choices=("formal30", "convergence100"),
+        default="formal30",
+    )
     return parser.parse_args()
+
+
+def validate_training_contract(args: argparse.Namespace) -> int | None:
+    if args.seed != 42:
+        raise ValueError(f"{args.run_contract} seed audit is fixed to seed 42")
+    if args.run_contract == "formal30":
+        if args.epochs != 30:
+            raise ValueError("formal v3 extension table requires exactly 30 epochs")
+    elif args.run_contract == "convergence100":
+        if args.epochs != 100:
+            raise ValueError("convergence100 requires exactly 100 epochs")
+    else:
+        raise ValueError(f"unsupported run contract: {args.run_contract}")
+    if args.patience != 20:
+        raise ValueError(f"{args.run_contract} requires patience 20")
+    return None if args.method == "ndr_net" else args.patience
+
+
+def _scheduler_diagnostics(
+    scheduler: torch.optim.lr_scheduler.LRScheduler | None,
+    *,
+    method: str,
+) -> dict[str, Any] | None:
+    if scheduler is None:
+        return None
+    result: dict[str, Any] = {
+        "type": type(scheduler).__name__,
+        "step_unit": "optimizer_step" if method == "ndr_net" else "epoch",
+    }
+    if hasattr(scheduler, "milestones"):
+        result["milestones"] = sorted(
+            int(value)
+            for value, count in scheduler.milestones.items()
+            for _ in range(count)
+        )
+    for name in ("gamma", "T_max", "eta_min", "step_size"):
+        if hasattr(scheduler, name):
+            value = getattr(scheduler, name)
+            result[name] = float(value) if isinstance(value, float) else int(value)
+    return result
 
 
 def _set_seed(seed: int) -> None:
@@ -405,10 +451,7 @@ def _atomic_checkpoint(path: Path, payload: Mapping[str, Any]) -> None:
 
 def main() -> None:
     args = parse_args()
-    if args.epochs != 30 or args.seed != 42:
-        raise ValueError("formal v3 extension table is fixed to seed 42 and 30 epochs")
-    if args.patience != 20:
-        raise ValueError("formal v3 extension patience is fixed to 20")
+    effective_patience = validate_training_contract(args)
     if args.max_microbatch_size < 0:
         raise ValueError("max-microbatch-size must be nonnegative")
     device = _device(args.device)
@@ -485,15 +528,42 @@ def main() -> None:
                 output_dir=output,
                 igstgnn_data_parallel=args.igstgnn_data_parallel,
             )
+            diagnostics = None
+            if args.run_contract == "convergence100":
+                diagnostics = TrainingDiagnostics(
+                    experiment_role="seed42_convergence_audit",
+                    method=args.method,
+                    region=args.region,
+                    seed=args.seed,
+                    max_epochs=args.epochs,
+                    patience=effective_patience,
+                    checkpoint_metric="global_validation_masked_mae_all_valid_points",
+                    optimizer={
+                        "type": type(optimizer).__name__,
+                        "learning_rate": float(optimizer.param_groups[0]["lr"]),
+                        "weight_decay": float(
+                            optimizer.param_groups[0].get("weight_decay", 0.0)
+                        ),
+                        "gradient_clip": gradient_clip,
+                    },
+                    scheduler=_scheduler_diagnostics(
+                        scheduler,
+                        method=args.method,
+                    ),
+                )
             best_val = float("inf")
             best_epoch = 0
             wait = 0
+            epochs_run = 0
+            stop_reason = "max_epochs_reached"
             ndr_profile = _load_ndr_profile()["effective"]
             loss_args = SimpleNamespace(
                 lambda_gate=ndr_profile["loss"]["lambda_gate"],
                 lambda_spec=ndr_profile["loss"]["lambda_specialization"],
             )
             for epoch in range(1, args.epochs + 1):
+                epochs_run = epoch
+                learning_rate_used = float(optimizer.param_groups[0]["lr"])
                 model.train()
                 loaders["train"].shuffle()
                 error_sum = 0.0
@@ -575,9 +645,27 @@ def main() -> None:
                     )
                 else:
                     wait += 1
-                if args.method != "ndr_net" and wait >= args.patience:
+                if diagnostics is not None:
+                    diagnostics.record_epoch(
+                        epoch=epoch,
+                        train_objective=error_sum / max(valid_count, 1),
+                        validation_mae=val_mae,
+                        learning_rate_used=learning_rate_used,
+                        learning_rate_next=float(optimizer.param_groups[0]["lr"]),
+                        stale_epochs=wait,
+                        best_epoch=best_epoch,
+                    )
+                if effective_patience is not None and wait >= effective_patience:
+                    stop_reason = "early_stopping_patience_exhausted"
                     logger.info("early_stop epoch=%d best_epoch=%d", epoch, best_epoch)
                     break
+            if diagnostics is not None:
+                diagnostics.finalize(
+                    output / "training_diagnostics.json",
+                    best_epoch=best_epoch,
+                    epochs_run=epochs_run,
+                    stop_reason=stop_reason,
+                )
             state = torch.load(checkpoint, map_location=device, weights_only=False)
             model.load_state_dict(state["model_state"], strict=True)
             test_mae, prediction, actual, mask = _evaluate(
@@ -620,9 +708,8 @@ def main() -> None:
             "checkpoint_metric": "global_validation_masked_mae_all_valid_points",
             "partial_batch": "retain_for_train_val_test",
             "traffic_loading": args.traffic_loading,
-            "early_stopping_patience": (
-                None if args.method == "ndr_net" else args.patience
-            ),
+            "run_contract": args.run_contract,
+            "early_stopping_patience": effective_patience,
             "sensor_station_id_sha256": sensor_support.station_id_sha256,
             "region_idx_sha256": sensor_support.region_idx_sha256,
             "weekly_climatology_fit": "unique_raw_train_timestamps_only",

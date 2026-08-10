@@ -50,6 +50,11 @@ from scripts.remote.windows.protocol_v3_event_extension_runner import (  # noqa:
     load_extension_manifest,
     verify_extension_support,
 )
+from scripts.remote.linux.protocol_v3_event_convergence_runner import (  # noqa: E402
+    ConvergenceInputs,
+    build_convergence_invocation,
+    load_convergence_manifest,
+)
 
 
 class PostflightError(RuntimeError):
@@ -286,14 +291,15 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
     if sha256_file(canonical_path) != expected_manifest_sha:
         raise PostflightError("canonical manifest SHA-256 mismatch")
     runner_kind = plan.get("runner_kind", "baseline")
-    if runner_kind not in {"baseline", "event_extension"}:
+    if runner_kind not in {"baseline", "event_extension", "event_convergence"}:
         raise PostflightError(f"unsupported runner_kind: {runner_kind!r}")
     try:
-        manifest = (
-            load_baseline_manifest(canonical_path)
-            if runner_kind == "baseline"
-            else load_extension_manifest(canonical_path)
-        )
+        if runner_kind == "baseline":
+            manifest = load_baseline_manifest(canonical_path)
+        elif runner_kind == "event_extension":
+            manifest = load_extension_manifest(canonical_path)
+        else:
+            manifest = load_convergence_manifest(canonical_path)
     except runner.ManifestError as exc:
         raise PostflightError(str(exc)) from exc
 
@@ -318,9 +324,13 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
         extension = None
         support_report: dict[str, object] = {}
     else:
-        if plan.get("task_overrides") is not None:
+        if runner_kind == "event_extension" and plan.get("task_overrides") is not None:
             raise PostflightError("event_extension does not accept task_overrides")
-        task_overrides = {}
+        task_overrides = (
+            _task_overrides(plan, manifest)
+            if runner_kind == "event_convergence"
+            else {}
+        )
         support_manifest = _resolve_path(
             plan_path, _required_string(plan, "support_manifest")
         )
@@ -352,11 +362,13 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
         except runner.ManifestError as exc:
             raise PostflightError(str(exc)) from exc
         raw_options = plan.get("extension_options")
-        if not isinstance(raw_options, dict) or set(raw_options) != {
+        expected_option_keys = {
             "igstgnn_data_parallel",
             "max_microbatch_size",
-            "task_microbatch_sizes",
-        }:
+        }
+        if runner_kind == "event_extension":
+            expected_option_keys.add("task_microbatch_sizes")
+        if not isinstance(raw_options, dict) or set(raw_options) != expected_option_keys:
             raise PostflightError("extension_options must contain the exact contract")
         data_parallel = raw_options.get("igstgnn_data_parallel")
         microbatch_size = raw_options.get("max_microbatch_size")
@@ -369,13 +381,14 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
             or microbatch_size < 0
         ):
             raise PostflightError("max_microbatch_size must be a nonnegative integer")
-        expected_task_microbatches = {
-            task.task_id: 8
-            for task in manifest.tasks
-            if task.region == "Orange" and task.model in {"igstgnn", "ndr_net"}
-        }
-        if task_microbatch_sizes != expected_task_microbatches:
-            raise PostflightError("task_microbatch_sizes do not match the contract")
+        if runner_kind == "event_extension":
+            expected_task_microbatches = {
+                task.task_id: 8
+                for task in manifest.tasks
+                if task.region == "Orange" and task.model in {"igstgnn", "ndr_net"}
+            }
+            if task_microbatch_sizes != expected_task_microbatches:
+                raise PostflightError("task_microbatch_sizes do not match the contract")
         extension = ExtensionInputs(
             support_root=verified_support.support_root,
             node_order=verified_support.node_order,
@@ -466,13 +479,24 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
                 manifest, task_overrides.get(task_id)
             )
             probe = results_root / ".staging" / task_id / "__POSTFLIGHT__"
-            invocation = (
-                build_baseline_invocation(task, task_manifest, run_inputs, probe)
-                if runner_kind == "baseline"
-                else build_extension_invocation(
+            if runner_kind == "baseline":
+                invocation = build_baseline_invocation(
+                    task, task_manifest, run_inputs, probe
+                )
+            elif runner_kind == "event_extension":
+                invocation = build_extension_invocation(
                     task, task_manifest, extension, probe  # type: ignore[arg-type]
                 )
-            )
+            else:
+                invocation = build_convergence_invocation(
+                    task,
+                    task_manifest,
+                    ConvergenceInputs(
+                        protocol=run_inputs,
+                        extension=extension,  # type: ignore[arg-type]
+                    ),
+                    probe,
+                )
             config_hash = runner.derive_config_hash(
                 task,
                 task_manifest,
