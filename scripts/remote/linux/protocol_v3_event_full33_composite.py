@@ -16,6 +16,8 @@ import sys
 import uuid
 from typing import Mapping, Sequence
 
+import numpy as np
+
 from scripts.remote.windows import protocol_v3_runner as runner
 from scripts.remote.windows.protocol_v3_baseline_runner import (
     build_baseline_invocation,
@@ -223,6 +225,106 @@ def _metric_array(summary: Mapping[str, object], name: str) -> list[float]:
             raise Full33CompositeError(f"summary metric {name} is invalid")
         result.append(number)
     return result
+
+
+def _prediction_table_metrics(path: Path) -> dict[str, object]:
+    """Recompute paper-table metrics from the bound prediction artifact."""
+    try:
+        with np.load(path, allow_pickle=False) as archive:
+            required = {"pred_raw_flow", "actual_future_flow", "y_mask_flow"}
+            if not required.issubset(archive.files):
+                raise Full33CompositeError(
+                    "prediction artifact is missing table metric fields"
+                )
+            prediction = archive["pred_raw_flow"]
+            actual = archive["actual_future_flow"]
+            valid = archive["y_mask_flow"]
+    except Full33CompositeError:
+        raise
+    except (OSError, ValueError, EOFError) as exc:
+        raise Full33CompositeError(
+            f"cannot read prediction artifact for table metrics: {path}"
+        ) from exc
+
+    if (
+        prediction.ndim != 3
+        or prediction.shape != actual.shape
+        or prediction.shape != valid.shape
+        or prediction.shape[1] != 12
+    ):
+        raise Full33CompositeError(
+            "prediction artifact table arrays must share an (S, 12, N) shape"
+        )
+    if not (
+        np.issubdtype(prediction.dtype, np.number)
+        and np.issubdtype(actual.dtype, np.number)
+    ):
+        raise Full33CompositeError("prediction artifact table arrays must be numeric")
+    if valid.dtype != np.dtype(np.bool_):
+        if not np.issubdtype(valid.dtype, np.number) or not np.all(
+            (valid == 0) | (valid == 1)
+        ):
+            raise Full33CompositeError("prediction artifact mask must be binary")
+        valid = valid.astype(np.bool_, copy=False)
+
+    absolute_sums = np.zeros(12, dtype=np.float64)
+    squared_sums = np.zeros(12, dtype=np.float64)
+    valid_counts = np.zeros(12, dtype=np.int64)
+    ratio_sums = np.zeros(12, dtype=np.float64)
+    ratio_counts = np.zeros(12, dtype=np.int64)
+    chunk_size = 64
+    for start in range(0, prediction.shape[0], chunk_size):
+        stop = min(start + chunk_size, prediction.shape[0])
+        chunk_prediction = prediction[start:stop].astype(np.float64, copy=False)
+        chunk_actual = actual[start:stop].astype(np.float64, copy=False)
+        chunk_valid = valid[start:stop]
+        if not np.isfinite(chunk_prediction).all():
+            raise Full33CompositeError("prediction artifact contains non-finite values")
+        if not np.isfinite(chunk_actual[chunk_valid]).all():
+            raise Full33CompositeError("prediction artifact contains non-finite targets")
+        absolute_error = np.abs(chunk_prediction - chunk_actual)
+        actual_abs = np.abs(chunk_actual)
+        for horizon in range(12):
+            selected = chunk_valid[:, horizon]
+            errors = absolute_error[:, horizon][selected]
+            absolute_sums[horizon] += float(errors.sum())
+            squared_sums[horizon] += float(np.square(errors).sum())
+            valid_counts[horizon] += int(errors.size)
+            ratio_selected = selected & (actual_abs[:, horizon] > 1e-4)
+            ratios = (
+                absolute_error[:, horizon][ratio_selected]
+                / actual_abs[:, horizon][ratio_selected]
+            )
+            ratio_sums[horizon] += float(ratios.sum())
+            ratio_counts[horizon] += int(ratios.size)
+
+    if np.any(valid_counts <= 0) or np.any(ratio_counts <= 0):
+        raise Full33CompositeError(
+            "prediction artifact has an empty horizon metric denominator"
+        )
+    mae_h = absolute_sums / valid_counts
+    rmse_h = np.sqrt(squared_sums / valid_counts)
+    mape_h = ratio_sums / ratio_counts * 100.0
+    total_count = int(valid_counts.sum())
+    total_ratio_count = int(ratio_counts.sum())
+    return {
+        "mae_h": mae_h.tolist(),
+        "rmse_h": rmse_h.tolist(),
+        "mape_h": mape_h.tolist(),
+        "average": {
+            "mae": float(absolute_sums.sum() / total_count),
+            "rmse": float(np.sqrt(squared_sums.sum() / total_count)),
+            "mape_percent": float(ratio_sums.sum() / total_ratio_count * 100.0),
+        },
+    }
+
+
+def _require_metric_close(*, reported: float, recomputed: float, label: str) -> None:
+    tolerance = max(1e-8, abs(recomputed) * 1e-8)
+    if abs(reported - recomputed) > tolerance:
+        raise Full33CompositeError(
+            f"summary metric {label} does not match prediction artifact"
+        )
 
 
 def _atomic_create(path: Path, payload: Mapping[str, object]) -> None:
@@ -510,13 +612,57 @@ def _build_event_composite_index(
             raise Full33CompositeError(f"{task.task_id}: {exc}") from exc
         summary_path = result_dir / "summary.json"
         summary = _load_json(summary_path, label=f"{task.task_id} summary")
-        mae_h = _metric_array(summary, "mae_h")
-        rmse_h = _metric_array(summary, "rmse_h")
-        mape_h = _metric_array(summary, "mape_h")
-        if [summary.get("h3"), summary.get("h6"), summary.get("h12")] != [
-            mae_h[2], mae_h[5], mae_h[11]
-        ]:
-            raise Full33CompositeError(f"horizon MAE fields mismatch: {task.task_id}")
+        prediction_metrics = _prediction_table_metrics(
+            result_dir / "test_predictions.npz"
+        )
+        recomputed_mae_h = list(prediction_metrics["mae_h"])
+        recomputed_rmse_h = list(prediction_metrics["rmse_h"])
+        recomputed_mape_h = list(prediction_metrics["mape_h"])
+        recomputed_average = prediction_metrics["average"]
+        assert isinstance(recomputed_average, dict)
+        if task.model == "graphwavenet":
+            # GraphWaveNet's producer contract only requires scalar MAE. Its
+            # table metrics are derived from the already-bound prediction file.
+            mae_h = recomputed_mae_h
+            rmse_h = recomputed_rmse_h
+            mape_h = recomputed_mape_h
+            average_rmse = float(recomputed_average["rmse"])
+            average_mape = float(recomputed_average["mape_percent"])
+        else:
+            mae_h = _metric_array(summary, "mae_h")
+            rmse_h = _metric_array(summary, "rmse_h")
+            mape_h = _metric_array(summary, "mape_h")
+            if [summary.get("h3"), summary.get("h6"), summary.get("h12")] != [
+                mae_h[2], mae_h[5], mae_h[11]
+            ]:
+                raise Full33CompositeError(
+                    f"horizon MAE fields mismatch: {task.task_id}"
+                )
+            for name, reported, recomputed in (
+                ("mae_h", mae_h, recomputed_mae_h),
+                ("rmse_h", rmse_h, recomputed_rmse_h),
+                ("mape_h", mape_h, recomputed_mape_h),
+            ):
+                for horizon, (reported_value, recomputed_value) in enumerate(
+                    zip(reported, recomputed, strict=True), start=1
+                ):
+                    _require_metric_close(
+                        reported=reported_value,
+                        recomputed=recomputed_value,
+                        label=f"{name}[{horizon}]",
+                    )
+            average_rmse = _finite_metric(summary, "rmse")
+            average_mape = _finite_metric(summary, "mape")
+            _require_metric_close(
+                reported=average_rmse,
+                recomputed=float(recomputed_average["rmse"]),
+                label="rmse",
+            )
+            _require_metric_close(
+                reported=average_mape,
+                recomputed=float(recomputed_average["mape_percent"]),
+                label="mape",
+            )
         relative_result_dir = result_dir.relative_to(root).as_posix()
         artifacts = {
             name: {
@@ -545,8 +691,8 @@ def _build_event_composite_index(
                     "h12": {"mae": mae_h[11], "rmse": rmse_h[11], "mape_percent": mape_h[11]},
                     "average": {
                         "mae": _finite_metric(summary, "all"),
-                        "rmse": _finite_metric(summary, "rmse"),
-                        "mape_percent": _finite_metric(summary, "mape"),
+                        "rmse": average_rmse,
+                        "mape_percent": average_mape,
                     },
                 },
             }

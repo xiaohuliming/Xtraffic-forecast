@@ -89,6 +89,12 @@ def _write_result(*, task, manifest, results_root, cache_dir, graph_dir) -> None
         "mape_h": [10.0] * 12,
         "valid_count": 24,
     }
+    if task.model == "graphwavenet":
+        # The production GraphWaveNet trainer intentionally publishes only its
+        # required scalar MAE. Paper-table horizon metrics must be derived from
+        # the bound prediction artifact instead of assumed to exist here.
+        for name in ("h3", "h6", "h12", "mae_h", "rmse", "rmse_h", "mape", "mape_h"):
+            summary.pop(name)
     (result_dir / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
     actual = np.full((1, 12, 2), 10.0, dtype=np.float32)
     np.savez_compressed(

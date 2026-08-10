@@ -56,6 +56,13 @@ def test_full33_composite_revalidates_the_published_four_source_tree(
         f"v3e{number:03d}_" + item["task_id"].split("_", 1)[1]
         for number, item in enumerate(index["tasks"], start=1)
     ]
+    graphwavenet = next(
+        item for item in index["tasks"] if item["model"] == "graphwavenet"
+    )
+    for group in ("h3", "h6", "h12", "average"):
+        assert graphwavenet["metrics"][group] == pytest.approx(
+            {"mae": 1.0, "rmse": 1.0, "mape_percent": 10.0}
+        )
     assert output.is_file()
 
 
