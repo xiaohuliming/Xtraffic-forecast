@@ -1,6 +1,6 @@
 # XTraffic 项目导航与协作约定
 
-最近更新：2026-08-09 15:03，Asia/Singapore
+最近更新：2026-08-10 14:52，Asia/Singapore
 
 ## 新会话先读
 
@@ -36,10 +36,33 @@
 | BiST 与 BiST-NDR 30 epoch 配对 | `runner_completed_unanalyzed_18_of_18` | 尚未生成配对性能结论 |
 | BiST 与 NDR-Net native-100 | `verified_native100_dual_host_18` | index `27746081f2450d5f8ae7fe950000a23d147bd117ac8b8a5fa3ac18fdfc12314c` |
 | v3 full-window baseline | `stopped_supplementary_1_of_33` | 只保留 Alameda HL 补充结果 |
-| v3 event baseline | `running_6_of_33` | 4 卡 5090 已恢复，6/33、0 failed，三个断电任务从 epoch 0 重跑 |
-| v3 event 全方法扩展 | `running_formal_gpu00` | 三地区等价性与 9 项探针已通过，Orange NDR-Net 在物理 GPU3 运行 |
+| v3 event baseline | `verified_event_full33_single_host_33` | 33/33、0 failed，composite index `2a6ad2eadfd1ecf5af3604bee632eaa339e1aed7add59e915a71f9d422dd767e` |
+| v3 event 全方法扩展 | `verified_event_extensions_single_host_9` | 9/9、0 failed，composite index `3a3970c627af6f709100ec9ebeeab215f834e0f1f65fc359423197ec29bf9ed4` |
+| v3 event 无泄漏论文表 | `verified_no_leak_comparison_generated` | 42 行，CSV SHA-256 `9817f5086f836f17265d87071271cc3b724b62420a2db2f2f4f5401e2f37651c` |
 
-本地全仓回归为 611 passed 和 2 个既有 warning。
+本地全仓回归为 614 passed 和 2 个既有 warning。
+
+## v3 event 无泄漏 42 行表最终状态
+
+2026-08-10 14:51 新加坡时间，11 个 baseline 乘三地区的 33 项与 BiST、IGSTGNN、NDR-Net 乘三地区的 9 项均完成训练和 runner 验收，失败数均为 0。两棵结果树分别通过 source-host postflight、Hostinger 逐文件 SHA-256、隐藏 incoming 精确树校验、原子提升和只读 composite。最终合表包含 14 方法乘 3 地区，共 42 行。
+
+- baseline matrix：`protocol_v3_event_full33_5090x4_v1`
+- baseline 训练代码：`d23a991a570fd1c59e3d2ac8315a5e4063e8097f`
+- baseline composite index SHA-256：`2a6ad2eadfd1ecf5af3604bee632eaa339e1aed7add59e915a71f9d422dd767e`
+- extension matrix：`protocol_v3_event_extensions_eager_5090x4_v2`
+- extension 训练代码：`2754b9cdfa5ccf3baca269e83c7379ff506a0e26`
+- extension composite index SHA-256：`3a3970c627af6f709100ec9ebeeab215f834e0f1f65fc359423197ec29bf9ed4`
+- 最终有效性标签：`target_disjoint_event_no_leak_code_stratified`
+- 最终输出目录：`outputs/protocol_v3_noleak_dedup/event_full42_20260810/verified_table/`
+- CSV SHA-256：`9817f5086f836f17265d87071271cc3b724b62420a2db2f2f4f5401e2f37651c`
+- Markdown SHA-256：`fa5ae4214c93791b7f9f74f3c2a3850959887426c0d769b0dbfb77994c479cf1`
+- LaTeX SHA-256：`c28d06ecb3b64483d2f9160304848d04de7ad2905b94445df3b3680689a7f0e7`
+- manifest SHA-256：`03796d1c63fcc571e80fc0bda794b6ee146090af3ef1d256e35bdd5bd02bb5ea`
+- PDF SHA-256：`f2257394909be53b809bd8d09209f5524c1b1813c1ce09652bc7b0b07d6864e8`
+
+全部 42 行使用 seed 42、最多 30 epoch、相同 target-disjoint event split、显式观测 mask 和相同指标口径。两个来源位于同一物理主机，但训练代码 SHA 不同，因此只能写成 code-stratified 单种子描述性比较，不能写成同一代码 checkout 的同质矩阵。官方重叠协议 Table 4 的旧数字仍不得混入这张表。
+
+本轮发布层修复提交为 `7fff5baf43fa37d850fc07118a91d9b1f930b2f9` 与 `d98907e9a0513fa7abb8170a534ec194893ace4b`。前者从绑定的 `test_predictions.npz` 只读计算 GraphWaveNet 的逐 horizon RMSE 和 MAPE，后者允许 runner 已重新验证的 `skipped_valid` 终态进入 postflight，同时继续强制任务身份、`config_hash` 和全部 artifact 复验。两项修复均未改写训练 summary 或 prediction artifact。
 
 ## v3 正式缓存与训练身份
 
@@ -58,15 +81,18 @@
 
 v3 缓存已通过本地两次、5080 一次和 5090 一次严格复验。缓存身份与某次训练代码身份必须分开记录。
 
-## v3 event baseline 最后可确认状态
+## v3 event baseline 最终状态
 
 主矩阵为 11 种方法乘 3 地区，共 33 项。当前固定 seed 42、上限 30 epoch、patience 6、batch 32、target-disjoint 70/15/15 切分，使用 v3 去重事件样本。
 
 - canonical manifest：`config/protocol_v3/table4_event_baselines_phase1_v1.json`
 - manifest SHA-256：`f9cdc1afa5f9f126a6a8094d4d4fc38bc565cf3de277dc4a7742f85a0d2f92ef`
-- 当前正式单主机矩阵：6/33 completed，0 failed
+- 正式单主机矩阵：33/33 completed，0 failed
+- source-host postflight：33 tasks，202 files，`7839685515` bytes
+- composite 状态：`verified_event_full33_single_host_33`
+- composite index SHA-256：`2a6ad2eadfd1ecf5af3604bee632eaa339e1aed7add59e915a71f9d422dd767e`
 - 5080 的 10 项和旧 Orange 的 4 项只读保留，不进入当前矩阵
-- 尚未形成完整 baseline 表。BiST、IGSTGNN 和 NDR-Net 的 v3 event 正式 9 项已在同一物理主机的独立结果根启动
+- baseline 与正式 9 项扩展已共同形成经过验证的 42 行无泄漏表
 
 ## v3 event 扩展历史运行与 eager 重启准备
 

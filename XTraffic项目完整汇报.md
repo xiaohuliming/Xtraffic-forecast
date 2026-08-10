@@ -1203,3 +1203,17 @@ Orange NDR-Net 的实际训练从 13:40 运行到 20:25，明显快于 41.86 小
 远端切换时只暂停原 relay 与 finalize waiter，baseline 三个 trainer 和 Orange NDR-Net trainer 全程存活。旧控制层快照保存在 `relay_priority_reorder_20260809T1218Z`，清单 SHA-256 为 `c3261aa55b14d92bc0b70f16b44fde2433c1dc2635d2e56669c70c5a4c6b22e5`。新 relay 脚本 SHA-256 为 `97633145e9605678d92678ebbb03ea2b7d892072c0bb02fe2936c435df0252f3`。新 relay 与 finalize waiter PID 为 `50215` 和 `50364`，均为独立持久会话。
 
 Orange NDR-Net 于 20:25:45 通过 runner 五文件验收，gpu00 queue 为 completed、1/1、退出码 0，summary SHA-256 为 `598d5e2838433d1ad8b3ddb503b554ee0f5b10be81900fcedb1b1c0e621815f0`。接力器在 9 秒后的 20:25:54 把同一物理 GPU3 分配给正式 gpu01，启动 `v3x008_event_igstgnn_orange_seed42`。复验时 queue 为 running、0/1，CUDA 利用率为 95%，显存使用 16505 MiB。baseline 同期为 10/33、0 failed，扩展为 1/9、0 failed。全仓回归为 613 passed 和 2 个既有 warning。
+
+## 最新进展，2026-08-10 14:52 无泄漏 42 行论文对比表正式完成
+
+`protocol_v3_event_full33_5090x4_v1` 的 33 项 baseline 与 `protocol_v3_event_extensions_eager_5090x4_v2` 的 9 项扩展均完成训练，runner 侧分别为 33/33 与 9/9，失败数均为 0。baseline source-host postflight 验证 33 项、202 个文件和 `7839685515` bytes。extension source-host postflight 验证 9 项、58 个文件和 `2365389476` bytes。两棵结果树均在 Hostinger 完成逐文件 SHA-256、隐藏 incoming 精确文件集校验、原子提升和只读 composite。
+
+baseline composite 状态为 `verified_event_full33_single_host_33`，index SHA-256 为 `2a6ad2eadfd1ecf5af3604bee632eaa339e1aed7add59e915a71f9d422dd767e`。extension composite 状态为 `verified_event_extensions_single_host_9`，index SHA-256 为 `3a3970c627af6f709100ec9ebeeab215f834e0f1f65fc359423197ec29bf9ed4`。最终合表状态为 `verified_no_leak_comparison_generated`，包含 Alameda、Contra Costa 与 Orange 三地区的 14 种方法，共 42 行。
+
+最终表全部使用 `protocol_v3_noleak_dedup`、cache schema 3、seed 42、最多 30 epoch、相同 target-disjoint event split、显式观测 mask 和统一的评测指标。11 个 baseline 的训练代码 SHA 为 `d23a991a570fd1c59e3d2ac8315a5e4063e8097f`。BiST、IGSTGNN 与 NDR-Net 的训练代码 SHA 为 `2754b9cdfa5ccf3baca269e83c7379ff506a0e26`。两个矩阵在同一物理主机运行，但代码 SHA 不同，所以最终有效性标签为 `target_disjoint_event_no_leak_code_stratified`。论文中只能把它描述为单种子、code-stratified 的无泄漏比较，不能描述为同一 checkout 的同质矩阵，也不能混入 `official_protocol_with_known_overlap` 的 Table 4 数字。
+
+最终产物已从 Hostinger 拉回 Mac，目录为 `outputs/protocol_v3_noleak_dedup/event_full42_20260810/verified_table/`。CSV、Markdown、LaTeX、manifest 与 PDF SHA-256 分别为 `9817f5086f836f17265d87071271cc3b724b62420a2db2f2f4f5401e2f37651c`、`fa5ae4214c93791b7f9f74f3c2a3850959887426c0d769b0dbfb77994c479cf1`、`c28d06ecb3b64483d2f9160304848d04de7ad2905b94445df3b3680689a7f0e7`、`03796d1c63fcc571e80fc0bda794b6ee146090af3ef1d256e35bdd5bd02bb5ea` 与 `f2257394909be53b809bd8d09209f5524c1b1813c1ce09652bc7b0b07d6864e8`。
+
+收尾时发现两项控制层契约缺陷。GraphWaveNet 的正式 producer 只承诺 scalar MAE，旧 composite 错误要求 summary 中存在 12 步 `mae_h`、`rmse_h` 和 `mape_h`。提交 `7fff5baf43fa37d850fc07118a91d9b1f930b2f9` 改为从已绑定的 `test_predictions.npz` 只读重算表格指标，并对其他模型继续核对 summary 与 prediction artifact。42 份正式结果的逐项数值复验显示，非 GraphWaveNet 指标最大差为约 `3.55e-14`，GraphWaveNet scalar MAE 的最大 float32 舍入差为约 `5.83e-7`。另一项缺陷是扩展聚合器会把已存在且重新验证通过的正式任务标记为 `skipped_valid`，旧 postflight 只接受字面值 `completed`。提交 `d98907e9a0513fa7abb8170a534ec194893ace4b` 在继续验证任务身份、`config_hash` 与全部 artifact 的前提下接受这两种 runner 终态。两项修复均未改写任何训练 summary、checkpoint 或 prediction artifact。
+
+第一次 baseline post-publish 因 GraphWaveNet summary 契约不匹配而 fail closed。一次无卡模式 baseline postflight 因 2 GB cgroup 内存上限被杀，失败退出码均已归档。extension 第一次 postflight 因 `skipped_valid` 状态被旧门禁拒绝，失败回执同样保留。恢复后 baseline 与 extension 均重新完整运行 source-host postflight。extension 最终闭环日志明确包含 `POST_PUBLISH_START`、`POST_PUBLISH_OK` 和 `FINALIZE_SUCCESS`，fresh composite 与已有 42 行表逐字节一致。最终控制提交 `d98907e` 的全仓回归为 614 passed 和 2 个既有 warning。
