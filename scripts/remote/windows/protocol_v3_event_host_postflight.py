@@ -496,16 +496,17 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
             state = _load_json(state_path)
             if state.get("task_id") != task_id:
                 raise PostflightError(f"task state identity mismatch: {task_id}")
-            if state.get("state") != "completed":
+            task_state = state.get("state")
+            if task_state not in {"completed", "skipped_valid"}:
                 raise PostflightError(
-                    f"task state must be completed for {task_id}, got "
-                    f"{state.get('state')!r}"
+                    f"task state must be completed or skipped_valid for "
+                    f"{task_id}, got {task_state!r}"
                 )
             if state.get("config_hash") != config_hash:
                 raise PostflightError(
                     f"task state config_hash mismatch: {task_id}"
                 )
-            state_counts["completed"] += 1
+            state_counts[str(task_state)] += 1
             allowed.update(_collect_regular_files(result_dir))
             allowed.update(_collect_regular_files(state_path))
             log_dir = results_root / "logs" / task_id
@@ -514,7 +515,7 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
             item = {
                 "task_id": task_id,
                 "source_id": source_id,
-                "state": "completed",
+                "state": task_state,
                 "code_sha": code_sha,
                 "config_hash": config_hash,
                 "invocation_config": dict(invocation.config),

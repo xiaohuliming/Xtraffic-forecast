@@ -224,6 +224,23 @@ def test_extension_host_passes_the_shared_read_only_postflight(tmp_path: Path) -
     assert report["task_state_counts"] == {"completed": 9}
 
 
+def test_extension_postflight_accepts_runner_revalidated_results(tmp_path: Path) -> None:
+    from scripts.remote.windows import protocol_v3_event_host_postflight as pf
+
+    plan_path, plan = _build_extension_host(tmp_path)
+    results_root = Path(plan["completion_gate"]["results_root"])
+    for state_path in results_root.glob("gpu*/state/tasks/*.json"):
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state["state"] = "skipped_valid"
+        state_path.write_text(json.dumps(state), encoding="utf-8")
+
+    report = pf.build_postflight_report(plan_path)
+
+    assert report["validated_tasks"] == 9
+    assert report["task_state_counts"] == {"skipped_valid": 9}
+    assert {item["state"] for item in report["tasks"]} == {"skipped_valid"}
+
+
 def test_extension_postflight_rejects_a_changed_support_binding(tmp_path: Path) -> None:
     from scripts.remote.windows import protocol_v3_event_host_postflight as pf
 
