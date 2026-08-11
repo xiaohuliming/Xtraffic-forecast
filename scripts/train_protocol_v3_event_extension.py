@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Train BiST, IGSTGNN, or NDR-Net on strict protocol-v3 event samples."""
+"""Train BiST, IGSTGNN, NDR-Net, or BiST-NDR on strict v3 event samples."""
 
 from __future__ import annotations
 
@@ -28,6 +28,9 @@ from scripts.protocol_v3_event_extension_data import (
     prepare_ndr_batch,
 )
 from scripts.reproduction.igstgnn_table4.bist_factory import build_bist_factory
+from scripts.reproduction.igstgnn_table4.bist_ndr_pair_model import (
+    build_bist_ndr_pair_model,
+)
 from scripts.reproduction.igstgnn_table4.igstgnn_factory import build_igstgnn_factory
 from scripts.reproduction.igstgnn_table4.ndr_extension_runner import (
     _make_model as make_ndr_model,
@@ -50,13 +53,17 @@ NDR_PROFILE_PATH = (
     PROJECT_ROOT
     / "config/reproduction/igstgnn_table4/ndr_extension_profile_v1.json"
 )
+BIST_NDR_PROFILE_PATH = (
+    PROJECT_ROOT / "config/protocol_v3/event_bist_ndr_profile_v1.json"
+)
 REGION_TO_SUPPORT = {
     "Alameda": "Alameda",
     "ContraCosta": "Contra_Costa",
     "Orange": "Orange",
 }
 REGION_CODE = {"Alameda": 0, "ContraCosta": 1, "Orange": 2}
-METHODS = ("bist", "igstgnn", "ndr_net")
+METHODS = ("bist", "igstgnn", "ndr_net", "bist_ndr")
+NDR_METHODS = frozenset({"ndr_net", "bist_ndr"})
 
 
 class FileLogger:
@@ -75,6 +82,11 @@ class FileLogger:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--method", required=True, choices=METHODS)
+    parser.add_argument(
+        "--variant",
+        choices=("v3_event_aligned", "v3_event_bist_ndr"),
+        default="v3_event_aligned",
+    )
     parser.add_argument("--region", required=True, choices=tuple(REGION_TO_SUPPORT))
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--epochs", type=int, default=30)
@@ -99,6 +111,15 @@ def parse_args() -> argparse.Namespace:
 
 
 def validate_training_contract(args: argparse.Namespace) -> int | None:
+    expected_variant = (
+        "v3_event_bist_ndr" if args.method == "bist_ndr" else "v3_event_aligned"
+    )
+    observed_variant = getattr(args, "variant", expected_variant)
+    if observed_variant != expected_variant:
+        raise ValueError(
+            f"method {args.method} requires variant {expected_variant}, "
+            f"got {observed_variant}"
+        )
     if args.seed != 42:
         raise ValueError(f"{args.run_contract} seed audit is fixed to seed 42")
     if args.run_contract == "formal30":
@@ -111,7 +132,7 @@ def validate_training_contract(args: argparse.Namespace) -> int | None:
         raise ValueError(f"unsupported run contract: {args.run_contract}")
     if args.patience != 20:
         raise ValueError(f"{args.run_contract} requires patience 20")
-    return None if args.method == "ndr_net" else args.patience
+    return None if args.method in NDR_METHODS else args.patience
 
 
 def _scheduler_diagnostics(
@@ -123,7 +144,7 @@ def _scheduler_diagnostics(
         return None
     result: dict[str, Any] = {
         "type": type(scheduler).__name__,
-        "step_unit": "optimizer_step" if method == "ndr_net" else "epoch",
+        "step_unit": "optimizer_step" if method in NDR_METHODS else "epoch",
     }
     if hasattr(scheduler, "milestones"):
         result["milestones"] = sorted(
@@ -160,6 +181,22 @@ def _load_ndr_profile() -> dict[str, Any]:
     return value
 
 
+def _load_bist_ndr_profile() -> dict[str, Any]:
+    value = json.loads(BIST_NDR_PROFILE_PATH.read_text(encoding="utf-8"))
+    expected = {
+        "schema_version": 1,
+        "protocol_version": "protocol_v3_noleak_dedup",
+        "profile_id": "protocol_v3_event_bist_ndr_v1",
+        "method": "bist_ndr",
+    }
+    if any(value.get(name) != expected_value for name, expected_value in expected.items()):
+        raise RuntimeError("BiST-NDR v3 profile identity is invalid")
+    effective = value.get("effective")
+    if not isinstance(effective, dict):
+        raise RuntimeError("BiST-NDR v3 effective profile is missing")
+    return value
+
+
 def _loaders(
     *,
     method: str,
@@ -176,7 +213,11 @@ def _loaders(
         batch_size = int(effective["batch_size_by_region"][support_region])
         include_incident = method == "igstgnn"
     else:
-        effective = _load_ndr_profile()["effective"]
+        effective = (
+            _load_bist_ndr_profile()["effective"]
+            if method == "bist_ndr"
+            else _load_ndr_profile()["effective"]
+        )
         batch_size = int(effective["batch_size_by_region"][support_region])
         include_incident = False
     result = {}
@@ -271,13 +312,38 @@ def _build_model(
             factory.model.to(device), factory.optimizer, factory.scheduler,
             factory.provenance, clip, factory.engine,
         )
-    profile = _load_ndr_profile()
-    effective = profile["effective"]
-    model = make_ndr_model(
-        node_count=rdata.N,
-        statistics=statistics,
-        device=device,
-    )
+    if method == "bist_ndr":
+        profile = _load_bist_ndr_profile()
+        effective = profile["effective"]
+        model_result = build_bist_ndr_pair_model(
+            method="bist_ndr",
+            node_count=rdata.N,
+            effective_profile=effective,
+            statistics=statistics,
+            device=device,
+        )
+        model = model_result.model
+        provenance = {
+            **model_result.provenance,
+            "source_id": profile["source_id"],
+            "profile_id": profile["profile_id"],
+            "protocol_adapter": "protocol_v3_noleak_dedup_event",
+            "claim_scope": profile["claim_scope"],
+        }
+    else:
+        profile = _load_ndr_profile()
+        effective = profile["effective"]
+        model = make_ndr_model(
+            node_count=rdata.N,
+            statistics=statistics,
+            device=device,
+        )
+        provenance = {
+            "source_id": profile["source_id"],
+            "profile_id": profile["profile_id"],
+            "variant": profile["variant"],
+            "effective_overrides": {"seeds": {"to": [seed]}},
+        }
     optimizer_config = effective["optimizer"]
     optimizer = torch.optim.Adam(
         model.parameters(),
@@ -289,12 +355,6 @@ def _build_model(
         T_max=max(1, epochs * loaders["train"].num_batch),
         eta_min=optimizer_config["scheduler"]["eta_min"],
     )
-    provenance = {
-        "source_id": profile["source_id"],
-        "profile_id": profile["profile_id"],
-        "variant": profile["variant"],
-        "effective_overrides": {"seeds": {"to": [seed]}},
-    }
     return (
         model, optimizer, scheduler, provenance,
         int(optimizer_config["gradient_clip"]), None,
@@ -408,7 +468,7 @@ def _evaluate(
     masks: list[np.ndarray] = []
     with torch.no_grad():
         for batch in loader.get_iterator():
-            if method == "ndr_net":
+            if method in NDR_METHODS:
                 prepared = prepare_ndr_batch(batch, statistics)
                 tensors = {
                     key: torch.from_numpy(value).to(device)
@@ -465,7 +525,7 @@ def main() -> None:
         data_dir=args.data_dir,
         region=args.region,
         model=args.method,
-        variant="v3_event_aligned",
+        variant=args.variant,
         seed=args.seed,
         sampling_protocol="event",
     )
@@ -559,7 +619,11 @@ def main() -> None:
             wait = 0
             epochs_run = 0
             stop_reason = "max_epochs_reached"
-            ndr_profile = _load_ndr_profile()["effective"]
+            ndr_profile = (
+                _load_bist_ndr_profile()["effective"]
+                if args.method == "bist_ndr"
+                else _load_ndr_profile()["effective"]
+            )
             loss_args = SimpleNamespace(
                 lambda_gate=ndr_profile["loss"]["lambda_gate"],
                 lambda_spec=ndr_profile["loss"]["lambda_specialization"],
@@ -573,7 +637,7 @@ def main() -> None:
                 valid_count = 0
                 for batch in loaders["train"].get_iterator():
                     optimizer.zero_grad(set_to_none=True)
-                    if args.method == "ndr_net":
+                    if args.method in NDR_METHODS:
                         prepared = prepare_ndr_batch(batch, statistics)
                         tensors = {
                             key: torch.from_numpy(value).to(device)
@@ -616,9 +680,9 @@ def main() -> None:
                     if gradient_clip:
                         torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clip)
                     optimizer.step()
-                    if args.method == "ndr_net":
+                    if args.method in NDR_METHODS:
                         scheduler.step()
-                if args.method != "ndr_net" and scheduler is not None:
+                if args.method not in NDR_METHODS and scheduler is not None:
                     scheduler.step()
                 val_mae, _, _, _ = _evaluate(
                     model=model,

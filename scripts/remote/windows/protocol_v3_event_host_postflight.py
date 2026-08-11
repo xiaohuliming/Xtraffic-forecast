@@ -50,6 +50,10 @@ from scripts.remote.windows.protocol_v3_event_extension_runner import (  # noqa:
     load_extension_manifest,
     verify_extension_support,
 )
+from scripts.remote.windows.protocol_v3_event_bist_ndr_runner import (  # noqa: E402
+    build_bist_ndr_invocation,
+    load_bist_ndr_manifest,
+)
 from scripts.remote.linux.protocol_v3_event_convergence_runner import (  # noqa: E402
     ConvergenceInputs,
     build_convergence_invocation,
@@ -291,13 +295,20 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
     if sha256_file(canonical_path) != expected_manifest_sha:
         raise PostflightError("canonical manifest SHA-256 mismatch")
     runner_kind = plan.get("runner_kind", "baseline")
-    if runner_kind not in {"baseline", "event_extension", "event_convergence"}:
+    if runner_kind not in {
+        "baseline",
+        "event_extension",
+        "event_bist_ndr",
+        "event_convergence",
+    }:
         raise PostflightError(f"unsupported runner_kind: {runner_kind!r}")
     try:
         if runner_kind == "baseline":
             manifest = load_baseline_manifest(canonical_path)
         elif runner_kind == "event_extension":
             manifest = load_extension_manifest(canonical_path)
+        elif runner_kind == "event_bist_ndr":
+            manifest = load_bist_ndr_manifest(canonical_path)
         else:
             manifest = load_convergence_manifest(canonical_path)
     except runner.ManifestError as exc:
@@ -324,8 +335,13 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
         extension = None
         support_report: dict[str, object] = {}
     else:
-        if runner_kind == "event_extension" and plan.get("task_overrides") is not None:
-            raise PostflightError("event_extension does not accept task_overrides")
+        if (
+            runner_kind in {"event_extension", "event_bist_ndr"}
+            and plan.get("task_overrides") is not None
+        ):
+            raise PostflightError(
+                f"{runner_kind} does not accept task_overrides"
+            )
         task_overrides = (
             _task_overrides(plan, manifest)
             if runner_kind == "event_convergence"
@@ -366,7 +382,7 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
             "igstgnn_data_parallel",
             "max_microbatch_size",
         }
-        if runner_kind == "event_extension":
+        if runner_kind in {"event_extension", "event_bist_ndr"}:
             expected_option_keys.add("task_microbatch_sizes")
         if not isinstance(raw_options, dict) or set(raw_options) != expected_option_keys:
             raise PostflightError("extension_options must contain the exact contract")
@@ -381,11 +397,16 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
             or microbatch_size < 0
         ):
             raise PostflightError("max_microbatch_size must be a nonnegative integer")
-        if runner_kind == "event_extension":
+        if runner_kind in {"event_extension", "event_bist_ndr"}:
+            methods = (
+                {"igstgnn", "ndr_net"}
+                if runner_kind == "event_extension"
+                else {"bist_ndr"}
+            )
             expected_task_microbatches = {
                 task.task_id: 8
                 for task in manifest.tasks
-                if task.region == "Orange" and task.model in {"igstgnn", "ndr_net"}
+                if task.region == "Orange" and task.model in methods
             }
             if task_microbatch_sizes != expected_task_microbatches:
                 raise PostflightError("task_microbatch_sizes do not match the contract")
@@ -485,6 +506,10 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
                 )
             elif runner_kind == "event_extension":
                 invocation = build_extension_invocation(
+                    task, task_manifest, extension, probe  # type: ignore[arg-type]
+                )
+            elif runner_kind == "event_bist_ndr":
+                invocation = build_bist_ndr_invocation(
                     task, task_manifest, extension, probe  # type: ignore[arg-type]
                 )
             else:

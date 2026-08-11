@@ -26,9 +26,11 @@ from scripts.reproduction.igstgnn_table4.ndr_extension_runner import (
 from scripts.train_protocol_v3_event_extension import (
     FileLogger,
     METHODS,
+    NDR_METHODS,
     REGION_TO_SUPPORT,
     _backward_standard_batch,
     _build_model,
+    _load_bist_ndr_profile,
     _load_ndr_profile,
     _loaders,
     _set_seed,
@@ -145,7 +147,7 @@ def main() -> int:
         torch.cuda.empty_cache()
         torch.cuda.reset_peak_memory_stats()
         started = time.perf_counter()
-        if args.method == "ndr_net":
+        if args.method in NDR_METHODS:
             prepared = prepare_ndr_batch(batch, statistics)
             tensors = {
                 key: torch.from_numpy(value).to(device)
@@ -155,7 +157,11 @@ def main() -> int:
                 "y_true": tensors["target"].unsqueeze(-1),
                 "y_mask": tensors["target_mask"].unsqueeze(-1),
             }
-            effective = _load_ndr_profile()["effective"]
+            effective = (
+                _load_bist_ndr_profile()["effective"]
+                if args.method == "bist_ndr"
+                else _load_ndr_profile()["effective"]
+            )
             loss_args = SimpleNamespace(
                 lambda_gate=effective["loss"]["lambda_gate"],
                 lambda_spec=effective["loss"]["lambda_specialization"],

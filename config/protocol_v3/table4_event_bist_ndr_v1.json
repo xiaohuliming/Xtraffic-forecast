@@ -1,0 +1,53 @@
+{
+  "manifest_version": 1,
+  "protocol_version": "protocol_v3_noleak_dedup",
+  "cache_schema_version": 3,
+  "default_results_root": "outputs/protocol_v3_noleak_dedup/remote_runs/event_bist_ndr_5080_v1",
+  "default_cache_dir": "outputs/dist_net/region_data_v3_noleak_dedup",
+  "default_graph_dir": "outputs/region_graphs",
+  "training": {
+    "epochs": 30,
+    "patience": 20,
+    "device": "cuda:0",
+    "seed": 42,
+    "checkpoint_metric": "global_validation_masked_mae_all_valid_points",
+    "evaluation_mask": "explicit_v3_flow_mask",
+    "partial_batch": "retain",
+    "traffic_loading": "eager",
+    "training_analysis_labels": false,
+    "method_profile": "config/protocol_v3/event_bist_ndr_profile_v1.json",
+    "method_profile_sha256": "b32340f8d4f94be2318dd1e0b8ddbcefce105005bc6bf7c5cc0548bcb9bc5ba8"
+  },
+  "tasks": [
+    {
+      "task_id": "v3bn001_event_bist_ndr_alameda_seed42",
+      "kind": "event_extension",
+      "region": "Alameda",
+      "model": "bist_ndr",
+      "variant": "v3_event_bist_ndr",
+      "seed": 42,
+      "sampling_protocol": "event",
+      "output_dir": "tasks/v3bn001_event_bist_ndr_alameda_seed42"
+    },
+    {
+      "task_id": "v3bn002_event_bist_ndr_contracosta_seed42",
+      "kind": "event_extension",
+      "region": "ContraCosta",
+      "model": "bist_ndr",
+      "variant": "v3_event_bist_ndr",
+      "seed": 42,
+      "sampling_protocol": "event",
+      "output_dir": "tasks/v3bn002_event_bist_ndr_contracosta_seed42"
+    },
+    {
+      "task_id": "v3bn003_event_bist_ndr_orange_seed42",
+      "kind": "event_extension",
+      "region": "Orange",
+      "model": "bist_ndr",
+      "variant": "v3_event_bist_ndr",
+      "seed": 42,
+      "sampling_protocol": "event",
+      "output_dir": "tasks/v3bn003_event_bist_ndr_orange_seed42"
+    }
+  ]
+}
