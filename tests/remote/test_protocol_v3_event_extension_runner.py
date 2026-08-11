@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
+import sys
 
 from scripts.remote.windows.protocol_v3_event_extension_runner import (
     CANONICAL_MANIFEST,
@@ -13,6 +15,24 @@ from scripts.remote.windows.protocol_v3_event_extension_runner import (
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_extension_trainer_bootstraps_project_imports_from_script_path() -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "scripts/train_protocol_v3_event_extension.py",
+            "--help",
+        ],
+        cwd=PROJECT_ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stdout
+    assert "Train BiST, IGSTGNN, or NDR-Net" in completed.stdout
 
 
 def test_extension_manifest_is_exact_seed42_nine_task_matrix() -> None:
