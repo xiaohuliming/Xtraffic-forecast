@@ -17,7 +17,6 @@ import os
 import re
 import shlex
 import subprocess
-import sys
 import time
 import uuid
 from dataclasses import dataclass
@@ -35,6 +34,11 @@ from scripts.remote.windows.protocol_v3_event_extension_runner import (
     build_extension_invocation,
     load_extension_manifest,
     verify_extension_support,
+)
+from scripts.remote.linux.protocol_v3_event_convergence_runner import (
+    ConvergenceInputs,
+    build_convergence_invocation,
+    load_convergence_manifest,
 )
 
 
@@ -168,14 +172,18 @@ def _manifest_for_task(manifest: Any, override: object) -> Any:
     return dataclasses.replace(manifest, training=training)
 
 
-def _load_training_context(plan: Mapping[str, Any]) -> tuple[Any, Any, Any]:
+def _load_training_context(plan: Mapping[str, Any]) -> tuple[Any, Any]:
     canonical = Path(_required_string(plan, "canonical_manifest"))
     runner_kind = plan.get("runner_kind", "baseline")
     if runner_kind == "baseline":
-        return load_baseline_manifest(canonical), None, build_baseline_invocation
-    if runner_kind != "event_extension":
+        return load_baseline_manifest(canonical), build_baseline_invocation
+    if runner_kind not in {"event_extension", "event_convergence"}:
         raise BackupError(f"unsupported runner_kind: {runner_kind!r}")
-    manifest = load_extension_manifest(canonical)
+    manifest = (
+        load_extension_manifest(canonical)
+        if runner_kind == "event_extension"
+        else load_convergence_manifest(canonical)
+    )
     verified = verify_extension_support(
         support_manifest_path=Path(_required_string(plan, "support_manifest")),
         support_root=Path(_required_string(plan, "support_root")),
@@ -194,7 +202,18 @@ def _load_training_context(plan: Mapping[str, Any]) -> tuple[Any, Any, Any]:
         graph_dir=Path(_required_string(plan, "graph_dir")),
         python_executable=_required_string(plan, "python_executable"),
     )
-    return manifest, extension, build_extension_invocation
+    if runner_kind == "event_extension":
+        return manifest, lambda task, current, run_inputs, probe: (
+            build_extension_invocation(task, current, extension, probe)
+        )
+    return manifest, lambda task, current, run_inputs, probe: (
+        build_convergence_invocation(
+            task,
+            current,
+            ConvergenceInputs(protocol=run_inputs, extension=extension),
+            probe,
+        )
+    )
 
 
 def discover_completed_tasks(
@@ -206,7 +225,7 @@ def discover_completed_tasks(
     plan = _read_json_object(plan_path)
     matrix_id = _safe_component(_required_string(plan, "matrix_id"), "matrix_id")
     host_id = _safe_component(_required_string(plan, "host_id"), "host_id")
-    manifest, extension, invocation_builder = _load_training_context(plan)
+    manifest, invocation_builder = _load_training_context(plan)
     canonical_by_id = {task.task_id: task for task in manifest.tasks}
     overrides = plan.get("task_overrides") or {}
     if not isinstance(overrides, dict):
@@ -261,10 +280,11 @@ def discover_completed_tasks(
 
             task_manifest = _manifest_for_task(manifest, overrides.get(task_id))
             probe = results_root / ".staging" / task_id / "__INCREMENTAL_BACKUP__"
-            invocation = (
-                invocation_builder(task, task_manifest, run_inputs, probe)
-                if extension is None
-                else invocation_builder(task, task_manifest, extension, probe)
+            invocation = invocation_builder(
+                task,
+                task_manifest,
+                run_inputs,
+                probe,
             )
             config_hash = runner.derive_config_hash(
                 task,

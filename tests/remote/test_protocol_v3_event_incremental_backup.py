@@ -9,6 +9,7 @@ import pytest
 
 from scripts.remote.linux.protocol_v3_event_incremental_backup import (
     BackupError,
+    _load_training_context,
     discover_completed_tasks,
 )
 from scripts.remote.windows.protocol_v3_baseline_runner import (
@@ -23,6 +24,9 @@ from scripts.remote.windows.protocol_v3_runner import (
 
 ROOT = Path(__file__).resolve().parents[2]
 CANONICAL = ROOT / "config/protocol_v3/table4_event_baselines_phase1_v1.json"
+CONVERGENCE_CANONICAL = (
+    ROOT / "config/protocol_v3/event_convergence_seed42_v1.json"
+)
 
 
 def _write_case(tmp_path: Path) -> tuple[Path, Path, str]:
@@ -187,3 +191,50 @@ def test_completed_task_symlink_fails_closed(tmp_path: Path) -> None:
 
     with pytest.raises(BackupError, match="symlink"):
         discover_completed_tasks(plan_path)
+
+
+def test_convergence_plan_rebuilds_the_training_diagnostics_contract(
+    tmp_path: Path,
+) -> None:
+    plan = {
+        "runner_kind": "event_convergence",
+        "canonical_manifest": str(CONVERGENCE_CANONICAL),
+        "support_manifest": str(
+            ROOT / "config/protocol_v3/event_extension_support_v1.json"
+        ),
+        "support_root": str(
+            ROOT
+            / "outputs/reproduction/igstgnn_table4_official_v1/data/official_splits"
+        ),
+        "node_order": str(ROOT / "archive/node_order.npy"),
+        "cache_dir": str(tmp_path / "cache"),
+        "graph_dir": str(tmp_path / "graphs"),
+        "python_executable": sys.executable,
+        "extension_options": {
+            "igstgnn_data_parallel": False,
+            "max_microbatch_size": 0,
+        },
+    }
+    manifest, invocation_builder = _load_training_context(plan)
+    task = manifest.tasks[0]
+    run_inputs = ProtocolV3Inputs(
+        results_root=tmp_path / "results",
+        cache_dir=tmp_path / "cache",
+        graph_dir=tmp_path / "graphs",
+        cache_bundle_id="bundle-test",
+        cache_bundle_digest="a" * 64,
+        code_sha="b" * 40,
+        python_executable=sys.executable,
+    )
+
+    invocation = invocation_builder(
+        task,
+        manifest,
+        run_inputs,
+        tmp_path / "attempt",
+    )
+
+    assert "training_diagnostics.json" in invocation.required_artifacts
+    assert invocation.config["matrix_id"] == (
+        "protocol_v3_event_convergence_seed42_39_v1"
+    )
