@@ -55,3 +55,13 @@ Hostinger `31.97.147.71` 在启动时约有 24 GB 可用空间，xray 为 active
 最终 finalizer PID 为 `43321`，脚本 SHA-256 为 `d637ecbee4d75c0944322498b80601ea9829bd7bb0925bf3f8a552d42f89f618`。它等待 39/39、runner 退出码 0、无残留 trainer、source-host postflight、远端容量门、逐文件 SHA-256、精确文件集和原子提升。全部成功后自动关机。任一失败都保持主机开机。
 
 运行中的 checkpoint 仍不含 optimizer、scheduler、下一 epoch 游标和随机数状态。主机中断后，已完成并验证的任务可以保留，正在运行的单项必须从 epoch 0 新建 attempt。
+
+## 最新可验证状态
+
+2026-08-11 20:04 新加坡时间，`connect.weste.seetacloud.com:46241` 能建立 TCP，但远端在 SSH 鉴权前关闭连接。当前证据不能证明训练仍在运行，也不能区分欠费、关机、平台回收或 SSH 入口异常。启动时记录的 controller、侧车和 finalizer PID 不再作为存活证据。
+
+Hostinger 增量灾备树已严格保全第一个完成任务 `v3c001_event_lstm_alameda_seed42`。该任务状态为 `completed`，runner return code 为 0，运行 100 epoch，最佳验证 checkpoint 位于 epoch 99。完成状态更新时间为 2026-08-11 03:15:25 UTC，增量复验 marker 时间为 03:16:23 UTC。marker 状态为 `verified_completed_task_backup`，8 个文件的 files digest 为 `6bd8c7313b453745bd7ec0a40ad82df5fb130a17484241364b95e2ad0b17b4fa`。
+
+因此当前矩阵状态更新为 `last_verified_1_of_39_remote_unreachable`。这不是训练完成状态，也不是性能结论。LSTM 的 best epoch 99 说明 30 epoch 对至少该任务会截断仍在改善的训练过程，但不能单凭这一项推断所有方法的排序变化。
+
+恢复访问后必须先只读检查 queue、task state、trainer 进程、正式任务树、staging 和 GPU 状态。已完成并通过 Hostinger 增量复验的任务可以作为恢复候选。进行中的任务因缺少 optimizer、scheduler、下一 epoch 游标和随机数状态，不能从中断 epoch 严格续跑。若需要继续，必须从 epoch 0 新建 attempt，并保留旧 staging 的 incident 清单。

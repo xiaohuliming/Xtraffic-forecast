@@ -39,7 +39,7 @@
 | v3 event baseline | `verified_event_full33_single_host_33` | 33/33、0 failed，composite index `2a6ad2eadfd1ecf5af3604bee632eaa339e1aed7add59e915a71f9d422dd767e` |
 | v3 event 全方法扩展 | `verified_event_extensions_single_host_9` | 9/9、0 failed，composite index `3a3970c627af6f709100ec9ebeeab215f834e0f1f65fc359423197ec29bf9ed4` |
 | v3 event 无泄漏论文表 | `verified_no_leak_comparison_generated` | 42 行，CSV SHA-256 `9817f5086f836f17265d87071271cc3b724b62420a2db2f2f4f5401e2f37651c` |
-| v3 seed 42 收敛审计 | `running_0_of_39` | 四卡 RTX 5090，正式代码 `0338e5e`，plan digest `f84709cc` |
+| v3 seed 42 收敛审计 | `last_verified_1_of_39_remote_unreachable` | LSTM Alameda 已增量保全，GPU 主机当前无法完成 SSH 握手 |
 
 本地全仓回归为 637 passed 和 2 个既有 warning。
 
@@ -51,9 +51,9 @@ DCRNN 恢复 100 epoch 的 scheduler 里程碑 `[10, 50, 90]`，baseline patienc
 
 39 项 CUDA 探针全部通过。task calibration SHA-256 为 `a6d1c9015b29b70fce51e84e47f0f1fcc33e8a85db9b4e35eadf3841fa2d359a`。正式训练代码 SHA 为 `0338e5ee93d0cf8ef2e162186310c32130fa31df`，plan digest 为 `f84709ccf5debcdcd6a766497095d3ca0024bd72614beb6a2785f2ad6f11b9b0`。Orange STTN 与 D²STGNN 使用 microbatch 16，Orange IGSTGNN 与 NDR-Net 使用 microbatch 8。
 
-2026-08-11 09:40 新加坡时间，四卡 RTX 5090 正式状态为 running、0/39 completed、0 failed。GPU0 至 GPU3 分别执行 Alameda AGCRN、Alameda LSTM、Orange IGSTGNN 与 Orange STTN。controller PID 为 `41801`。首次脚本入口导入故障没有形成正式结果，incident 清单 SHA-256 为 `b6c1e8d31c0bb4e771bae6ea4e8e0457510098c9a726e33d29535af469347341`。入口修复后本地全仓为 636 passed，远端专项为 19 passed。
+2026-08-11 20:04 新加坡时间，GPU 入口 `connect.weste.seetacloud.com:46241` 能建立 TCP，但在 SSH 鉴权前由远端关闭。当前不能证明主机仍在训练，也不能据此判断是欠费、关机、平台回收或入口异常。最后可验证进度为 1/39 completed。已完成任务 `v3c001_event_lstm_alameda_seed42` 在 Hostinger 隐藏增量灾备树通过逐文件校验，状态为 `verified_completed_task_backup`，files digest 为 `6bd8c7313b453745bd7ec0a40ad82df5fb130a17484241364b95e2ad0b17b4fa`。该任务运行到 100 epoch，最佳验证 checkpoint 位于 epoch 99，直接证明 30 epoch 对至少这个任务会截断仍在改善的训练过程。
 
-增量灾备侧车 PID 为 `43230`，每个 completed task 会重新验收并上传 Hostinger 隐藏 `.incremental` 树。最终 finalizer PID 为 `43321`。它只在 39/39、runner 零退出、source-host postflight、Hostinger 精确树校验与原子提升全部成功后自动关机。任一失败都保持开机。完整记录见 `docs/audits/protocol_v3_event_convergence_seed42_launch_2026-08-11.md`。
+启动时 controller、增量灾备侧车与 finalizer PID 分别为 `41801`、`43230` 与 `43321`。远端不可达后这些 PID 不再视为存活证据。增量灾备只保护已完成并通过 runner 验收的任务。当前 checkpoint 不含 optimizer、scheduler、下一 epoch 游标和随机数状态，因此中断中的单项不能严格续跑，恢复后必须先审计 queue、进程、正式树和 staging，再决定保留或从 epoch 0 新建 attempt。现有 42 行表保持只读。完整记录见 `docs/audits/protocol_v3_event_convergence_seed42_launch_2026-08-11.md`。
 
 ## v3 event 无泄漏 42 行表最终状态
 

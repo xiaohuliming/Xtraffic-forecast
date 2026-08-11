@@ -1243,3 +1243,13 @@ baseline 最大训练轮次提高到 100，patience 为 30。DCRNN 恢复原 100
 09:40 的正式状态为 running、0/39 completed、0 failed。controller PID 为 `41801`。四张卡分别执行 Alameda AGCRN、Alameda LSTM、Orange IGSTGNN 与 Orange STTN。Orange IGSTGNN 已完成模型构建并进入训练，首次入口故障没有复现。
 
 提交 `40d2cca34bfc2925f20a0afdff56fa09f8363dc6` 让增量灾备侧车支持 convergence plan。侧车不进入训练 checkout，不改变正式代码 SHA 或 plan digest。PID 为 `43230`，每个 runner completed task 会先重新验收，再逐文件上传 Hostinger 隐藏 `.incremental` 树。Hostinger 当前约有 24 GB 可用空间，xray 为 active，4 GB swap 正常。最终 finalizer PID 为 `43321`。它只在 39/39、runner 退出码 0、source-host postflight、容量门、逐文件 SHA-256、精确文件集与原子提升全部通过后自动关机。任一失败都保持主机开机。完整证据见 `docs/audits/protocol_v3_event_convergence_seed42_launch_2026-08-11.md`。
+
+## 最新进展，2026-08-11 20:04 收敛审计首项已保全，GPU 主机状态不可验证
+
+100 epoch 收敛审计最后可验证进度为 1/39。`v3c001_event_lstm_alameda_seed42` 已完成 100 epoch，runner return code 为 0，最佳验证 checkpoint 位于 epoch 99。Hostinger 隐藏增量灾备树已对该任务完成逐文件复验，marker 状态为 `verified_completed_task_backup`，8 个文件的 files digest 为 `6bd8c7313b453745bd7ec0a40ad82df5fb130a17484241364b95e2ad0b17b4fa`。该单项直接说明 30 epoch 对 Alameda LSTM 会截断仍在改善的训练过程，但不能据此替代完整 39 项结果或推断所有方法排序。
+
+20:04 新加坡时间，`connect.weste.seetacloud.com:46241` 可以建立 TCP，但远端在 SSH 鉴权前关闭连接。当前不能证明四卡主机仍在训练，也不能判断原因是欠费、关机、平台回收或入口异常。启动时记录的 controller、增量侧车和 finalizer PID 不再作为存活证据。矩阵状态更新为 `last_verified_1_of_39_remote_unreachable`。
+
+当前 checkpoint 不包含 optimizer、scheduler、下一 epoch 游标和随机数状态。主机恢复后应先只读审计 queue、task state、进程、正式树和 staging。已完成且通过 Hostinger 增量复验的任务可以保留。中断中的单项不能从原 epoch 严格续跑，继续时必须从 epoch 0 新建 attempt，并为旧 staging 生成 incident 清单。现有 42 行无泄漏表继续保持只读，其状态不受本次中断影响。
+
+导师汇报与论文路线已经整理到 `docs/reports/导师阶段汇报与论文路线_2026-08-11.md`。当前建议把论文主线写成无泄漏评测协议与 NDR-Net 方法的联合贡献，而不是只写成对 IGSTGNN 数值的复现或超越。投稿前仍需完成收敛审计、明确最终训练控制、多种子统计、考虑时序相关性的配对检验、效率报告，并优先补充外部数据集或跨地区泛化证据。
