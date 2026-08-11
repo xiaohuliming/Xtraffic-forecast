@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -100,6 +102,77 @@ def assign_tasks_grouped_lpt(
     }
 
 
+def select_global_assignment_shards(
+    tasks: Sequence[Task],
+    *,
+    plan: Mapping[str, object],
+    global_gpu_ids: Sequence[int],
+    expected: Mapping[str, object],
+) -> tuple[dict[int, tuple[Task, ...]], str, int]:
+    """Select host-local shards from one reviewed global assignment plan."""
+    for field, value in expected.items():
+        if plan.get(field) != value:
+            raise ValueError(f"global assignment plan identity mismatch: {field}")
+    observed_digest = plan.get("plan_digest")
+    if not isinstance(observed_digest, str) or len(observed_digest) != 64:
+        raise ValueError("global assignment plan digest is invalid")
+    computed_digest = _sha256_json(
+        {
+            key: value
+            for key, value in plan.items()
+            if key not in {"created_at", "plan_digest"}
+        }
+    )
+    if computed_digest != observed_digest:
+        raise ValueError("global assignment plan digest mismatch")
+
+    gpu_count = plan.get("gpu_count")
+    task_count = plan.get("task_count")
+    assignments = plan.get("assignments")
+    microbatch_sizes = plan.get("microbatch_sizes")
+    if (
+        isinstance(gpu_count, bool)
+        or not isinstance(gpu_count, int)
+        or gpu_count <= 0
+        or task_count != len(tasks)
+        or not isinstance(assignments, dict)
+        or set(assignments) != {str(index) for index in range(gpu_count)}
+        or not isinstance(microbatch_sizes, dict)
+    ):
+        raise ValueError("global assignment plan topology is invalid")
+    selected = tuple(global_gpu_ids)
+    if (
+        not selected
+        or any(isinstance(value, bool) or not isinstance(value, int) for value in selected)
+        or len(set(selected)) != len(selected)
+        or any(value < 0 or value >= gpu_count for value in selected)
+    ):
+        raise ValueError("global GPU IDs must be a unique nonempty plan subset")
+
+    by_id = {task.task_id: task for task in tasks}
+    if len(by_id) != len(tasks):
+        raise ValueError("canonical convergence tasks are not unique")
+    all_assigned: list[str] = []
+    for gpu in range(gpu_count):
+        task_ids = assignments[str(gpu)]
+        if not isinstance(task_ids, list) or not task_ids:
+            raise ValueError("global assignment shard must be a nonempty task list")
+        if any(not isinstance(task_id, str) or task_id not in by_id for task_id in task_ids):
+            raise ValueError("global assignment contains a non-canonical task")
+        groups = {microbatch_sizes.get(task_id) for task_id in task_ids}
+        if len(groups) != 1:
+            raise ValueError("global assignment mixes microbatch groups on one GPU")
+        all_assigned.extend(task_ids)
+    if len(all_assigned) != len(set(all_assigned)) or set(all_assigned) != set(by_id):
+        raise ValueError("global assignment must cover canonical tasks exactly once")
+
+    local = {
+        local_gpu: tuple(by_id[task_id] for task_id in assignments[str(global_gpu)])
+        for local_gpu, global_gpu in enumerate(selected)
+    }
+    return local, observed_digest, gpu_count
+
+
 def build_convergence_nas_plan(
     *,
     matrix_id: str,
@@ -179,6 +252,17 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--matrix-id", default=MATRIX_ID)
     parser.add_argument("--host-id", required=True)
     parser.add_argument("--gpu-count", type=int, required=True)
+    parser.add_argument(
+        "--assignment-plan",
+        type=Path,
+        help="reviewed global plan whose selected shards this host must run",
+    )
+    parser.add_argument(
+        "--global-gpu-ids",
+        nargs="+",
+        type=int,
+        help="global plan GPU IDs mapped in order to this host's local GPUs",
+    )
     parser.add_argument("--python", dest="python_executable", default=sys.executable)
     parser.add_argument("--poll-seconds", type=float, default=15.0)
     parser.add_argument("--alloc-conf", default="expandable_segments:True")
@@ -221,12 +305,59 @@ def main(argv: Sequence[str] | None = None) -> int:
     calibration_path = args.calibration.resolve()
     task_seconds = load_task_calibration(calibration_path, manifest.tasks)
     microbatch_sizes = default_microbatch_sizes(manifest.tasks)
-    shards = assign_tasks_grouped_lpt(
-        manifest.tasks,
-        gpu_count=args.gpu_count,
-        task_seconds=task_seconds,
-        microbatch_sizes=microbatch_sizes,
+    global_plan_digest = None
+    global_gpu_count = None
+    global_gpu_ids = None
+    if (args.assignment_plan is None) != (args.global_gpu_ids is None):
+        raise SystemExit("assignment-plan and global-gpu-ids must be provided together")
+    if args.assignment_plan is None:
+        shards = assign_tasks_grouped_lpt(
+            manifest.tasks,
+            gpu_count=args.gpu_count,
+            task_seconds=task_seconds,
+            microbatch_sizes=microbatch_sizes,
+        )
+    else:
+        try:
+            assignment_plan = json.loads(
+                args.assignment_plan.resolve().read_text(encoding="utf-8")
+            )
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise SystemExit(f"cannot read global assignment plan: {exc}") from exc
+        if not isinstance(assignment_plan, dict):
+            raise SystemExit("global assignment plan must be a JSON object")
+        try:
+            shards, global_plan_digest, global_gpu_count = (
+                select_global_assignment_shards(
+                    manifest.tasks,
+                    plan=assignment_plan,
+                    global_gpu_ids=args.global_gpu_ids,
+                    expected={
+                        "matrix_id": args.matrix_id,
+                        "source_manifest_sha256": _sha256_file(manifest_path),
+                        "loading_audit_sha256": loading_audit_sha256,
+                        "calibration_sha256": _sha256_file(calibration_path),
+                        "code_sha": args.code_sha.lower(),
+                        "cache_bundle_id": args.cache_bundle_id,
+                        "cache_bundle_digest": args.cache_bundle_digest.lower(),
+                    },
+                )
+            )
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from exc
+        global_gpu_ids = tuple(args.global_gpu_ids)
+        if len(shards) != args.gpu_count:
+            raise SystemExit("local gpu-count must equal selected global GPU count")
+    local_task_ids = {task.task_id for members in shards.values() for task in members}
+    local_manifest = replace(
+        manifest,
+        tasks=tuple(task for task in manifest.tasks if task.task_id in local_task_ids),
     )
+    local_microbatch_sizes = {
+        task_id: size
+        for task_id, size in microbatch_sizes.items()
+        if task_id in local_task_ids
+    }
     shard_manifests = write_shard_manifests(
         manifest_path,
         shards,
@@ -234,7 +365,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         results_root_prefix=(
             "outputs/protocol_v3_noleak_dedup/remote_runs/" + args.matrix_id
         ),
-        microbatch_sizes=microbatch_sizes,
+        microbatch_sizes=local_microbatch_sizes,
     )
     shard_seconds = {
         str(gpu): float(sum(task_seconds[task.task_id] for task in tasks))
@@ -243,7 +374,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     plan: dict[str, object] = {
         "matrix_id": args.matrix_id,
         "host_id": args.host_id,
-        "execution_layout": "single_host_multi_gpu_interleaved_convergence",
+        "execution_layout": (
+            "single_host_multi_gpu_interleaved_convergence"
+            if global_plan_digest is None
+            else "dual_host_global_plan_shard_convergence"
+        ),
         "created_at": _utc_now(),
         "source_manifest": str(manifest_path),
         "source_manifest_sha256": _sha256_file(manifest_path),
@@ -257,18 +392,28 @@ def main(argv: Sequence[str] | None = None) -> int:
         "cache_bundle_id": args.cache_bundle_id,
         "cache_bundle_digest": args.cache_bundle_digest.lower(),
         "gpu_count": args.gpu_count,
-        "task_count": len(manifest.tasks),
-        "microbatch_sizes": dict(sorted(microbatch_sizes.items())),
+        "task_count": len(local_manifest.tasks),
+        "microbatch_sizes": dict(sorted(local_microbatch_sizes.items())),
         "alloc_conf": args.alloc_conf,
         "assignments": {
             str(gpu): [task.task_id for task in tasks]
             for gpu, tasks in sorted(shards.items())
         },
         "task_seconds": {
-            task_id: float(task_seconds[task_id]) for task_id in sorted(task_seconds)
+            task_id: float(task_seconds[task_id]) for task_id in sorted(local_task_ids)
         },
         "shard_seconds": shard_seconds,
     }
+    if global_plan_digest is not None:
+        plan.update(
+            {
+                "assignment_plan": str(args.assignment_plan.resolve()),
+                "assignment_plan_sha256": _sha256_file(args.assignment_plan.resolve()),
+                "global_plan_digest": global_plan_digest,
+                "global_gpu_count": global_gpu_count,
+                "global_gpu_ids": list(global_gpu_ids or ()),
+            }
+        )
     plan["plan_digest"] = _sha256_json(
         {
             key: value
@@ -280,7 +425,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     nas_plan = build_convergence_nas_plan(
         matrix_id=args.matrix_id,
         host_id=args.host_id,
-        manifest=manifest,
+        manifest=local_manifest,
         canonical_manifest=manifest_path,
         canonical_manifest_sha256=_sha256_file(manifest_path),
         support_manifest=support_manifest,
@@ -298,14 +443,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         cache_bundle_digest=args.cache_bundle_digest.lower(),
         code_sha=args.code_sha.lower(),
         python_executable=args.python_executable,
-        microbatch_sizes=microbatch_sizes,
+        microbatch_sizes=local_microbatch_sizes,
     )
+    if global_plan_digest is not None:
+        nas_plan.update(
+            {
+                "execution_layout": "dual_host_global_plan_shard_convergence",
+                "assignment_plan": str(args.assignment_plan.resolve()),
+                "assignment_plan_sha256": _sha256_file(args.assignment_plan.resolve()),
+                "global_plan_digest": global_plan_digest,
+                "global_gpu_count": global_gpu_count,
+                "global_gpu_ids": list(global_gpu_ids or ()),
+            }
+        )
     _write_json_atomic(control_root / "nas_backup_plan.json", nas_plan)
     if args.expect_plan_digest and args.expect_plan_digest != plan["plan_digest"]:
         raise SystemExit("reviewed convergence plan digest does not match")
     if args.plan_only:
         print(
-            f"PLAN_ONLY_OK tasks={len(manifest.tasks)} gpus={args.gpu_count} "
+            f"PLAN_ONLY_OK tasks={len(local_manifest.tasks)} gpus={args.gpu_count} "
             f"makespan_seconds={max(shard_seconds.values()):.3f} "
             f"plan_digest={plan['plan_digest']}"
         )
@@ -375,14 +531,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         while True:
             return_codes = {gpu: process.poll() for gpu, process in children.items()}
             status = aggregate_queue_status(
-                manifest=manifest,
+                manifest=local_manifest,
                 shards=shards,
                 results_root=results_root,
                 return_codes=return_codes,
                 cache_bundle_id=args.cache_bundle_id,
                 cache_bundle_digest=args.cache_bundle_digest.lower(),
                 code_sha=args.code_sha.lower(),
-                total_tasks=len(manifest.tasks),
+                total_tasks=len(local_manifest.tasks),
             )
             _write_json_atomic(results_root / "queue_status.json", status)
             _write_json_atomic(
@@ -398,6 +554,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                             "pid": children[gpu].pid,
                             "return_code": return_codes[gpu],
                             "tasks": [task.task_id for task in shards[gpu]],
+                            "global_gpu_id": (
+                                None if global_gpu_ids is None else global_gpu_ids[gpu]
+                            ),
                         }
                         for gpu in children
                     },

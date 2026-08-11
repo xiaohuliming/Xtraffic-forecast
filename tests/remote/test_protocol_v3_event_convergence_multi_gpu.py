@@ -11,6 +11,7 @@ from scripts.remote.linux.protocol_v3_event_convergence_multi_gpu import (
     build_convergence_nas_plan,
     default_microbatch_sizes,
     parse_args,
+    select_global_assignment_shards,
 )
 from scripts.remote.linux.protocol_v3_event_convergence_runner import (
     CANONICAL_MANIFEST,
@@ -149,6 +150,117 @@ def test_convergence_multi_gpu_supports_plan_only_gate(tmp_path) -> None:
     assert args.matrix_id == "protocol_v3_event_convergence_seed42_39_v1"
     assert args.gpu_count == 8
     assert args.plan_only is True
+
+
+def _global_assignment_plan(manifest, *, gpu_count: int = 7):
+    microbatches = default_microbatch_sizes(manifest.tasks)
+    task_seconds = {
+        task.task_id: float(index + 1)
+        for index, task in enumerate(manifest.tasks)
+    }
+    shards = assign_tasks_grouped_lpt(
+        manifest.tasks,
+        gpu_count=gpu_count,
+        task_seconds=task_seconds,
+        microbatch_sizes=microbatches,
+    )
+    plan = {
+        "matrix_id": manifest.matrix_id,
+        "source_manifest_sha256": "1" * 64,
+        "loading_audit_sha256": "2" * 64,
+        "calibration_sha256": "3" * 64,
+        "code_sha": CODE_SHA,
+        "cache_bundle_id": CACHE_BUNDLE_ID,
+        "cache_bundle_digest": CACHE_BUNDLE_DIGEST,
+        "gpu_count": gpu_count,
+        "task_count": len(manifest.tasks),
+        "microbatch_sizes": dict(sorted(microbatches.items())),
+        "assignments": {
+            str(gpu): [task.task_id for task in tasks]
+            for gpu, tasks in sorted(shards.items())
+        },
+        "task_seconds": task_seconds,
+    }
+    plan["plan_digest"] = hashlib.sha256(
+        json.dumps(
+            plan,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    return plan
+
+
+def test_convergence_global_plan_can_be_split_across_three_and_four_gpu_hosts() -> None:
+    manifest = load_convergence_manifest(CANONICAL_MANIFEST)
+    plan = _global_assignment_plan(manifest)
+    expected = {
+        "matrix_id": manifest.matrix_id,
+        "source_manifest_sha256": "1" * 64,
+        "loading_audit_sha256": "2" * 64,
+        "calibration_sha256": "3" * 64,
+        "code_sha": CODE_SHA,
+        "cache_bundle_id": CACHE_BUNDLE_ID,
+        "cache_bundle_digest": CACHE_BUNDLE_DIGEST,
+    }
+
+    host3, digest3, count3 = select_global_assignment_shards(
+        manifest.tasks,
+        plan=plan,
+        global_gpu_ids=(0, 1, 2),
+        expected=expected,
+    )
+    host4, digest4, count4 = select_global_assignment_shards(
+        manifest.tasks,
+        plan=plan,
+        global_gpu_ids=(3, 4, 5, 6),
+        expected=expected,
+    )
+
+    ids3 = {task.task_id for tasks in host3.values() for task in tasks}
+    ids4 = {task.task_id for tasks in host4.values() for task in tasks}
+    assert set(host3) == {0, 1, 2}
+    assert set(host4) == {0, 1, 2, 3}
+    assert ids3.isdisjoint(ids4)
+    assert ids3 | ids4 == {task.task_id for task in manifest.tasks}
+    assert digest3 == digest4 == plan["plan_digest"]
+    assert count3 == count4 == 7
+
+
+def test_convergence_global_plan_rejects_digest_or_identity_tampering() -> None:
+    manifest = load_convergence_manifest(CANONICAL_MANIFEST)
+    plan = _global_assignment_plan(manifest)
+    expected = {
+        "matrix_id": manifest.matrix_id,
+        "source_manifest_sha256": "1" * 64,
+        "loading_audit_sha256": "2" * 64,
+        "calibration_sha256": "3" * 64,
+        "code_sha": CODE_SHA,
+        "cache_bundle_id": CACHE_BUNDLE_ID,
+        "cache_bundle_digest": CACHE_BUNDLE_DIGEST,
+    }
+
+    tampered = dict(plan)
+    tampered["code_sha"] = "c" * 40
+    with np.testing.assert_raises_regex(ValueError, "identity mismatch"):
+        select_global_assignment_shards(
+            manifest.tasks,
+            plan=tampered,
+            global_gpu_ids=(0, 1, 2),
+            expected=expected,
+        )
+
+    tampered = dict(plan)
+    tampered["plan_digest"] = "f" * 64
+    with np.testing.assert_raises_regex(ValueError, "digest mismatch"):
+        select_global_assignment_shards(
+            manifest.tasks,
+            plan=tampered,
+            global_gpu_ids=(0, 1, 2),
+            expected=expected,
+        )
 
 
 def test_convergence_host_passes_shared_read_only_postflight(tmp_path) -> None:
