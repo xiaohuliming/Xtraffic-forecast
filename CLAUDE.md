@@ -39,17 +39,21 @@
 | v3 event baseline | `verified_event_full33_single_host_33` | 33/33、0 failed，composite index `2a6ad2eadfd1ecf5af3604bee632eaa339e1aed7add59e915a71f9d422dd767e` |
 | v3 event 全方法扩展 | `verified_event_extensions_single_host_9` | 9/9、0 failed，composite index `3a3970c627af6f709100ec9ebeeab215f834e0f1f65fc359423197ec29bf9ed4` |
 | v3 event 无泄漏论文表 | `verified_no_leak_comparison_generated` | 42 行，CSV SHA-256 `9817f5086f836f17265d87071271cc3b724b62420a2db2f2f4f5401e2f37651c` |
-| v3 seed 42 收敛审计 | `code_ready_not_started_39` | 13 个可训练方法乘 3 地区，100 epoch 上限，尚无新结果 |
+| v3 seed 42 收敛审计 | `running_0_of_39` | 四卡 RTX 5090，正式代码 `0338e5e`，plan digest `f84709cc` |
 
-本地全仓回归为 633 passed 和 2 个既有 warning。
+本地全仓回归为 637 passed 和 2 个既有 warning。
 
-## v3 seed 42 收敛审计准备状态
+## v3 seed 42 收敛审计运行状态
 
 2026-08-11，现有 42 行固定 30 epoch 表保持只读。新增独立矩阵 `protocol_v3_event_convergence_seed42_39_v1`，范围为 13 个可训练方法乘三地区，共 39 项，不含无参数 HL。该矩阵固定使用 v3 无泄漏缓存、target-disjoint event split、显式观测 mask、seed 42 和最多 100 epoch。它只用于检查收敛与排序稳定性，不是最终多种子论文表。
 
 DCRNN 恢复 100 epoch 的 scheduler 里程碑 `[10, 50, 90]`，baseline patience 为 30。BiST 与 IGSTGNN patience 为 20。NDR-Net 不启用 early stopping，但测试前仍恢复最佳验证 checkpoint。每个任务新增必需产物 `training_diagnostics.json`，逐轮记录实际学习率、验证 MAE、最佳轮次、stale 计数和停止原因。
 
-多卡层已新增 39 项 CUDA 探针、task 级 calibration、微批组隔离 LPT 控制器和 `event_convergence` source-host postflight。已知显存兜底为 Orange STTN 与 D²STGNN 使用 microbatch 16，Orange IGSTGNN 与 NDR-Net 使用 microbatch 8。正式租卡后必须先运行全 39 项探针和 plan-only，人工复核 plan digest 后才能启动训练。当前没有新 GPU 训练和新性能数字。完整记录见 `docs/audits/protocol_v3_event_convergence_seed42_preflight_2026-08-11.md`。
+39 项 CUDA 探针全部通过。task calibration SHA-256 为 `a6d1c9015b29b70fce51e84e47f0f1fcc33e8a85db9b4e35eadf3841fa2d359a`。正式训练代码 SHA 为 `0338e5ee93d0cf8ef2e162186310c32130fa31df`，plan digest 为 `f84709ccf5debcdcd6a766497095d3ca0024bd72614beb6a2785f2ad6f11b9b0`。Orange STTN 与 D²STGNN 使用 microbatch 16，Orange IGSTGNN 与 NDR-Net 使用 microbatch 8。
+
+2026-08-11 09:40 新加坡时间，四卡 RTX 5090 正式状态为 running、0/39 completed、0 failed。GPU0 至 GPU3 分别执行 Alameda AGCRN、Alameda LSTM、Orange IGSTGNN 与 Orange STTN。controller PID 为 `41801`。首次脚本入口导入故障没有形成正式结果，incident 清单 SHA-256 为 `b6c1e8d31c0bb4e771bae6ea4e8e0457510098c9a726e33d29535af469347341`。入口修复后本地全仓为 636 passed，远端专项为 19 passed。
+
+增量灾备侧车 PID 为 `43230`，每个 completed task 会重新验收并上传 Hostinger 隐藏 `.incremental` 树。最终 finalizer PID 为 `43321`。它只在 39/39、runner 零退出、source-host postflight、Hostinger 精确树校验与原子提升全部成功后自动关机。任一失败都保持开机。完整记录见 `docs/audits/protocol_v3_event_convergence_seed42_launch_2026-08-11.md`。
 
 ## v3 event 无泄漏 42 行表最终状态
 

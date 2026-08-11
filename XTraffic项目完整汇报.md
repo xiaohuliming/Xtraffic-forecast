@@ -1228,4 +1228,18 @@ baseline 最大训练轮次提高到 100，patience 为 30。DCRNN 恢复原 100
 
 多卡控制层统一调度十个 baseline、BiST、IGSTGNN 与 NDR-Net。正式启动前会在目标主机对 39 项逐项运行 loader 加完整优化步探针，并生成 task 级 calibration。控制器按实测工时做最长任务优先装箱，并隔离不同微批组。历史显存兜底为 Orange STTN 与 D²STGNN 使用 microbatch 16，Orange IGSTGNN 与 NDR-Net 使用 microbatch 8。新主机实测探针与 plan digest 人工复核完成前，不启动正式训练。
 
-混合 runner、100 epoch 契约、统一诊断产物、GraphWaveNet 探针、39 项 calibration、多卡控制器和 `event_convergence` source-host postflight 已通过本地门禁。全仓回归为 633 passed 和 2 个既有 warning。当前状态为 `code_ready_not_started_39`，尚无新 GPU 训练和新性能数字。完整训练前记录见 `docs/audits/protocol_v3_event_convergence_seed42_preflight_2026-08-11.md`。
+混合 runner、100 epoch 契约、统一诊断产物、GraphWaveNet 探针、39 项 calibration、多卡控制器和 `event_convergence` source-host postflight 已通过本地门禁。全仓回归为 633 passed 和 2 个既有 warning。该段记录的是训练前快照。完整训练前记录见 `docs/audits/protocol_v3_event_convergence_seed42_preflight_2026-08-11.md`。
+
+## 最新进展，2026-08-11 09:40 seed 42 收敛审计四卡正式启动
+
+独立矩阵 `protocol_v3_event_convergence_seed42_39_v1` 已在主机 `autodl-container-wh1skgkhxg-578ae9cd` 的 4 张 RTX 5090 上正式启动。既有无泄漏 42 行表保持只读，本轮 39 项只用于检查 100 epoch 训练预算、DCRNN 与 D²STGNN scheduler 修复以及方法排序是否稳定。
+
+缓存只读审计再次通过，bundle ID 为 `bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4`，digest 为 `854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5`。三区域 train shuffle、val 与 test 各 20 个 batch 的 eager 与 lazy 数据流逐字节一致，loading audit SHA-256 为 `083f9554fd305beed8ccea91385b59230479dd6edd965974959b23cdd9981f6e`。39 项真实 CUDA probe 全部通过，probes 与 task calibration SHA-256 分别为 `4c68571c4ee26b58c56212ba0d59e6d301a7735510ed40bf2ee39e7286876c70` 与 `a6d1c9015b29b70fce51e84e47f0f1fcc33e8a85db9b4e35eadf3841fa2d359a`。
+
+第一次正式启动暴露扩展 trainer 的脚本入口缺少项目根导入。Orange IGSTGNN 在任何 epoch 前以 `ModuleNotFoundError` 退出。发现后立即停止四个 shard，没有任务完成或正式目录被接受。incident 清单 SHA-256 为 `b6c1e8d31c0bb4e771bae6ea4e8e0457510098c9a726e33d29535af469347341`。提交 `0338e5ee93d0cf8ef2e162186310c32130fa31df` 增加与 baseline 一致的入口引导，不改变数据、模型、损失、优化器、微批或指标。隔离入口测试、本地全仓 636 项、远端专项 19 项和 ruff 全部通过。
+
+正式 plan digest 为 `f84709ccf5debcdcd6a766497095d3ca0024bd72614beb6a2785f2ad6f11b9b0`。GPU0 至 GPU3 的任务数为 17、18、2 与 2，探针预计工时为 114.132、114.190、122.362 与 29.697 小时。最长分片约为 5.1 天。Orange STTN 与 D²STGNN 使用 microbatch 16。Orange IGSTGNN 与 NDR-Net 使用 microbatch 8。各方法的有效 batch 与一次 optimizer step 契约保持不变。
+
+09:40 的正式状态为 running、0/39 completed、0 failed。controller PID 为 `41801`。四张卡分别执行 Alameda AGCRN、Alameda LSTM、Orange IGSTGNN 与 Orange STTN。Orange IGSTGNN 已完成模型构建并进入训练，首次入口故障没有复现。
+
+提交 `40d2cca34bfc2925f20a0afdff56fa09f8363dc6` 让增量灾备侧车支持 convergence plan。侧车不进入训练 checkout，不改变正式代码 SHA 或 plan digest。PID 为 `43230`，每个 runner completed task 会先重新验收，再逐文件上传 Hostinger 隐藏 `.incremental` 树。Hostinger 当前约有 24 GB 可用空间，xray 为 active，4 GB swap 正常。最终 finalizer PID 为 `43321`。它只在 39/39、runner 退出码 0、source-host postflight、容量门、逐文件 SHA-256、精确文件集与原子提升全部通过后自动关机。任一失败都保持主机开机。完整证据见 `docs/audits/protocol_v3_event_convergence_seed42_launch_2026-08-11.md`。
