@@ -1263,3 +1263,11 @@ baseline 最大训练轮次提高到 100，patience 为 30。DCRNN 恢复原 100
 5080 启动前通过 clean checkout、专项测试、缓存严格复验与 Orange 真实 CUDA 训练探针。2026-08-12 20:04:48 新加坡时间正式启动。当前 runner 为 running、0/3 completed、0 failed，正在 Alameda。前 5 个 epoch 各约 133 秒，验证 MAE 从 `17.9032` 持续降到 `14.0397`。GPU 利用率为 80% 至 95%，显存约 4.9 GB，没有 OOM 或非有限值。
 
 训练之外新增两道只读控制。增量备份侧车只处理 runner 已完成且重新验收通过的正式任务。群晖 NAS 当前 SSH 不可达，侧车保持每 60 秒重试，不会影响训练。持久 postflight 只在 3/3 和 runner 退出码 0 后执行，逐任务重建 config hash，复验 summary、checkpoint、prediction、train log 与 decomp mask，并为全部允许发布文件生成 SHA-256 清单。最终合表器从已绑定的 prediction artifact 按 baseline 相同公式计算逐 horizon 与平均 MAE、RMSE、MAPE，把 FDN 插入原 42 行只读表，生成 45 行论文表与 A3 横版 PDF。合表器和 PDF 已用合成验收树完成测试与视觉检查。当前本地全仓回归为 655 passed 和 2 个既有 warning。正式训练完成和 postflight 通过前，本节不报告新性能数字。
+
+## 最新进展，2026-08-12 21:30 FDN v1 失败已保全，v2 已独立重启
+
+FDN v1 的 Alameda 已完成全部 30 epoch，最佳验证 MAE 为 `12.381733565128126`，但在测试推理时触发 `KeyError: affected_mask`。因此 v1 runner 以失败状态退出，进度为 0/3，没有接受任何正式结果。失败事件保留 8 个文件，共 2,654,734 bytes，incident manifest SHA-256 为 `8b3438baf85c9fa3a77b33d2834ec5c76e2f931f4c7031d4e897ea439d3b7105`。
+
+根因是 FDN event trainer 没有在 test split 显式启用事后分组标签。修复后，test split 可读取 `affected_mask`，train 与 val split 仍然不读取该标签，所以没有把事故分析标签注入训练。修复通过本地 656 项全仓测试、傀 10 项专项测试和真实 Alameda 数据边界探针。
+
+为避免同一任务混合两个代码 SHA，没有使用 v1 checkpoint 直接补推理。2026-08-12 21:29:26 新加坡时间，新矩阵 `protocol_v3_event_fdn_5080_v2` 在 `D:\t4\v3_event_fdn_repo_v2` 和 `D:\t4\v3_event_fdn_5080_v2` 从 epoch 0 正式启动。训练代码 SHA 为 `0981f8bce84a942e8efd958867802be2a59d3cdb`，训练 manifest 与之前完全相同。当前 0/3 completed、0 failed，正在 Alameda，GPU 利用率为 95%，显存约 5.0 GiB。新的持久训练、增量备份和 postflight 计划任务已分别启动。全部 3 项完成、源主机严格复验和 Mac 回传完成前，不报告 FDN 正式性能数字。
