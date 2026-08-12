@@ -111,6 +111,26 @@ def masked_mae(pred: torch.Tensor, target: torch.Tensor,
     return masked_mae_loss(pred, target, mask)
 
 
+def region_data_kwargs(
+    *,
+    protocol: str,
+    split: str,
+    stride: int,
+    train_frac: float,
+    val_frac: float,
+) -> dict[str, object]:
+    """Expose post-event analysis labels only during event test inference."""
+    if protocol == "full_window":
+        return {
+            "stride": stride,
+            "train_frac": train_frac,
+            "val_frac": val_frac,
+        }
+    if protocol == "event":
+        return {"include_analysis_labels": True} if split == "test" else {}
+    raise ValueError(f"unsupported sampling protocol: {protocol}")
+
+
 @torch.no_grad()
 def evaluate(model, loader, device, sensor_meta_tensor=None) -> dict[str, float]:
     model.eval()
@@ -136,11 +156,7 @@ def main() -> None:
     print(f"device: {device}", flush=True)
     print(f"region: {args.region}  decomp_mode={args.decomp_mode}  K={args.K}", flush=True)
 
-    if args.protocol == "full_window":
-        rd_cls = FullWindowRegionData
-        rd_kw = {"stride": args.stride, "train_frac": args.train_frac, "val_frac": args.val_frac}
-    else:
-        rd_cls, rd_kw = RegionData, {}
+    rd_cls = FullWindowRegionData if args.protocol == "full_window" else RegionData
 
     tag = args.tag or f"{args.decomp_mode}_K{args.K}"
     if args.protocol == "full_window":
@@ -158,6 +174,13 @@ def main() -> None:
     out_dir = run_context.output_dir
 
     def mk(split):
+        rd_kw = region_data_kwargs(
+            protocol=args.protocol,
+            split=split,
+            stride=args.stride,
+            train_frac=args.train_frac,
+            val_frac=args.val_frac,
+        )
         return MultiRegionDataset(
             region_names=[args.region], data_dir=args.data_dir,
             graph_dir=args.graph_dir, split=split, lazy=False,
@@ -202,7 +225,7 @@ def main() -> None:
         print(f"initial decomp mask: {model.decomp.get_mask().detach().cpu().numpy().round(3).tolist()}",
               flush=True)
     else:
-        print(f"conditioned decomp mask: per-(sample,sensor) MLP — no static snapshot", flush=True)
+        print("conditioned decomp mask: per-(sample,sensor) MLP — no static snapshot", flush=True)
 
     optimizer = Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     train_loader = make_loader(train_ds, batch_size=args.batch_size, shuffle=True,
@@ -275,7 +298,7 @@ def main() -> None:
                     "val_L_main": val["L_main"], "config": vars(args),
                     "N": N, "C_x": C_x, "T_h": T_h, "T_p": T_p,
                 }, out_dir / "ckpt_best.pt")
-                print(f"    saved best", flush=True)
+                print("    saved best", flush=True)
             else:
                 no_improve += 1
                 if args.patience and no_improve >= args.patience:
@@ -287,7 +310,7 @@ def main() -> None:
         return
 
     print(f"\nbest val L_main: {best_val:.4f}", flush=True)
-    print(f"\n=== test inference ===", flush=True)
+    print("\n=== test inference ===", flush=True)
     best = torch.load(out_dir / "ckpt_best.pt", map_location=device, weights_only=False)
     model.load_state_dict(best["model_state"])
     model.eval()

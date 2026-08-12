@@ -8,6 +8,9 @@ from scripts.train_baseline_zoo import (
     region_data_kwargs,
 )
 from scripts.train_dist_net import evaluate as evaluate_dist_net
+from scripts.train_fourier_dual_net import (
+    region_data_kwargs as fdn_region_data_kwargs,
+)
 from scripts.train_rad import evaluate as evaluate_rad
 from scripts.train_rfn import evaluate as evaluate_rfn
 from scripts.train_stid import evaluate as evaluate_stid
@@ -126,6 +129,30 @@ def test_baseline_zoo_loads_analysis_labels_only_for_event_test_split():
         val_frac=0.15,
     ) == {}
     assert region_data_kwargs(
+        protocol="full_window",
+        split="test",
+        stride=2,
+        train_frac=0.7,
+        val_frac=0.15,
+    ) == {"stride": 2, "train_frac": 0.7, "val_frac": 0.15}
+
+
+def test_fdn_loads_analysis_labels_only_for_event_test_split():
+    assert fdn_region_data_kwargs(
+        protocol="event",
+        split="test",
+        stride=1,
+        train_frac=0.7,
+        val_frac=0.15,
+    ) == {"include_analysis_labels": True}
+    assert fdn_region_data_kwargs(
+        protocol="event",
+        split="train",
+        stride=1,
+        train_frac=0.7,
+        val_frac=0.15,
+    ) == {}
+    assert fdn_region_data_kwargs(
         protocol="full_window",
         split="test",
         stride=2,
