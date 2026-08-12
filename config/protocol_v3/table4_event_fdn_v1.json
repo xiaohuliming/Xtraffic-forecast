@@ -1,0 +1,49 @@
+{
+  "manifest_version": 1,
+  "protocol_version": "protocol_v3_noleak_dedup",
+  "cache_schema_version": 3,
+  "default_results_root": "outputs/protocol_v3_noleak_dedup/remote_runs/event_fdn_5080_v1",
+  "default_cache_dir": "outputs/dist_net/region_data_v3_noleak_dedup",
+  "default_graph_dir": "outputs/region_graphs",
+  "training": {
+    "epochs": 30,
+    "patience": 6,
+    "device": "cuda:0",
+    "batch_size": 32,
+    "stride": 1,
+    "train_frac": 0.7,
+    "val_frac": 0.15
+  },
+  "tasks": [
+    {
+      "task_id": "v3fdn001_event_fourier_dual_net_alameda_seed42",
+      "kind": "fourier_dual_net",
+      "region": "Alameda",
+      "model": "fourier_dual_net",
+      "variant": "learnable_k3",
+      "seed": 42,
+      "sampling_protocol": "event",
+      "output_dir": "tasks/v3fdn001_event_fourier_dual_net_alameda_seed42"
+    },
+    {
+      "task_id": "v3fdn002_event_fourier_dual_net_contracosta_seed42",
+      "kind": "fourier_dual_net",
+      "region": "ContraCosta",
+      "model": "fourier_dual_net",
+      "variant": "learnable_k3",
+      "seed": 42,
+      "sampling_protocol": "event",
+      "output_dir": "tasks/v3fdn002_event_fourier_dual_net_contracosta_seed42"
+    },
+    {
+      "task_id": "v3fdn003_event_fourier_dual_net_orange_seed42",
+      "kind": "fourier_dual_net",
+      "region": "Orange",
+      "model": "fourier_dual_net",
+      "variant": "learnable_k3",
+      "seed": 42,
+      "sampling_protocol": "event",
+      "output_dir": "tasks/v3fdn003_event_fourier_dual_net_orange_seed42"
+    }
+  ]
+}
