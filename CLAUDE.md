@@ -1,6 +1,6 @@
 # XTraffic 项目导航与协作约定
 
-最近更新：2026-08-11，Asia/Singapore
+最近更新：2026-08-12，Asia/Singapore
 
 ## 新会话先读
 
@@ -39,9 +39,18 @@
 | v3 event baseline | `verified_event_full33_single_host_33` | 33/33、0 failed，composite index `2a6ad2eadfd1ecf5af3604bee632eaa339e1aed7add59e915a71f9d422dd767e` |
 | v3 event 全方法扩展 | `verified_event_extensions_single_host_9` | 9/9、0 failed，composite index `3a3970c627af6f709100ec9ebeeab215f834e0f1f65fc359423197ec29bf9ed4` |
 | v3 event 无泄漏论文表 | `verified_no_leak_comparison_generated` | 42 行，CSV SHA-256 `9817f5086f836f17265d87071271cc3b724b62420a2db2f2f4f5401e2f37651c` |
+| v3 event FDN 补充 | `running_0_of_3` | RTX 5080 正在训练 Alameda，正式代码 `b95a57fa7b789852c983d9b07e74a3847d1db14b` |
 | v3 seed 42 收敛审计 | `last_verified_1_of_39_remote_unreachable` | LSTM Alameda 已增量保全，GPU 主机当前无法完成 SSH 握手 |
 
-本地全仓回归为 637 passed 和 2 个既有 warning。
+本地全仓回归为 655 passed 和 2 个既有 warning。
+
+## v3 event FDN 补充运行状态
+
+2026-08-12 20:04:48 新加坡时间，FDN learnable-K3 三地区补充矩阵 `protocol_v3_event_fdn_5080_v1` 在同一局域网的 RTX 5080 正式启动。该矩阵只包含 Alameda、ContraCosta 与 Orange 的 seed 42，共 3 项。它使用 `protocol_v3_noleak_dedup` 正式缓存、target-disjoint event split、显式观测 mask、batch 32、最多 30 epoch 和 patience 6。优化器为 Adam，学习率为 `1e-3`，weight decay 为 `1e-4`，调度器为逐 optimizer step 的 CosineAnnealingLR。该设置与现有 42 行 PDF 的固定 30 epoch 比较口径一致。
+
+正式训练代码 SHA 为 `b95a57fa7b789852c983d9b07e74a3847d1db14b`。canonical manifest SHA-256 为 `2fb0760e1d5b9d1b7217a7d8ea61763ed5492ba45b26044148409156d4fb475b`。启动前，5080 worktree 为 clean，v3 缓存严格复验为 verified，Orange 最大地区的 20 个完整训练 batch CUDA 探针通过，没有 OOM。启动后 runner 与 trainer 持续存活，GPU 利用率为 80% 至 95%，显存约 4.9 GB。Alameda 前 5 个 epoch 均约 133 秒，验证 MAE 从 `17.9032` 降到 `14.0397`。当前正式任务状态为 0/3 completed、0 failed。
+
+增量备份侧车和持久 postflight 门禁均已启动。群晖 NAS 当前 SSH 不可达，侧车会每 60 秒重试，训练不受影响。只有 runner 完成 3/3 且退出码为 0 后，postflight 才会逐项重建 `config_hash`、重新验证 prediction artifact、任务状态与五类必需产物。最终程序会从经过验证的 `test_predictions.npz` 按 baseline 相同定义只读计算 H3、H6、H12 与 Average 的 MAE、RMSE 和 MAPE，再把 FDN 三行插入原 42 行表，生成 45 行 CSV、Markdown、LaTeX、manifest 与 A3 横版 PDF。训练结束并完成严格复验前，不得报告 FDN 新性能数字。
 
 ## v3 seed 42 收敛审计运行状态
 

@@ -1,6 +1,6 @@
 # XTraffic 交通流量预测研究：完整汇报
 
-初版日期：2026-06-17，持续更新，最近更新 2026-07-27
+初版日期：2026-06-17，持续更新，最近更新 2026-08-12
 作者：科研实习项目组
 说明：本文是本项目研究历史、实验数字与出处的唯一权威长报告。原《项目总结报告_2026-06-10》与《去季节化方向_交接_2026-06-26》已并入本文并归档到 docs/archive，不再单独维护。本文中所有数字均来自已落盘的实验文件，包括 test_predictions.npz、summary.json、训练日志与诊断文件，无任何估算或记忆填充。数字来自落盘文件不等于实验协议无误。2026-07-18 数据有效性审计发现旧 XTraffic 管线存在未来信息泄露，因此审计前数字均保留为历史记录，当前是否可用于论文以 `docs/audits/result_validity.csv` 为准。按全局写作规范，正文不使用破折号与括号内插说明。
 
@@ -1253,3 +1253,13 @@ baseline 最大训练轮次提高到 100，patience 为 30。DCRNN 恢复原 100
 当前 checkpoint 不包含 optimizer、scheduler、下一 epoch 游标和随机数状态。主机恢复后应先只读审计 queue、task state、进程、正式树和 staging。已完成且通过 Hostinger 增量复验的任务可以保留。中断中的单项不能从原 epoch 严格续跑，继续时必须从 epoch 0 新建 attempt，并为旧 staging 生成 incident 清单。现有 42 行无泄漏表继续保持只读，其状态不受本次中断影响。
 
 导师汇报与论文路线已经整理到 `docs/reports/导师阶段汇报与论文路线_2026-08-11.md`。当前建议把论文主线写成无泄漏评测协议与 NDR-Net 方法的联合贡献，而不是只写成对 IGSTGNN 数值的复现或超越。投稿前仍需完成收敛审计、明确最终训练控制、多种子统计、考虑时序相关性的配对检验、效率报告，并优先补充外部数据集或跨地区泛化证据。
+
+## 最新进展，2026-08-12 20:16 FDN 无泄漏三地区补充已启动
+
+旧 FDN event 结果使用了审计前缓存，状态仍为 contaminated，不能填入无泄漏论文表。现有 v3 FDN 结果只覆盖 full-window 协议，也不能与 event 表直接混用。因此新增独立矩阵 `protocol_v3_event_fdn_5080_v1`，用正式 v3 无泄漏 event 缓存重新训练 Fourier Dual Net 的 learnable-K3 版本。
+
+矩阵包含 Alameda、ContraCosta 与 Orange 三个 seed 42 任务。训练设置为 batch 32、最多 30 epoch、patience 6、Adam 学习率 `1e-3`、weight decay `1e-4`、gradient clip 5.0 与逐 optimizer step 的 CosineAnnealingLR。数据固定为 cache schema 3、唯一 forecast origin、target-disjoint event split、active event split isolation 和显式观测 mask。FDN 不读取事故标签。canonical manifest SHA-256 为 `2fb0760e1d5b9d1b7217a7d8ea61763ed5492ba45b26044148409156d4fb475b`，正式训练代码 SHA 为 `b95a57fa7b789852c983d9b07e74a3847d1db14b`。
+
+5080 启动前通过 clean checkout、专项测试、缓存严格复验与 Orange 真实 CUDA 训练探针。2026-08-12 20:04:48 新加坡时间正式启动。当前 runner 为 running、0/3 completed、0 failed，正在 Alameda。前 5 个 epoch 各约 133 秒，验证 MAE 从 `17.9032` 持续降到 `14.0397`。GPU 利用率为 80% 至 95%，显存约 4.9 GB，没有 OOM 或非有限值。
+
+训练之外新增两道只读控制。增量备份侧车只处理 runner 已完成且重新验收通过的正式任务。群晖 NAS 当前 SSH 不可达，侧车保持每 60 秒重试，不会影响训练。持久 postflight 只在 3/3 和 runner 退出码 0 后执行，逐任务重建 config hash，复验 summary、checkpoint、prediction、train log 与 decomp mask，并为全部允许发布文件生成 SHA-256 清单。最终合表器从已绑定的 prediction artifact 按 baseline 相同公式计算逐 horizon 与平均 MAE、RMSE、MAPE，把 FDN 插入原 42 行只读表，生成 45 行论文表与 A3 横版 PDF。合表器和 PDF 已用合成验收树完成测试与视觉检查。当前本地全仓回归为 655 passed 和 2 个既有 warning。正式训练完成和 postflight 通过前，本节不报告新性能数字。
