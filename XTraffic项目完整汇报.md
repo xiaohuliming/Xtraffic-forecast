@@ -1271,3 +1271,5 @@ FDN v1 的 Alameda 已完成全部 30 epoch，最佳验证 MAE 为 `12.381733565
 根因是 FDN event trainer 没有在 test split 显式启用事后分组标签。修复后，test split 可读取 `affected_mask`，train 与 val split 仍然不读取该标签，所以没有把事故分析标签注入训练。修复通过本地 656 项全仓测试、傀 10 项专项测试和真实 Alameda 数据边界探针。
 
 为避免同一任务混合两个代码 SHA，没有使用 v1 checkpoint 直接补推理。2026-08-12 21:29:26 新加坡时间，新矩阵 `protocol_v3_event_fdn_5080_v2` 在 `D:\t4\v3_event_fdn_repo_v2` 和 `D:\t4\v3_event_fdn_5080_v2` 从 epoch 0 正式启动。训练代码 SHA 为 `0981f8bce84a942e8efd958867802be2a59d3cdb`，训练 manifest 与之前完全相同。当前 0/3 completed、0 failed，正在 Alameda，GPU 利用率为 95%，显存约 5.0 GiB。新的持久训练、增量备份和 postflight 计划任务已分别启动。全部 3 项完成、源主机严格复验和 Mac 回传完成前，不报告 FDN 正式性能数字。
+
+v2 首个 CMD postflight 等待器在启动时序窗口内退出，未运行复验且未影响训练。控制层已替换为 PowerShell 持久等待器，SHA-256 为 `76b53179e40ef2726de6b930679406c22ce6c1e6f9963747adff0db43a57b5e8`。新等待器已在 SYSTEM 计划任务下确认 running，它只等待 runner exitcode，不触碰 trainer 或正式结果。这是控制层修复，不改变正式训练代码 SHA、manifest 或 config hash。

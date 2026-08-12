@@ -54,6 +54,8 @@
 
 2026-08-12 21:29:26 新加坡时间，独立矩阵 `protocol_v3_event_fdn_5080_v2` 在新 worktree 与新结果根从 epoch 0 重新启动。正式训练代码 SHA 为 `0981f8bce84a942e8efd958867802be2a59d3cdb`，canonical manifest SHA-256 仍为 `2fb0760e1d5b9d1b7217a7d8ea61763ed5492ba45b26044148409156d4fb475b`。当前状态为 running、0/3 completed、0 failed，正在 Alameda。GPU 利用率最近实测为 95%，显存约 5.0 GiB。v1 目录保持只读历史证据，v2 不会覆盖它。
 
+v2 首个 CMD postflight 等待器在 runner 创建结果目录的启动窗口内退出，没有执行复验、改写结果或影响 trainer。控制层已换成 PowerShell 持久等待器，文件 SHA-256 为 `76b53179e40ef2726de6b930679406c22ce6c1e6f9963747adff0db43a57b5e8`。计划任务状态为 running，日志已写入 `WAIT_START`。训练代码 SHA 与矩阵设置均未变更。
+
 增量备份侧车和持久 postflight 门禁均已启动。群晖 NAS 当前 SSH 不可达，侧车会每 60 秒重试，训练不受影响。只有 runner 完成 3/3 且退出码为 0 后，postflight 才会逐项重建 `config_hash`、重新验证 prediction artifact、任务状态与五类必需产物。最终程序会从经过验证的 `test_predictions.npz` 按 baseline 相同定义只读计算 H3、H6、H12 与 Average 的 MAE、RMSE 和 MAPE，再把 FDN 三行插入原 42 行表，生成 45 行 CSV、Markdown、LaTeX、manifest 与 A3 横版 PDF。训练结束并完成严格复验前，不得报告 FDN 新性能数字。
 
 ## v3 seed 42 收敛审计运行状态
