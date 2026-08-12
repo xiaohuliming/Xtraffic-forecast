@@ -54,6 +54,10 @@ from scripts.remote.windows.protocol_v3_event_bist_ndr_runner import (  # noqa: 
     build_bist_ndr_invocation,
     load_bist_ndr_manifest,
 )
+from scripts.remote.windows.protocol_v3_event_fdn_runner import (  # noqa: E402
+    build_fdn_invocation,
+    load_fdn_manifest,
+)
 from scripts.remote.linux.protocol_v3_event_convergence_runner import (  # noqa: E402
     ConvergenceInputs,
     build_convergence_invocation,
@@ -299,6 +303,7 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
         "baseline",
         "event_extension",
         "event_bist_ndr",
+        "event_fdn",
         "event_convergence",
     }:
         raise PostflightError(f"unsupported runner_kind: {runner_kind!r}")
@@ -309,6 +314,8 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
             manifest = load_extension_manifest(canonical_path)
         elif runner_kind == "event_bist_ndr":
             manifest = load_bist_ndr_manifest(canonical_path)
+        elif runner_kind == "event_fdn":
+            manifest = load_fdn_manifest(canonical_path)
         else:
             manifest = load_convergence_manifest(canonical_path)
     except runner.ManifestError as exc:
@@ -330,8 +337,14 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
     python_executable = _required_string(plan, "python_executable")
 
     layout = _source_layout(plan)
-    if runner_kind == "baseline":
-        task_overrides = _task_overrides(plan, manifest)
+    if runner_kind in {"baseline", "event_fdn"}:
+        if runner_kind == "event_fdn" and plan.get("task_overrides") is not None:
+            raise PostflightError("event_fdn does not accept task_overrides")
+        task_overrides = (
+            _task_overrides(plan, manifest)
+            if runner_kind == "baseline"
+            else {}
+        )
         extension = None
         support_report: dict[str, object] = {}
     else:
@@ -511,6 +524,10 @@ def build_postflight_report(plan_path: Path | str) -> dict[str, object]:
             elif runner_kind == "event_bist_ndr":
                 invocation = build_bist_ndr_invocation(
                     task, task_manifest, extension, probe  # type: ignore[arg-type]
+                )
+            elif runner_kind == "event_fdn":
+                invocation = build_fdn_invocation(
+                    task, task_manifest, run_inputs, probe
                 )
             else:
                 invocation = build_convergence_invocation(

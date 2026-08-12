@@ -35,6 +35,10 @@ from scripts.remote.windows.protocol_v3_event_extension_runner import (
     load_extension_manifest,
     verify_extension_support,
 )
+from scripts.remote.windows.protocol_v3_event_fdn_runner import (
+    build_fdn_invocation,
+    load_fdn_manifest,
+)
 from scripts.remote.linux.protocol_v3_event_convergence_runner import (
     ConvergenceInputs,
     build_convergence_invocation,
@@ -177,6 +181,8 @@ def _load_training_context(plan: Mapping[str, Any]) -> tuple[Any, Any]:
     runner_kind = plan.get("runner_kind", "baseline")
     if runner_kind == "baseline":
         return load_baseline_manifest(canonical), build_baseline_invocation
+    if runner_kind == "event_fdn":
+        return load_fdn_manifest(canonical), build_fdn_invocation
     if runner_kind not in {"event_extension", "event_convergence"}:
         raise BackupError(f"unsupported runner_kind: {runner_kind!r}")
     manifest = (

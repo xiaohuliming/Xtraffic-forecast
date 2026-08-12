@@ -1,0 +1,34 @@
+{
+  "plan_version": 1,
+  "runner_kind": "event_fdn",
+  "matrix_id": "protocol_v3_event_fdn_5080_v1",
+  "host_id": "event_rtx5080_fdn",
+  "source_layout": "canonical_contiguous",
+  "canonical_manifest": "D:\\t4\\v3_event_fdn_repo\\config\\protocol_v3\\table4_event_fdn_v1.json",
+  "canonical_manifest_sha256": "2fb0760e1d5b9d1b7217a7d8ea61763ed5492ba45b26044148409156d4fb475b",
+  "protocol_version": "protocol_v3_noleak_dedup",
+  "cache_schema_version": 3,
+  "cache_bundle_id": "bundle-c1b59931697a4c8d8ae7f2e3d9b61ac4",
+  "cache_bundle_digest": "854237ec5886ba357d7d0080899e5078506a9b917dc4e1ff2bacde64b5d282e5",
+  "cache_dir": "C:\\Users\\ASUS\\traffic_fourier_v3_final\\outputs\\dist_net\\region_data_v3_noleak_dedup",
+  "graph_dir": "C:\\Users\\ASUS\\traffic_fourier_v3_final\\outputs\\region_graphs",
+  "python_executable": "C:\\Python313\\python.exe",
+  "expected_task_count": 3,
+  "sources": [
+    {
+      "source_id": "fdn5080",
+      "results_root": "D:\\t4\\v3_event_fdn_5080_v1\\results",
+      "code_sha": "b95a57fa7b789852c983d9b07e74a3847d1db14b",
+      "task_ids": [
+        "v3fdn001_event_fourier_dual_net_alameda_seed42",
+        "v3fdn002_event_fourier_dual_net_contracosta_seed42",
+        "v3fdn003_event_fourier_dual_net_orange_seed42"
+      ]
+    }
+  ],
+  "completion_gate": {
+    "results_root": "D:\\t4\\v3_event_fdn_5080_v1\\results",
+    "runner_exit_code": "D:\\t4\\v3_event_fdn_5080_v1\\control\\runner.exitcode",
+    "expected_tasks": 3
+  }
+}

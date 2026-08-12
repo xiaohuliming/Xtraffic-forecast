@@ -27,6 +27,7 @@ CANONICAL = ROOT / "config/protocol_v3/table4_event_baselines_phase1_v1.json"
 CONVERGENCE_CANONICAL = (
     ROOT / "config/protocol_v3/event_convergence_seed42_v1.json"
 )
+FDN_CANONICAL = ROOT / "config/protocol_v3/table4_event_fdn_v1.json"
 
 
 def _write_case(tmp_path: Path) -> tuple[Path, Path, str]:
@@ -238,3 +239,35 @@ def test_convergence_plan_rebuilds_the_training_diagnostics_contract(
     assert invocation.config["matrix_id"] == (
         "protocol_v3_event_convergence_seed42_39_v1"
     )
+
+
+def test_event_fdn_plan_rebuilds_the_learnable_k3_contract(
+    tmp_path: Path,
+) -> None:
+    plan = {
+        "runner_kind": "event_fdn",
+        "canonical_manifest": str(FDN_CANONICAL),
+    }
+    manifest, invocation_builder = _load_training_context(plan)
+    task = manifest.tasks[0]
+    run_inputs = ProtocolV3Inputs(
+        results_root=tmp_path / "results",
+        cache_dir=tmp_path / "cache",
+        graph_dir=tmp_path / "graphs",
+        cache_bundle_id="bundle-test",
+        cache_bundle_digest="a" * 64,
+        code_sha="b" * 40,
+        python_executable=sys.executable,
+    )
+
+    invocation = invocation_builder(
+        task,
+        manifest,
+        run_inputs,
+        tmp_path / "attempt",
+    )
+
+    assert invocation.config["sampling_protocol"] == "event"
+    assert invocation.config["decomp_mode"] == "learnable"
+    assert invocation.config["K"] == 3
+    assert invocation.required_metrics == ("all", "affected", "unaffected")
