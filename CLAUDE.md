@@ -1,6 +1,6 @@
 # XTraffic 项目导航与协作约定
 
-最近更新：2026-08-12，Asia/Singapore
+最近更新：2026-08-13，Asia/Singapore
 
 ## 新会话先读
 
@@ -39,10 +39,10 @@
 | v3 event baseline | `verified_event_full33_single_host_33` | 33/33、0 failed，composite index `2a6ad2eadfd1ecf5af3604bee632eaa339e1aed7add59e915a71f9d422dd767e` |
 | v3 event 全方法扩展 | `verified_event_extensions_single_host_9` | 9/9、0 failed，composite index `3a3970c627af6f709100ec9ebeeab215f834e0f1f65fc359423197ec29bf9ed4` |
 | v3 event 无泄漏论文表 | `verified_no_leak_comparison_generated` | 42 行，CSV SHA-256 `9817f5086f836f17265d87071271cc3b724b62420a2db2f2f4f5401e2f37651c` |
-| v3 event FDN 补充 | `v1_failed_preserved_v2_running_2_of_3` | Alameda 与 Contra Costa 已正式验收，Orange 在断电后以 `attempt_0002` 从 epoch 0 重跑，正式代码 `0981f8bce84a942e8efd958867802be2a59d3cdb` |
+| v3 event FDN 补充 | `verified_no_leak_fdn_supplement_generated` | 3/3、0 failed，45 行 CSV SHA-256 `44afc9c2c8d425dae9be486d071282c9c1ac8fce67e86f7da970f650d478b68c` |
 | v3 seed 42 收敛审计 | `last_verified_1_of_39_remote_unreachable` | LSTM Alameda 已增量保全，GPU 主机当前无法完成 SSH 握手 |
 
-本地全仓回归为 655 passed 和 2 个既有 warning。
+本地全仓回归为 658 passed 和 2 个既有 warning。
 
 ## v3 event FDN 补充运行状态
 
@@ -54,11 +54,17 @@
 
 2026-08-12 21:29:26 新加坡时间，独立矩阵 `protocol_v3_event_fdn_5080_v2` 在新 worktree 与新结果根从 epoch 0 重新启动。正式训练代码 SHA 为 `0981f8bce84a942e8efd958867802be2a59d3cdb`，canonical manifest SHA-256 仍为 `2fb0760e1d5b9d1b7217a7d8ea61763ed5492ba45b26044148409156d4fb475b`。Alameda 与 Contra Costa 随后完成 30 epoch、runner 结果验收和 Mac 逐文件哈希回传，正式状态达到 2/3 completed、0 failed。
 
-2026-08-13 主机断电后，Orange 的 `attempt_0001` 停在 epoch 14，checkpoint 不含 optimizer、scheduler、下一 epoch 游标和随机数状态，不能严格续跑。旧计划任务 `XTraffic_ProtocolV3_Event_Baseline_Phase1_v2` 在开机后误启动并占用 GPU，现已停止和禁用，其旧 NAS 收尾器也已禁用。Orange 中断证据已保全到独立 incident 目录，manifest SHA-256 为 `d97b85b25649a00b20c4b21659cca9daa5d8ff1f462978ef98609e35d8da124b`，不得进入正式结果。18:39:24 新加坡时间，FDN runner 复验并保留前两项正式结果，Orange 以 `attempt_0002` 从 epoch 0 重跑。最近实测为 epoch 1、GPU 利用率 95%、显存约 8.0 GiB。v1 和中断的 Orange attempt 均保持只读，最终 45 行表仍等待 3/3、runner 零退出、source-host postflight、Mac 完整回传和逐文件复验。
+2026-08-13 主机断电后，Orange 的 `attempt_0001` 停在 epoch 14，checkpoint 不含 optimizer、scheduler、下一 epoch 游标和随机数状态，不能严格续跑。旧计划任务 `XTraffic_ProtocolV3_Event_Baseline_Phase1_v2` 在开机后误启动并占用 GPU，现已停止和禁用，其旧 NAS 收尾器也已禁用。Orange 中断证据已保全到独立 incident 目录，manifest SHA-256 为 `d97b85b25649a00b20c4b21659cca9daa5d8ff1f462978ef98609e35d8da124b`，不得进入正式结果。18:39:24 新加坡时间，FDN runner 复验并保留前两项正式结果，Orange 以 `attempt_0002` 从 epoch 0 重跑。Orange 最终跑满 30 epoch，最佳验证 MAE 为 `12.479010072408137`。
 
-v2 首个 CMD postflight 等待器在 runner 创建结果目录的启动窗口内退出，没有执行复验、改写结果或影响 trainer。控制层已换成 PowerShell 持久等待器，文件 SHA-256 为 `76b53179e40ef2726de6b930679406c22ce6c1e6f9963747adff0db43a57b5e8`。计划任务状态为 running，日志已写入 `WAIT_START`。训练代码 SHA 与矩阵设置均未变更。
+2026-08-13 21:53 新加坡时间，v2 队列完成 3/3，failed 为 0，runner 和 source-host postflight 退出码均为 0。postflight 对 23 个允许文件和 785,681,802 bytes 完成验证，files digest 为 `7cc5dcc4c23606d0d1c9719ff4753a009713fba17b1fa1c59dae3127d8dae09a`，report SHA-256 为 `c717667967a9446a2cc0d047cef3310d8dd4e75015e0520eef9239d0f30f597f`。Mac 已按清单拉回全部文件，并再次逐文件复核大小和 SHA-256。中断日志作为审计证据保留，正式指标只由完成的 task artifact 产生。
 
-增量备份侧车和持久 postflight 门禁均已启动。群晖 NAS 当前 SSH 不可达，侧车会每 60 秒重试，训练不受影响。只有 runner 完成 3/3 且退出码为 0 后，postflight 才会逐项重建 `config_hash`、重新验证 prediction artifact、任务状态与五类必需产物。最终程序会从经过验证的 `test_predictions.npz` 按 baseline 相同定义只读计算 H3、H6、H12 与 Average 的 MAE、RMSE 和 MAPE，再把 FDN 三行插入原 42 行表，生成 45 行 CSV、Markdown、LaTeX、manifest 与 A3 横版 PDF。训练结束并完成严格复验前，不得报告 FDN 新性能数字。
+45 行表状态为 `verified_no_leak_fdn_supplement_generated`，有效性标签为 `target_disjoint_event_no_leak_host_and_code_stratified`。Alameda、Contra Costa 与 Orange 的 FDN Average MAE 分别为 `12.129261`、`13.282892` 与 `12.562904`。三地区 FDN Average MAE 的简单平均为 `12.658352`。CSV、Markdown、LaTeX、manifest 与 PDF SHA-256 分别为 `44afc9c2c8d425dae9be486d071282c9c1ac8fce67e86f7da970f650d478b68c`、`5b868994257734327ef654d84390b6ec77b0b9375e2fb6775fe8f6083074e0eb`、`0ec660b7b8752f5ca9b8c2fa0e20414837d39c0c53b3eff471babac0f205492b`、`480f7cf9179e06679b73fdeaaaef52d631fc7115812c3676f0f3af272df5fda9` 与 `58de1ab6a1cd43125d245ca5378ca80ebc68e276003c9164a606d9dbcccc8169`。正式目录为 `outputs/protocol_v3_noleak_dedup/event_full45_fdn_20260812/verified_table/`。该表仍是 seed 42 单种子描述性比较，不支持显著性结论。
+
+Mac 首次合表因 Windows producer float32 归约与 Mac float64 独立审计存在尾数差而 fail closed。发布层修复保留远端 runner 与 postflight 的 producer 2 ULP 契约，Mac 仍从 prediction artifact 重算 float64 指标，并只接受理论 float32 归约误差界内的跨平台差异。修复没有改写 summary、prediction、checkpoint 或表中数字。真实 Orange 回归门与全部 FDN 专项测试通过，本地全仓回归为 658 passed 和 2 个既有 warning。
+
+v2 首个 CMD postflight 等待器在 runner 创建结果目录的启动窗口内退出，没有执行复验、改写结果或影响 trainer。控制层随后换成 PowerShell 持久等待器，文件 SHA-256 为 `76b53179e40ef2726de6b930679406c22ce6c1e6f9963747adff0db43a57b5e8`，并成功触发正式 postflight。训练代码 SHA 与矩阵设置均未变更。
+
+完成 Mac 回传和最终发布后，5080 上的 FDN runner、增量备份侧车和 postflight 三个计划任务均已禁用，没有残留 FDN 进程。主机保持开机，未更改其他实验任务。
 
 ## v3 seed 42 收敛审计运行状态
 

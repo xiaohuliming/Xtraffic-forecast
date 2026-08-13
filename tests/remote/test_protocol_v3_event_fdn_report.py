@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -172,6 +173,16 @@ def test_verified_fdn_supplement_appends_one_row_per_region(
     assert manifest["validity_label"] == (
         "target_disjoint_event_no_leak_host_and_code_stratified"
     )
+    assert manifest["fdn_source"]["code_shas"] == [CODE_SHA]
+    assert set(manifest["training_code_shas"]) == {
+        CODE_SHA,
+        *(
+            source["code_sha"]
+            for source in json.loads(
+                BASE_MANIFEST.read_text(encoding="utf-8")
+            )["source_indexes"].values()
+        ),
+    }
     assert len(rows) == 45
     for region in ("Alameda", "Contra Costa", "Orange"):
         methods = [row["method"] for row in rows if row["region"] == region]
@@ -209,6 +220,32 @@ def test_fdn_supplement_rejects_changed_prediction_artifact(
             postflight_sha256=digest,
             published_root=export_root,
             output_dir=tmp_path / "rejected",
+        )
+
+
+def test_cross_platform_float32_audit_accepts_observed_orange_delta() -> None:
+    from scripts.protocol_v3_event_fdn_report import (
+        _require_verified_producer_summary,
+    )
+
+    _require_verified_producer_summary(
+        reported=12.56287956237793,
+        audit_recomputed=12.56290414034464,
+        valid_count=80_962_545,
+    )
+
+
+def test_cross_platform_float32_audit_rejects_real_metric_mismatch() -> None:
+    from scripts.protocol_v3_event_fdn_report import (
+        FdnSupplementError,
+        _require_verified_producer_summary,
+    )
+
+    with pytest.raises(FdnSupplementError, match="summary all does not match"):
+        _require_verified_producer_summary(
+            reported=12.561,
+            audit_recomputed=12.56290414034464,
+            valid_count=80_962_545,
         )
 
 

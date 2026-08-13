@@ -1275,3 +1275,23 @@ FDN v1 的 Alameda 已完成全部 30 epoch，最佳验证 MAE 为 `12.381733565
 2026-08-13 主机断电使 Orange `attempt_0001` 停在 epoch 14。该 checkpoint 不含 optimizer、scheduler、下一 epoch 游标和随机数状态，因此不能严格续跑。开机后旧计划任务 `XTraffic_ProtocolV3_Event_Baseline_Phase1_v2` 自动启动 GraphWaveNet 并占用 GPU，现已停止和禁用，其旧 NAS 收尾器也已禁用。Orange 中断 attempt 已生成只读事故清单，manifest SHA-256 为 `d97b85b25649a00b20c4b21659cca9daa5d8ff1f462978ef98609e35d8da124b`。18:39:24 新加坡时间，FDN runner 复验并保留前两个正式结果，Orange 以 `attempt_0002` 从 epoch 0 重跑。最近实测为 epoch 1、GPU 利用率 95%、显存约 8.0 GiB。全部 3 项完成、runner 零退出、source-host postflight、Mac 回传和逐文件复验完成前，不发布最终 FDN 性能数字或 45 行 PDF。
 
 v2 首个 CMD postflight 等待器在启动时序窗口内退出，未运行复验且未影响训练。控制层已替换为 PowerShell 持久等待器，SHA-256 为 `76b53179e40ef2726de6b930679406c22ce6c1e6f9963747adff0db43a57b5e8`。新等待器已在 SYSTEM 计划任务下确认 running，它只等待 runner exitcode，不触碰 trainer 或正式结果。这是控制层修复，不改变正式训练代码 SHA、manifest 或 config hash。
+
+## 最新进展，2026-08-13 23:08 FDN 无泄漏补充与 45 行表已验证
+
+Orange `attempt_0002` 从 epoch 0 完整重跑，最终跑满 30 epoch，最佳验证 MAE 为 `12.479010072408137`，测试 summary Average MAE 为 `12.56287956237793`。这一 attempt 与 Alameda、Contra Costa 两项一起构成唯一正式 v2 结果树。断电中断的 Orange `attempt_0001` 仅作为审计日志保留，没有进入正式指标或 checkpoint 选择。
+
+2026-08-13 21:53 新加坡时间，矩阵 `protocol_v3_event_fdn_5080_v2` 完成 3/3，failed 为 0，runner 退出码和 source-host postflight 退出码均为 0。postflight 重建三项 `config_hash`，复验正式 result、task state、queue 与训练契约，最终绑定 23 个允许文件和 785,681,802 bytes。files digest 为 `7cc5dcc4c23606d0d1c9719ff4753a009713fba17b1fa1c59dae3127d8dae09a`，postflight report SHA-256 为 `c717667967a9446a2cc0d047cef3310d8dd4e75015e0520eef9239d0f30f597f`。Mac 已按允许清单拉回全部文件，重新逐文件校验大小和 SHA-256，没有递归接受 staging 树。
+
+只读合表保持原 42 行 CSV 和 manifest 的绑定哈希，并从三份 `test_predictions.npz` 独立重算 H3、H6、H12 和 Average 的 MAE、RMSE 与 MAPE。三地区 FDN 指标如下。
+
+| 地区 | H3 MAE | H6 MAE | H12 MAE | Average MAE | Average RMSE | Average MAPE |
+|---|---:|---:|---:|---:|---:|---:|
+| Alameda | 11.011917 | 12.097161 | 13.857078 | 12.129261 | 22.322825 | 17.912469 |
+| Contra Costa | 11.939574 | 13.180527 | 15.451422 | 13.282892 | 23.053627 | 17.549246 |
+| Orange | 11.531157 | 12.549434 | 14.199957 | 12.562904 | 22.506755 | 16.470243 |
+
+三地区 FDN Average MAE 的简单平均为 `12.658352`。在各地区 15 方法的 Average MAE 排名中，FDN 分别位于第 6、第 8 和第 6。这是如实保留的单种子描述性结果，不代表 FDN 优于 NDR-Net 或 BiST，也不支持统计显著性声明。
+
+首次 Mac 合表在比较 Windows producer float32 summary 和 Mac float64 独立审计时 fail closed。三地区差异随有效观测数增长，并且均处于已审计的 float32 归约误差界内。发布层修复保留两道独立门。Windows runner 与 postflight 继续要求 summary 在原生 producer 的 2 ULP 内，Mac 合表器继续从不可变 prediction artifact 做 float64 重算，只接受理论归约误差界内的跨平台差异。新增真实 Orange 数值回归测试和反例门禁。该修复没有改写 summary、prediction、checkpoint、config hash 或表中数字。
+
+最终 45 行表状态为 `verified_no_leak_fdn_supplement_generated`，有效性标签为 `target_disjoint_event_no_leak_host_and_code_stratified`。正式目录为 `outputs/protocol_v3_noleak_dedup/event_full45_fdn_20260812/verified_table/`。CSV、Markdown、LaTeX、manifest 与 PDF SHA-256 分别为 `44afc9c2c8d425dae9be486d071282c9c1ac8fce67e86f7da970f650d478b68c`、`5b868994257734327ef654d84390b6ec77b0b9375e2fb6775fe8f6083074e0eb`、`0ec660b7b8752f5ca9b8c2fa0e20414837d39c0c53b3eff471babac0f205492b`、`480f7cf9179e06679b73fdeaaaef52d631fc7115812c3676f0f3af272df5fda9` 和 `58de1ab6a1cd43125d245ca5378ca80ebc68e276003c9164a606d9dbcccc8169`。PDF 已通过单页 A3 横版、文本提取与 150 DPI 渲染视觉检查，没有裁切或重叠。本地全仓回归为 658 passed 和 2 个既有 warning。

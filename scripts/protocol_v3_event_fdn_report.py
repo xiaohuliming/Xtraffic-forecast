@@ -177,7 +177,64 @@ def _load_base_table(
     return rows, manifest
 
 
-def _prediction_metrics(path: Path) -> dict[str, float]:
+def _require_verified_producer_summary(
+    *,
+    reported: object,
+    audit_recomputed: float,
+    valid_count: int,
+) -> None:
+    """Compare a host-verified float32 producer value with a float64 audit.
+
+    The source-host runner and postflight already prove that the summary is
+    within two ULP of the Windows NumPy float32 producer reduction.  NumPy may
+    choose a different float32 reduction tree on macOS, so this publication
+    layer independently checks the immutable summary against its float64 audit
+    using the same conservative reduction-error bound as the runner.
+    """
+    if (
+        isinstance(reported, bool)
+        or not isinstance(reported, (int, float))
+        or not math.isfinite(float(reported))
+        or not math.isfinite(audit_recomputed)
+        or isinstance(valid_count, bool)
+        or not isinstance(valid_count, int)
+        or valid_count <= 0
+    ):
+        raise FdnSupplementError(
+            "summary all does not match prediction artifact"
+        )
+    reported_value = float(reported)
+    if math.isclose(
+        reported_value,
+        audit_recomputed,
+        rel_tol=1e-6,
+        abs_tol=1e-6,
+    ):
+        return
+    dtype = np.dtype(np.float32)
+    epsilon = float(np.finfo(dtype).eps)
+    reduction_levels = math.ceil(math.log2(valid_count)) + 1
+    accumulated_error = reduction_levels * epsilon
+    if accumulated_error >= 1.0:
+        tolerance = math.inf
+    else:
+        producer_ulp = abs(
+            float(np.spacing(np.asarray(reported_value, dtype=dtype)))
+        )
+        tolerance = (
+            max(1e-6, 1e-6 * abs(audit_recomputed))
+            + accumulated_error
+            / (1.0 - accumulated_error)
+            * abs(reported_value)
+            + 2.0 * producer_ulp
+        )
+    if abs(reported_value - audit_recomputed) > tolerance:
+        raise FdnSupplementError(
+            "summary all does not match prediction artifact"
+        )
+
+
+def _prediction_metrics(path: Path) -> dict[str, float | int]:
     try:
         with np.load(path, allow_pickle=False) as arrays:
             required = {
@@ -229,7 +286,7 @@ def _prediction_metrics(path: Path) -> dict[str, float]:
         )
         return mae, rmse, mape
 
-    result: dict[str, float] = {}
+    result: dict[str, float | int] = {"valid_count": int(mask.sum())}
     for label, index in (("h3", 2), ("h6", 5), ("h12", 11)):
         mae, rmse, mape = metrics(
             absolute_error[:, index, :],
@@ -376,25 +433,22 @@ def _verify_export(
         metric_values = _prediction_metrics(
             _safe_published_path(published_root, prediction_relative)
         )
-        reported_all = summary.get("all")
-        if (
-            isinstance(reported_all, bool)
-            or not isinstance(reported_all, (int, float))
-            or not math.isclose(
-                float(reported_all),
-                metric_values["avg_mae"],
-                rel_tol=1e-6,
-                abs_tol=1e-6,
-            )
-        ):
+        valid_count = metric_values["valid_count"]
+        if summary.get("valid_count") != valid_count:
             raise FdnSupplementError(
-                f"summary all does not match prediction artifact: {task.task_id}"
+                f"summary valid_count does not match prediction artifact: "
+                f"{task.task_id}"
             )
+        _require_verified_producer_summary(
+            reported=summary.get("all"),
+            audit_recomputed=float(metric_values["avg_mae"]),
+            valid_count=int(valid_count),
+        )
         rows[task.region] = {
             "region": REGION_LABELS[task.region],
             "method": "FDN",
             **{
-                name: f"{metric_values[name]:.6f}"
+                name: f"{float(metric_values[name]):.6f}"
                 for name in COLUMNS[2:]
             },
         }
@@ -520,18 +574,16 @@ def build_fdn_supplement(
     base_indexes = base_manifest.get("source_indexes")
     if not isinstance(base_indexes, dict):
         raise FdnSupplementError("base source indexes are invalid")
-    source_code_shas = sorted(
-        {
-            _required_sha(value, "code_sha", 40)
-            for value in base_indexes.values()
-            if isinstance(value, dict)
-        }
-        | {
-            _required_sha(item, "code_sha", 40)
-            for item in postflight["tasks"]
-            if isinstance(item, dict)
-        }
-    )
+    base_code_shas = {
+        _required_sha(value, "code_sha", 40)
+        for value in base_indexes.values()
+        if isinstance(value, dict)
+    }
+    fdn_code_shas = {
+        _required_sha(item, "code_sha", 40)
+        for item in postflight["tasks"]
+        if isinstance(item, dict)
+    }
     manifest: dict[str, object] = {
         "report_schema_version": 1,
         "status": "verified_no_leak_fdn_supplement_generated",
@@ -542,6 +594,7 @@ def build_fdn_supplement(
         "epoch_cap": 30,
         "early_stopping_patience": 6,
         "training_control_scope": base_manifest["training_control_scope"],
+        "training_code_shas": sorted(base_code_shas | fdn_code_shas),
         "row_count": 45,
         "task_count": 45,
         "cache_bundle_id": base_manifest["cache_bundle_id"],
@@ -563,7 +616,7 @@ def build_fdn_supplement(
                 "canonical_manifest_sha256"
             ],
             "files_digest": postflight["files_digest"],
-            "code_shas": source_code_shas,
+            "code_shas": sorted(fdn_code_shas),
             "method": "FDN learnable-K3",
         },
         "outputs": {
