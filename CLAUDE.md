@@ -39,7 +39,7 @@
 | v3 event baseline | `verified_event_full33_single_host_33` | 33/33、0 failed，composite index `2a6ad2eadfd1ecf5af3604bee632eaa339e1aed7add59e915a71f9d422dd767e` |
 | v3 event 全方法扩展 | `verified_event_extensions_single_host_9` | 9/9、0 failed，composite index `3a3970c627af6f709100ec9ebeeab215f834e0f1f65fc359423197ec29bf9ed4` |
 | v3 event 无泄漏论文表 | `verified_no_leak_comparison_generated` | 42 行，CSV SHA-256 `9817f5086f836f17265d87071271cc3b724b62420a2db2f2f4f5401e2f37651c` |
-| v3 event FDN 补充 | `v1_failed_preserved_v2_running_0_of_3` | RTX 5080 正在独立 v2 目录重跑 Alameda，正式代码 `0981f8bce84a942e8efd958867802be2a59d3cdb` |
+| v3 event FDN 补充 | `v1_failed_preserved_v2_running_2_of_3` | Alameda 与 Contra Costa 已正式验收，Orange 在断电后以 `attempt_0002` 从 epoch 0 重跑，正式代码 `0981f8bce84a942e8efd958867802be2a59d3cdb` |
 | v3 seed 42 收敛审计 | `last_verified_1_of_39_remote_unreachable` | LSTM Alameda 已增量保全，GPU 主机当前无法完成 SSH 握手 |
 
 本地全仓回归为 655 passed 和 2 个既有 warning。
@@ -52,7 +52,9 @@
 
 修复仅使 event test split 加载分析标签，train 与 val split 仍不暴露该标签。本地全仓回归为 656 passed 和 2 个既有 warning，5080 专项测试为 10 passed。真实 Alameda 数据边界探针确认 train 样本不含 `affected_mask`，test 样本包含形状为 521 的该标签。
 
-2026-08-12 21:29:26 新加坡时间，独立矩阵 `protocol_v3_event_fdn_5080_v2` 在新 worktree 与新结果根从 epoch 0 重新启动。正式训练代码 SHA 为 `0981f8bce84a942e8efd958867802be2a59d3cdb`，canonical manifest SHA-256 仍为 `2fb0760e1d5b9d1b7217a7d8ea61763ed5492ba45b26044148409156d4fb475b`。当前状态为 running、0/3 completed、0 failed，正在 Alameda。GPU 利用率最近实测为 95%，显存约 5.0 GiB。v1 目录保持只读历史证据，v2 不会覆盖它。
+2026-08-12 21:29:26 新加坡时间，独立矩阵 `protocol_v3_event_fdn_5080_v2` 在新 worktree 与新结果根从 epoch 0 重新启动。正式训练代码 SHA 为 `0981f8bce84a942e8efd958867802be2a59d3cdb`，canonical manifest SHA-256 仍为 `2fb0760e1d5b9d1b7217a7d8ea61763ed5492ba45b26044148409156d4fb475b`。Alameda 与 Contra Costa 随后完成 30 epoch、runner 结果验收和 Mac 逐文件哈希回传，正式状态达到 2/3 completed、0 failed。
+
+2026-08-13 主机断电后，Orange 的 `attempt_0001` 停在 epoch 14，checkpoint 不含 optimizer、scheduler、下一 epoch 游标和随机数状态，不能严格续跑。旧计划任务 `XTraffic_ProtocolV3_Event_Baseline_Phase1_v2` 在开机后误启动并占用 GPU，现已停止和禁用，其旧 NAS 收尾器也已禁用。Orange 中断证据已保全到独立 incident 目录，manifest SHA-256 为 `d97b85b25649a00b20c4b21659cca9daa5d8ff1f462978ef98609e35d8da124b`，不得进入正式结果。18:39:24 新加坡时间，FDN runner 复验并保留前两项正式结果，Orange 以 `attempt_0002` 从 epoch 0 重跑。最近实测为 epoch 1、GPU 利用率 95%、显存约 8.0 GiB。v1 和中断的 Orange attempt 均保持只读，最终 45 行表仍等待 3/3、runner 零退出、source-host postflight、Mac 完整回传和逐文件复验。
 
 v2 首个 CMD postflight 等待器在 runner 创建结果目录的启动窗口内退出，没有执行复验、改写结果或影响 trainer。控制层已换成 PowerShell 持久等待器，文件 SHA-256 为 `76b53179e40ef2726de6b930679406c22ce6c1e6f9963747adff0db43a57b5e8`。计划任务状态为 running，日志已写入 `WAIT_START`。训练代码 SHA 与矩阵设置均未变更。
 
