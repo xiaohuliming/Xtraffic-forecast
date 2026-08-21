@@ -1,0 +1,80 @@
+{
+  "matrix_schema_version": 1,
+  "matrix_id": "fdn_benchmark_v1_go_no_go_pems04_pems08",
+  "protocol_version": "fdn_benchmark_v1",
+  "artifact_schema_version": 1,
+  "design": {
+    "independent_replicate": "training_run_seed",
+    "blocking_factors": ["dataset", "seed"],
+    "run_order_seed": 20260822,
+    "claim_test": "fdn_learnable_k3_vs_equal_parameter_dual_gwn"
+  },
+  "datasets": {
+    "pems04": {
+      "data_file": "PEMS04.npz",
+      "data_sha256": "95a3c9b720fffdb85f0330d09bfab41b0b3cad0ca86c0d7d5f3accacb4ac999a",
+      "adjacency_file": "PEMS04_distance.csv",
+      "adjacency_sha256": "68ffaa80447eb34428a9999dc28363c61406ec0fd714686d0582d2386ac6f5f7",
+      "split": [0.6, 0.2, 0.2],
+      "missing_value": 0.0
+    },
+    "pems08": {
+      "data_file": "PEMS08.npz",
+      "data_sha256": "e1d03ce74e9fb79149e6e7c37c680214822c4a285baa2f42278cacabcd25c075",
+      "adjacency_file": "PEMS08_distance.csv",
+      "adjacency_sha256": "859d68e7583ed4e6016588eaaca494d3ece286dae361614c5c1833017f87eaa7",
+      "split": [0.6, 0.2, 0.2],
+      "missing_value": 0.0
+    }
+  },
+  "training": {
+    "epochs": 100,
+    "batch_size": 48,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "gradient_clip": 5.0,
+    "nhid": 32,
+    "history_steps": 12,
+    "horizon_steps": 12,
+    "scheduler": "CosineAnnealingLR_per_optimizer_step",
+    "eta_min": 0.00001,
+    "checkpoint_selection": "global_validation_mae_all_valid_observations",
+    "early_stopping": false,
+    "device": "cuda:0"
+  },
+  "tasks": [
+    {"task_id": "fdnb001_pems08_seed1_fixed", "dataset": "pems08", "seed": 1, "variant": "fdn_fixed_k3"},
+    {"task_id": "fdnb002_pems08_seed1_learnable", "dataset": "pems08", "seed": 1, "variant": "fdn_learnable_k3"},
+    {"task_id": "fdnb003_pems08_seed1_gwn", "dataset": "pems08", "seed": 1, "variant": "gwn"},
+    {"task_id": "fdnb004_pems08_seed1_dual", "dataset": "pems08", "seed": 1, "variant": "dual_gwn"},
+    {"task_id": "fdnb005_pems08_seed2_dual", "dataset": "pems08", "seed": 2, "variant": "dual_gwn"},
+    {"task_id": "fdnb006_pems08_seed2_gwn", "dataset": "pems08", "seed": 2, "variant": "gwn"},
+    {"task_id": "fdnb007_pems08_seed2_learnable", "dataset": "pems08", "seed": 2, "variant": "fdn_learnable_k3"},
+    {"task_id": "fdnb008_pems08_seed2_fixed", "dataset": "pems08", "seed": 2, "variant": "fdn_fixed_k3"},
+    {"task_id": "fdnb009_pems04_seed1_fixed", "dataset": "pems04", "seed": 1, "variant": "fdn_fixed_k3"},
+    {"task_id": "fdnb010_pems04_seed1_learnable", "dataset": "pems04", "seed": 1, "variant": "fdn_learnable_k3"},
+    {"task_id": "fdnb011_pems04_seed1_dual", "dataset": "pems04", "seed": 1, "variant": "dual_gwn"},
+    {"task_id": "fdnb012_pems04_seed1_gwn", "dataset": "pems04", "seed": 1, "variant": "gwn"},
+    {"task_id": "fdnb013_pems08_seed42_learnable", "dataset": "pems08", "seed": 42, "variant": "fdn_learnable_k3"},
+    {"task_id": "fdnb014_pems08_seed42_gwn", "dataset": "pems08", "seed": 42, "variant": "gwn"},
+    {"task_id": "fdnb015_pems08_seed42_dual", "dataset": "pems08", "seed": 42, "variant": "dual_gwn"},
+    {"task_id": "fdnb016_pems08_seed42_fixed", "dataset": "pems08", "seed": 42, "variant": "fdn_fixed_k3"},
+    {"task_id": "fdnb017_pems04_seed42_gwn", "dataset": "pems04", "seed": 42, "variant": "gwn"},
+    {"task_id": "fdnb018_pems04_seed42_learnable", "dataset": "pems04", "seed": 42, "variant": "fdn_learnable_k3"},
+    {"task_id": "fdnb019_pems04_seed42_fixed", "dataset": "pems04", "seed": 42, "variant": "fdn_fixed_k3"},
+    {"task_id": "fdnb020_pems04_seed42_dual", "dataset": "pems04", "seed": 42, "variant": "dual_gwn"},
+    {"task_id": "fdnb021_pems04_seed2_fixed", "dataset": "pems04", "seed": 2, "variant": "fdn_fixed_k3"},
+    {"task_id": "fdnb022_pems04_seed2_learnable", "dataset": "pems04", "seed": 2, "variant": "fdn_learnable_k3"},
+    {"task_id": "fdnb023_pems04_seed2_dual", "dataset": "pems04", "seed": 2, "variant": "dual_gwn"},
+    {"task_id": "fdnb024_pems04_seed2_gwn", "dataset": "pems04", "seed": 2, "variant": "gwn"}
+  ],
+  "go_no_go": {
+    "primary_comparison": "fdn_learnable_k3_minus_dual_gwn_mae",
+    "required_dataset_direction": {"pems04": "negative", "pems08": "negative"},
+    "minimum_negative_seed_pairs": 5,
+    "total_seed_pairs": 6,
+    "minimum_datasets_ci_upper_below_zero": 1,
+    "block_bootstrap_unit": "calendar_day_or_288_consecutive_forecast_origins",
+    "continue_only_after_formal_report": true
+  }
+}
