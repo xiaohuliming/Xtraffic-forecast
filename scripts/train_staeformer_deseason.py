@@ -395,7 +395,7 @@ def compute_loss(model, y, batch, args, device, *, normalizers=None):
 
 
 def main():
-    from dist_net.data import MultiRegionDataset, make_loader
+    from dist_net.data import MultiRegionDataset, FullWindowRegionData, make_loader
     from dist_net.metrics import MaskedMAEAccumulator
     from dist_net.training_runtime import TrainingRunContext
     from fourier_dual_net.deseason import train_residual_std
@@ -422,6 +422,11 @@ def main():
     p.add_argument("--lambda_spec", type=float, default=0.3)
     p.add_argument("--device", default=None)
     p.add_argument("--smoke", action="store_true")
+    p.add_argument("--protocol", choices=["event", "full_window"], default="event",
+                   help="event = event-anchored (samples.h5); full_window = standard sliding window")
+    p.add_argument("--stride", type=int, default=1, help="full_window only: anchor stride")
+    p.add_argument("--train_frac", type=float, default=0.7, help="full_window only")
+    p.add_argument("--val_frac", type=float, default=0.1, help="full_window only")
     args = p.parse_args()
 
     torch.manual_seed(args.seed)
@@ -437,11 +442,24 @@ def main():
         model="staeformer_deseason",
         variant=args.variant,
         seed=args.seed,
-        sampling_protocol="event",
+        sampling_protocol=args.protocol,
     )
     out_dir = run_context.output_dir
 
-    train_ds = MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split="train")
+    fw_kwargs: dict = {}
+    if args.protocol == "full_window":
+        fw_kwargs = {
+            "region_data_cls": FullWindowRegionData,
+            "region_data_kwargs": {
+                "stride": args.stride,
+                "train_frac": args.train_frac,
+                "val_frac": args.val_frac,
+            },
+        }
+
+    train_ds = MultiRegionDataset(
+        [args.region], args.data_dir, args.graph_dir, split="train", **fw_kwargs
+    )
     rdata = train_ds.regions[args.region]
     run_context.verify_region_cache(rdata)
     N, T_h, T_p = int(rdata.N), int(rdata.T_h), int(rdata.T_p)
@@ -496,13 +514,23 @@ def main():
         print("SMOKE_OK", flush=True)
         return
 
-    val_ds = MultiRegionDataset([args.region], args.data_dir, args.graph_dir, split="val")
+    val_ds = MultiRegionDataset(
+        [args.region], args.data_dir, args.graph_dir, split="val", **fw_kwargs
+    )
+    test_fw_kwargs = fw_kwargs.copy()
+    if args.protocol == "full_window":
+        test_fw_kwargs["region_data_kwargs"] = dict(
+            fw_kwargs["region_data_kwargs"],
+            include_analysis_labels=True,
+        )
+    else:
+        test_fw_kwargs["region_data_kwargs"] = {"include_analysis_labels": True}
     test_ds = MultiRegionDataset(
         [args.region],
         args.data_dir,
         args.graph_dir,
         split="test",
-        region_data_kwargs={"include_analysis_labels": True},
+        **test_fw_kwargs,
     )
     model = make_model(args.variant)
     nparam = sum(q.numel() for q in model.parameters() if q.requires_grad)

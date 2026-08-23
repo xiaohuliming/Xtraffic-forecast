@@ -822,6 +822,43 @@ def build_production_invocation(
         result_relpath = Path("work_fullwindow") / task.region
         artifacts = ["summary.json", "ckpt_best.pt", "test_predictions.npz"]
         required_metrics = ("all",)
+    elif task.kind == "event_extension" and task.sampling_protocol == "full_window":
+        _ext_variant_map = {"bist": "s0f", "ndr_net": "s0g"}
+        _ext_variant = (
+            _ext_variant_map[task.model]
+            if task.variant == "v3_event_aligned" and task.model in _ext_variant_map
+            else task.variant
+        )
+        command += [
+            "scripts/train_staeformer_deseason.py",
+            "--region",
+            task.region,
+            "--variant",
+            _ext_variant,
+            "--seed",
+            str(task.seed),
+            "--epochs",
+            epochs,
+            "--device",
+            device,
+            "--data_dir",
+            cache,
+            "--graph_dir",
+            graph,
+            "--out_dir",
+            str(work),
+            "--protocol",
+            "full_window",
+            "--stride",
+            "1",
+            "--train_frac",
+            "0.7",
+            "--val_frac",
+            "0.1",
+        ]
+        result_relpath = Path("work") / task.region / f"{_ext_variant}_seed{task.seed}"
+        artifacts = ["summary.json", "ckpt_best.pt", "test_predictions.npz"]
+        required_metrics = ("all",)
     else:
         raise ManifestError(f"unsupported task kind: {task.kind}")
 
