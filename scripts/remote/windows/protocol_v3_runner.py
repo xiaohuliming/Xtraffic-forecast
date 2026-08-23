@@ -660,7 +660,40 @@ def build_production_invocation(
     graph = str(run_inputs.graph_dir)
     command: list[str] = [py, "-X", "utf8"]
 
-    if task.kind == "staeformer_deseason":
+    if task.kind == "baseline_zoo" and task.sampling_protocol == "full_window":
+        command += [
+            "scripts/train_baseline_zoo.py",
+            "--model",
+            task.model,
+            "--region",
+            task.region,
+            "--seed",
+            str(task.seed),
+            "--epochs",
+            epochs,
+            "--patience",
+            patience,
+            "--device",
+            device,
+            "--data-dir",
+            cache,
+            "--graph-dir",
+            graph,
+            "--out-dir",
+            str(work),
+            "--protocol",
+            "full_window",
+            "--stride",
+            "1",
+            "--train_frac",
+            "0.7",
+            "--val_frac",
+            "0.1",
+        ]
+        result_relpath = Path("work") / task.region
+        artifacts = ["summary.json", "ckpt_best.pt", "test_predictions.npz"]
+        required_metrics = ("all",)
+    elif task.kind == "staeformer_deseason":
         command += [
             "scripts/train_staeformer_deseason.py",
             "--region",
@@ -740,7 +773,7 @@ def build_production_invocation(
             "--val_frac",
             "0.1",
         ]
-        result_relpath = Path("work_fullwindow") / task.region
+        result_relpath = Path("work") / task.region
         artifacts = [
             "summary.json",
             "ckpt_best.pt",
@@ -819,7 +852,7 @@ def build_production_invocation(
             "--val_frac",
             "0.1",
         ]
-        result_relpath = Path("work_fullwindow") / task.region
+        result_relpath = Path("work") / task.region
         artifacts = ["summary.json", "ckpt_best.pt", "test_predictions.npz"]
         required_metrics = ("all",)
     elif task.kind == "event_extension" and task.sampling_protocol == "full_window":

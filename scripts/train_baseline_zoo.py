@@ -742,6 +742,9 @@ def run_hl(args, test_ds, rdata, out_dir, N, T_p, run_context) -> None:
         "History Last is non-trainable.\n",
         encoding="utf-8",
     )
+    # HL is non-trainable; save a dummy checkpoint for runner validation
+    import torch
+    torch.save({"model": "hl", "note": "non-trainable baseline"}, out_dir / "ckpt_best.pt")
     save_outputs(
         out_dir,
         rc,
