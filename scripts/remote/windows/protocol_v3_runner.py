@@ -1364,6 +1364,7 @@ def _directory_nonempty(path: Path) -> bool:
 def _validate_results_root_layout(
     results_root: Path,
     manifest: Manifest,
+    extra_known_task_ids: set[str] | None = None,
 ) -> None:
     allowed_top_level = {
         "queue_status.json",
@@ -1395,6 +1396,8 @@ def _validate_results_root_layout(
     task_root = results_root / "tasks"
     if task_root.is_dir():
         allowed_tasks = {task.task_id for task in manifest.tasks}
+        if extra_known_task_ids:
+            allowed_tasks |= extra_known_task_ids
         unknown_tasks = sorted(
             child.name
             for child in task_root.iterdir()
@@ -1865,6 +1868,7 @@ def run_queue(
     verify_git: bool = True,
     stdout: TextIO = sys.stdout,
     recover_staging_task: str | None = None,
+    extra_known_task_ids: set[str] | None = None,
 ) -> int:
     results_root = run_inputs.results_root.resolve()
     results_root.mkdir(parents=True, exist_ok=True)
@@ -1918,7 +1922,8 @@ def run_queue(
     try:
         _validate_run_inputs(run_inputs)
         _verify_cache_bundle_release(run_inputs)
-        _validate_results_root_layout(results_root, manifest)
+        _validate_results_root_layout(results_root, manifest,
+                                       extra_known_task_ids=extra_known_task_ids)
         if verify_git:
             _verify_git(repo_root.resolve(), run_inputs.code_sha)
         for task in manifest.tasks:

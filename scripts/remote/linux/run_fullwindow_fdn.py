@@ -120,12 +120,16 @@ def main() -> int:
         python_executable=args.python,
     )
 
+    # Pass the full 42-task ID set so preflight accepts results written by other shards
+    all_task_ids = {t.task_id for t in manifest.tasks}
+
     return run_queue(
         sharded,
         run_inputs,
         repo_root=repo_root,
         verify_git=False,
         recover_staging_task=args.recover_staging_task,
+        extra_known_task_ids=all_task_ids,
     )
 
 

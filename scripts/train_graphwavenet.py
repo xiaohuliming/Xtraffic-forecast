@@ -163,7 +163,7 @@ def main() -> None:
 
     if args.protocol == "full_window":
         rd_cls = FullWindowRegionData
-        out_base = args.out_dir.with_name(args.out_dir.name + "_fullwindow")
+        out_base = args.out_dir  # runner passes --out-dir directly into staging; no suffix needed
     else:
         rd_cls, out_base = RegionData, args.out_dir
     out_dir = out_base / args.region
