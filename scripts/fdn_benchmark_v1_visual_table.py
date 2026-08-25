@@ -17,17 +17,17 @@ from PIL import Image
 DATASETS = ("pems04", "pems08")
 SEEDS = (42, 1, 2)
 VARIANTS = (
-    ("gwn", "GWN"),
-    ("dual_gwn", "DualGWN"),
-    ("fdn_fixed_k3", "FDN fixed-K3"),
-    ("fdn_learnable_k3", "FDN learnable-K3"),
+    ("gwn", "Graph WaveNet\n单分支基线"),
+    ("dual_gwn", "DualGWN\n双分支容量对照"),
+    ("fdn_fixed_k3", "FDN Fixed-Mask\n固定掩码消融"),
+    ("fdn_learnable_k3", "FDN Learnable-Mask\n完整模型"),
 )
 COMPARISONS = (
-    ("DualGWN - GWN", "dual_gwn", "gwn"),
-    ("fixed-K3 - DualGWN", "fdn_fixed_k3", "dual_gwn"),
-    ("learnable-K3 - fixed-K3", "fdn_learnable_k3", "fdn_fixed_k3"),
-    ("learnable-K3 - DualGWN", "fdn_learnable_k3", "dual_gwn"),
-    ("learnable-K3 - GWN", "fdn_learnable_k3", "gwn"),
+    ("容量效应\nDualGWN − GWN", "dual_gwn", "gwn"),
+    ("固定分解效应\nFixed-Mask − DualGWN", "fdn_fixed_k3", "dual_gwn"),
+    ("可学习掩码效应\nFull FDN − Fixed-Mask", "fdn_learnable_k3", "fdn_fixed_k3"),
+    ("频率路由效应\nFull FDN − DualGWN", "fdn_learnable_k3", "dual_gwn"),
+    ("完整模型对基线\nFull FDN − GWN", "fdn_learnable_k3", "gwn"),
 )
 
 
@@ -95,7 +95,7 @@ def draw_performance_table(
     table = ax.table(
         cellText=display,
         rowLabels=model_labels,
-        colLabels=("Seed 42", "Seed 1", "Seed 2", "Mean ± SD"),
+        colLabels=("种子 42", "种子 1", "种子 2", "均值 ± 标准差"),
         loc="center",
         cellLoc="center",
         colLoc="center",
@@ -128,7 +128,7 @@ def draw_performance_table(
     ax.text(
         0.5,
         0.04,
-        "Bold outline marks the lowest MAE in each column.",
+        "粗体边框表示该列 MAE 最低。",
         ha="center",
         va="bottom",
         fontsize=9,
@@ -152,8 +152,8 @@ def draw_component_table(
             )
             mean = float(differences.mean())
             wins = int((differences < 0).sum())
-            direction = "better" if mean < 0 else "worse"
-            row_text.append(f"{mean:+.4f}\n{wins}/3 seeds better\n{direction} on mean")
+            direction = "平均更好" if mean < 0 else "平均更差"
+            row_text.append(f"{mean:+.4f}\n{wins}/3 个种子更好\n{direction}")
             row_numeric.append(mean)
         rows.append(row_text)
         numeric.append(row_numeric)
@@ -162,7 +162,7 @@ def draw_component_table(
     norm = mpl.colors.TwoSlopeNorm(vmin=-limit, vcenter=0.0, vmax=limit)
     cmap = mpl.colormaps["RdBu_r"]
     ax.axis("off")
-    ax.set_title("Component effects: ΔMAE", fontsize=14, fontweight="bold", pad=10)
+    ax.set_title("各消融组件对 MAE 的影响", fontsize=14, fontweight="bold", pad=10)
     table = ax.table(
         cellText=rows,
         rowLabels=[label for label, _, _ in COMPARISONS],
@@ -194,7 +194,7 @@ def draw_component_table(
     ax.text(
         0.5,
         0.0,
-        "Δ = left model − right model. Negative values are better.",
+        "Δ = 左侧模型 − 右侧模型。负值表示左侧模型更好。",
         ha="center",
         va="bottom",
         fontsize=9,
@@ -208,7 +208,7 @@ def draw_decision_panel(ax: mpl.axes.Axes) -> None:
     ax.text(
         0.5,
         0.96,
-        "Pre-registered Go / No-Go",
+        "预注册证据门槛",
         fontsize=14,
         fontweight="bold",
         ha="center",
@@ -216,9 +216,9 @@ def draw_decision_panel(ax: mpl.axes.Axes) -> None:
         transform=ax.transAxes,
     )
     lines = (
-        ("Dataset means < 0", "1 / 2", "required 2 / 2"),
-        ("Negative seed pairs", "3 / 6", "required ≥ 5 / 6"),
-        ("CI upper bound < 0", "0 / 2", "required ≥ 1 / 2"),
+        ("两个数据集均改善", "1 / 2", "要求 2 / 2"),
+        ("改善的种子配对", "3 / 6", "要求 ≥ 5 / 6"),
+        ("置信区间上界低于 0", "0 / 2", "要求 ≥ 1 / 2"),
     )
     y = 0.76
     for label, observed, required in lines:
@@ -262,7 +262,7 @@ def draw_decision_panel(ax: mpl.axes.Axes) -> None:
     ax.text(
         0.5,
         0.08,
-        "STOP independent method paper",
+        "未通过独立方法论文门槛",
         ha="center",
         va="center",
         fontsize=14,
@@ -274,7 +274,7 @@ def draw_decision_panel(ax: mpl.axes.Axes) -> None:
     ax.text(
         0.5,
         -0.03,
-        "The decision follows the frozen threshold; no criterion passed.",
+        "按照冻结停止线判定，三项条件均未通过。",
         ha="center",
         va="bottom",
         fontsize=9,
@@ -293,7 +293,7 @@ def main() -> int:
     prefix.parent.mkdir(parents=True, exist_ok=True)
     values = read_runs(runs_path)
     style = {
-        "font.family": "DejaVu Sans",
+        "font.family": ("Hiragino Sans GB", "Arial Unicode MS", "DejaVu Sans"),
         "figure.facecolor": "white",
         "axes.facecolor": "white",
         "pdf.fonttype": 42,
@@ -308,14 +308,14 @@ def main() -> int:
         draw_component_table(fig.add_subplot(grid[1, 0]), values)
         draw_decision_panel(fig.add_subplot(grid[1, 1]))
         fig.suptitle(
-            "FDN benchmark v1: verified MAE comparison",
+            "FDN 消融实验：三种子 MAE 对比",
             fontsize=19,
             fontweight="bold",
         )
         fig.text(
             0.5,
             0.006,
-            "24 runs · 3 training seeds · 100 epochs · lower MAE is better · ± is sample SD across seeds",
+            "24 次训练 · 3 个训练种子 · 100 epochs · MAE 越低越好 · ± 表示种子间样本标准差",
             ha="center",
             fontsize=9.5,
             color="#45515C",
@@ -325,7 +325,7 @@ def main() -> int:
             dpi=220,
             facecolor="white",
             metadata={
-                "Title": "FDN benchmark v1 verified MAE comparison",
+                "Title": "FDN 消融实验：三种子 MAE 对比",
                 "Description": f"Source data: {runs_path}",
             },
         )
@@ -333,7 +333,7 @@ def main() -> int:
             outputs[1],
             facecolor="white",
             metadata={
-                "Title": "FDN benchmark v1 verified MAE comparison",
+                "Title": "FDN 消融实验：三种子 MAE 对比",
                 "Subject": f"Source data: {runs_path}",
             },
         )
