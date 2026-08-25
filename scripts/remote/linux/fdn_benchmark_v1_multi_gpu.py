@@ -28,7 +28,7 @@ RUNNER = ROOT / "scripts/remote/windows/fdn_benchmark_v1_runner.py"
 
 
 def build_shard_command(args: argparse.Namespace, shard_index: int) -> list[str]:
-    return [
+    command = [
         args.python_executable,
         "-X",
         "utf8",
@@ -50,6 +50,9 @@ def build_shard_command(args: argparse.Namespace, shard_index: int) -> list[str]
         "--shard-count",
         str(args.gpu_count),
     ]
+    if args.recover_completed_attempts:
+        command.append("--recover-completed-attempts")
+    return command
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -62,6 +65,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--code-sha", required=True)
     parser.add_argument("--python", dest="python_executable", default=sys.executable)
     parser.add_argument("--gpu-count", type=int, default=4)
+    parser.add_argument("--recover-completed-attempts", action="store_true")
     return parser.parse_args(argv)
 
 

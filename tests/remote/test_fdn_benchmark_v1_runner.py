@@ -80,6 +80,25 @@ def test_four_gpu_shards_are_disjoint_complete_and_order_preserving() -> None:
         assert shard == manifest.tasks[index::4]
 
 
+def test_nested_metrics_slice_only_the_requested_horizon() -> None:
+    from scripts.remote.windows.fdn_benchmark_v1_runner import (
+        _nested_metrics_from_arrays,
+    )
+
+    actual = np.full((2, 3, 12), 10.0, dtype=np.float32)
+    prediction = actual.copy()
+    for horizon in range(12):
+        prediction[:, :, horizon] += np.float32(horizon + 1)
+    mask = np.ones_like(actual, dtype=np.bool_)
+
+    metrics = _nested_metrics_from_arrays(prediction, actual, mask)
+
+    assert metrics["h3"]["mae"] == 3.0
+    assert metrics["h6"]["mae"] == 6.0
+    assert metrics["h12"]["mae"] == 12.0
+    assert metrics["h3"]["valid_count"] == 6
+
+
 def test_result_validator_recomputes_metrics_and_binds_test_origins(
     tmp_path: Path,
 ) -> None:

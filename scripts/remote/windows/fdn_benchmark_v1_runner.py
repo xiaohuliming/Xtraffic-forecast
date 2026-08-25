@@ -170,27 +170,40 @@ def _nested_metrics_from_arrays(
     error = prediction.astype(np.float64) - actual.astype(np.float64)
     absolute = np.abs(error)
 
-    def scope(selected: np.ndarray) -> dict[str, object]:
+    def scope(
+        absolute_values: np.ndarray,
+        error_values: np.ndarray,
+        actual_values: np.ndarray,
+        selected: np.ndarray,
+    ) -> dict[str, object]:
         count = int(selected.sum())
         if count <= 0:
             raise RunnerError("prediction artifact has an empty metric scope")
         return {
-            "mae": float(absolute[selected].sum(dtype=np.float64) / count),
-            "rmse": float(math.sqrt(np.square(error[selected]).sum(dtype=np.float64) / count)),
+            "mae": float(absolute_values[selected].sum(dtype=np.float64) / count),
+            "rmse": float(
+                math.sqrt(np.square(error_values[selected]).sum(dtype=np.float64) / count)
+            ),
             "mape_percent": float(
                 100.0
-                * (absolute[selected] / np.maximum(np.abs(actual[selected].astype(np.float64)), 1e-6)).sum(
-                    dtype=np.float64
-                )
+                * (
+                    absolute_values[selected]
+                    / np.maximum(np.abs(actual_values[selected].astype(np.float64)), 1e-6)
+                ).sum(dtype=np.float64)
                 / count
             ),
             "valid_count": count,
         }
 
-    result = scope(mask)
+    result = scope(absolute, error, actual, mask)
     for horizon in (2, 5, 11):
         selected = mask[:, :, horizon]
-        scoped = scope(selected)
+        scoped = scope(
+            absolute[:, :, horizon],
+            error[:, :, horizon],
+            actual[:, :, horizon],
+            selected,
+        )
         result[f"h{horizon + 1}"] = scoped
     return result
 
@@ -320,6 +333,7 @@ def run_queue(
     python_executable: str,
     shard_index: int = 0,
     shard_count: int = 1,
+    recover_completed_attempts: bool = False,
 ) -> int:
     head = _git_output(repo_root, "rev-parse", "HEAD").lower()
     if head != code_sha:
@@ -396,7 +410,30 @@ def run_queue(
         )
         attempt = staging_root / task.task_id / "attempt_0001"
         if attempt.exists():
-            raise RunnerError(f"stale formal attempt exists for {task.task_id}: {attempt}")
+            if not recover_completed_attempts:
+                raise RunnerError(f"stale formal attempt exists for {task.task_id}: {attempt}")
+            work = attempt / "work"
+            validation = validate_result(
+                work,
+                task,
+                manifest,
+                code_sha=code_sha,
+                config_hash=config_hash,
+                data_dir=data_dir,
+            )
+            os.replace(work, result_dir)
+            completed += 1
+            strict_json_write(
+                state_root / f"{task.task_id}.json",
+                {
+                    "state": "completed_recovered",
+                    "task_id": task.task_id,
+                    "config_hash": config_hash,
+                    "attempt_dir": str(attempt),
+                    "validation": validation,
+                },
+            )
+            continue
         work = attempt / "work"
         attempt.mkdir(parents=True, exist_ok=False)
         dataset = manifest.datasets[task.dataset]
@@ -529,6 +566,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--python", dest="python_executable", default=sys.executable)
     parser.add_argument("--shard-index", type=int, default=0)
     parser.add_argument("--shard-count", type=int, default=1)
+    parser.add_argument("--recover-completed-attempts", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -547,6 +585,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             python_executable=args.python_executable,
             shard_index=args.shard_index,
             shard_count=args.shard_count,
+            recover_completed_attempts=args.recover_completed_attempts,
         )
     except (OSError, ValueError, RunnerError, json.JSONDecodeError) as exc:
         print(f"RUNNER_FAILED: {exc}", file=sys.stderr, flush=True)
