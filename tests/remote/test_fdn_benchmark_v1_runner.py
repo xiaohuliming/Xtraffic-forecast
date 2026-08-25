@@ -60,6 +60,26 @@ def test_config_hash_binds_task_training_data_and_code() -> None:
     assert first != other_task
 
 
+def test_four_gpu_shards_are_disjoint_complete_and_order_preserving() -> None:
+    from scripts.remote.windows.fdn_benchmark_v1_runner import (
+        load_manifest,
+        select_shard_tasks,
+    )
+
+    manifest = load_manifest(MANIFEST)
+    shards = [
+        select_shard_tasks(manifest, shard_index=index, shard_count=4)
+        for index in range(4)
+    ]
+
+    assert [len(shard) for shard in shards] == [6, 6, 6, 6]
+    task_ids = [task.task_id for shard in shards for task in shard]
+    assert len(task_ids) == len(set(task_ids)) == 24
+    assert set(task_ids) == {task.task_id for task in manifest.tasks}
+    for index, shard in enumerate(shards):
+        assert shard == manifest.tasks[index::4]
+
+
 def test_result_validator_recomputes_metrics_and_binds_test_origins(
     tmp_path: Path,
 ) -> None:

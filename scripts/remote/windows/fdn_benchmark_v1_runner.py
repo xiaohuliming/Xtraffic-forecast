@@ -294,6 +294,22 @@ def _write_queue(path: Path, payload: Mapping[str, object]) -> None:
     strict_json_write(path, payload)
 
 
+def select_shard_tasks(
+    manifest: Manifest,
+    *,
+    shard_index: int,
+    shard_count: int,
+) -> tuple[Task, ...]:
+    if shard_count <= 0:
+        raise RunnerError("shard count must be positive")
+    if shard_index < 0 or shard_index >= shard_count:
+        raise RunnerError("shard index must be in [0, shard_count)")
+    selected = tuple(manifest.tasks[shard_index::shard_count])
+    if not selected:
+        raise RunnerError("shard contains no tasks")
+    return selected
+
+
 def run_queue(
     manifest: Manifest,
     *,
@@ -302,6 +318,8 @@ def run_queue(
     results_root: Path,
     code_sha: str,
     python_executable: str,
+    shard_index: int = 0,
+    shard_count: int = 1,
 ) -> int:
     head = _git_output(repo_root, "rev-parse", "HEAD").lower()
     if head != code_sha:
@@ -318,14 +336,24 @@ def run_queue(
     results_root.mkdir(parents=True, exist_ok=True)
     tasks_root = results_root / "tasks"
     state_root = results_root / "state/tasks"
+    shard_state_root = results_root / "state/shards"
     staging_root = results_root / ".staging"
-    for path in (tasks_root, state_root, staging_root):
+    for path in (tasks_root, state_root, shard_state_root, staging_root):
         path.mkdir(parents=True, exist_ok=True)
-    queue_path = results_root / "queue_status.json"
+    shard_tasks = select_shard_tasks(
+        manifest,
+        shard_index=shard_index,
+        shard_count=shard_count,
+    )
+    queue_path = (
+        results_root / "queue_status.json"
+        if shard_count == 1
+        else shard_state_root / f"shard_{shard_index:02d}.json"
+    )
     completed = 0
     skipped = 0
     started_at = time.time()
-    for position, task in enumerate(manifest.tasks, start=1):
+    for position, task in enumerate(shard_tasks, start=1):
         config_hash = derive_config_hash(task, manifest, code_sha)
         result_dir = tasks_root / task.task_id
         if result_dir.is_dir():
@@ -354,7 +382,10 @@ def run_queue(
             {
                 "state": "running",
                 "matrix_id": manifest.matrix_id,
-                "total_tasks": len(manifest.tasks),
+                "total_tasks": len(shard_tasks),
+                "matrix_total_tasks": len(manifest.tasks),
+                "shard_index": shard_index,
+                "shard_count": shard_count,
                 "completed_tasks": completed,
                 "skipped_valid_tasks": skipped,
                 "failed_count": 0,
@@ -433,7 +464,10 @@ def run_queue(
                 {
                     "state": "failed",
                     "matrix_id": manifest.matrix_id,
-                    "total_tasks": len(manifest.tasks),
+                    "total_tasks": len(shard_tasks),
+                    "matrix_total_tasks": len(manifest.tasks),
+                    "shard_index": shard_index,
+                    "shard_count": shard_count,
                     "completed_tasks": completed,
                     "skipped_valid_tasks": skipped,
                     "failed_count": 1,
@@ -468,7 +502,10 @@ def run_queue(
         {
             "state": "completed",
             "matrix_id": manifest.matrix_id,
-            "total_tasks": len(manifest.tasks),
+            "total_tasks": len(shard_tasks),
+            "matrix_total_tasks": len(manifest.tasks),
+            "shard_index": shard_index,
+            "shard_count": shard_count,
             "completed_tasks": completed,
             "skipped_valid_tasks": skipped,
             "failed_count": 0,
@@ -490,6 +527,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--results-root", type=Path, required=True)
     parser.add_argument("--code-sha", required=True)
     parser.add_argument("--python", dest="python_executable", default=sys.executable)
+    parser.add_argument("--shard-index", type=int, default=0)
+    parser.add_argument("--shard-count", type=int, default=1)
     return parser.parse_args(argv)
 
 
@@ -506,6 +545,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             results_root=args.results_root.resolve(),
             code_sha=code_sha,
             python_executable=args.python_executable,
+            shard_index=args.shard_index,
+            shard_count=args.shard_count,
         )
     except (OSError, ValueError, RunnerError, json.JSONDecodeError) as exc:
         print(f"RUNNER_FAILED: {exc}", file=sys.stderr, flush=True)
