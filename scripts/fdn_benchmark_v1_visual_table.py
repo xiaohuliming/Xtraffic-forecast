@@ -22,15 +22,6 @@ VARIANTS = (
     ("fdn_fixed_k3", "FDN Fixed-Mask\n固定掩码消融"),
     ("fdn_learnable_k3", "FDN Learnable-Mask\n完整模型"),
 )
-COMPARISONS = (
-    ("容量效应\nDualGWN − GWN", "dual_gwn", "gwn"),
-    ("固定分解效应\nFixed-Mask − DualGWN", "fdn_fixed_k3", "dual_gwn"),
-    ("可学习掩码效应\nFull FDN − Fixed-Mask", "fdn_learnable_k3", "fdn_fixed_k3"),
-    ("频率路由效应\nFull FDN − DualGWN", "fdn_learnable_k3", "dual_gwn"),
-    ("完整模型对基线\nFull FDN − GWN", "fdn_learnable_k3", "gwn"),
-)
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runs", type=Path, required=True)
@@ -125,164 +116,6 @@ def draw_performance_table(
         cell.set_facecolor("#F6F8FA")
         cell.set_edgecolor("#AAB7C4")
         cell.get_text().set_fontweight("bold")
-    ax.text(
-        0.5,
-        0.04,
-        "粗体边框表示该列 MAE 最低。",
-        ha="center",
-        va="bottom",
-        fontsize=9,
-        color="#4A5560",
-        transform=ax.transAxes,
-    )
-
-
-def draw_component_table(
-    ax: mpl.axes.Axes,
-    values: dict[tuple[str, int, str], float],
-) -> None:
-    rows: list[list[str]] = []
-    numeric: list[list[float]] = []
-    for _, left, right in COMPARISONS:
-        row_text: list[str] = []
-        row_numeric: list[float] = []
-        for dataset in DATASETS:
-            differences = np.asarray(
-                [values[(dataset, seed, left)] - values[(dataset, seed, right)] for seed in SEEDS]
-            )
-            mean = float(differences.mean())
-            wins = int((differences < 0).sum())
-            direction = "平均更好" if mean < 0 else "平均更差"
-            row_text.append(f"{mean:+.4f}\n{wins}/3 个种子更好\n{direction}")
-            row_numeric.append(mean)
-        rows.append(row_text)
-        numeric.append(row_numeric)
-    numeric_array = np.asarray(numeric)
-    limit = float(np.abs(numeric_array).max())
-    norm = mpl.colors.TwoSlopeNorm(vmin=-limit, vcenter=0.0, vmax=limit)
-    cmap = mpl.colormaps["RdBu_r"]
-    ax.axis("off")
-    ax.set_title("各消融组件对 MAE 的影响", fontsize=14, fontweight="bold", pad=10)
-    table = ax.table(
-        cellText=rows,
-        rowLabels=[label for label, _, _ in COMPARISONS],
-        colLabels=("PEMS04", "PEMS08"),
-        cellLoc="center",
-        colLoc="center",
-        loc="center",
-        colWidths=(0.27, 0.27),
-    )
-    table.auto_set_font_size(False)
-    table.set_fontsize(9.5)
-    table.scale(1.0, 2.55)
-    for row in range(len(COMPARISONS)):
-        for column in range(2):
-            cell = table[(row + 1, column)]
-            cell.set_facecolor(blend_with_white(cmap(norm(numeric_array[row, column])), 0.48))
-            cell.set_edgecolor("#AAB7C4")
-            cell.get_text().set_fontweight("bold")
-    for column in range(2):
-        cell = table[(0, column)]
-        cell.set_facecolor("#E9EEF3")
-        cell.set_edgecolor("#7A8793")
-        cell.get_text().set_fontweight("bold")
-    for row in range(1, len(COMPARISONS) + 1):
-        cell = table[(row, -1)]
-        cell.set_facecolor("#F6F8FA")
-        cell.set_edgecolor("#AAB7C4")
-        cell.get_text().set_fontweight("bold")
-    ax.text(
-        0.5,
-        0.0,
-        "Δ = 左侧模型 − 右侧模型。负值表示左侧模型更好。",
-        ha="center",
-        va="bottom",
-        fontsize=9,
-        color="#4A5560",
-        transform=ax.transAxes,
-    )
-
-
-def draw_decision_panel(ax: mpl.axes.Axes) -> None:
-    ax.axis("off")
-    ax.text(
-        0.5,
-        0.96,
-        "预注册证据门槛",
-        fontsize=14,
-        fontweight="bold",
-        ha="center",
-        va="top",
-        transform=ax.transAxes,
-    )
-    lines = (
-        ("两个数据集均改善", "1 / 2", "要求 2 / 2"),
-        ("改善的种子配对", "3 / 6", "要求 ≥ 5 / 6"),
-        ("置信区间上界低于 0", "0 / 2", "要求 ≥ 1 / 2"),
-    )
-    y = 0.76
-    for label, observed, required in lines:
-        ax.text(
-            0.03,
-            y,
-            label,
-            fontsize=11,
-            fontweight="bold",
-            va="center",
-            transform=ax.transAxes,
-        )
-        ax.text(
-            0.64,
-            y,
-            observed,
-            fontsize=12,
-            fontweight="bold",
-            va="center",
-            ha="right",
-            transform=ax.transAxes,
-        )
-        ax.text(
-            0.98,
-            y,
-            required,
-            fontsize=9.5,
-            color="#59636E",
-            va="center",
-            ha="right",
-            transform=ax.transAxes,
-        )
-        ax.plot(
-            [0.03, 0.98],
-            [y - 0.085, y - 0.085],
-            color="#D5DBE1",
-            lw=1,
-            transform=ax.transAxes,
-        )
-        y -= 0.22
-    ax.text(
-        0.5,
-        0.08,
-        "未通过独立方法论文门槛",
-        ha="center",
-        va="center",
-        fontsize=14,
-        fontweight="bold",
-        color="#8B1E1E",
-        bbox={"boxstyle": "round,pad=0.55", "facecolor": "#FDECEC", "edgecolor": "#B73A3A"},
-        transform=ax.transAxes,
-    )
-    ax.text(
-        0.5,
-        -0.03,
-        "按照冻结停止线判定，三项条件均未通过。",
-        ha="center",
-        va="bottom",
-        fontsize=9,
-        color="#4A5560",
-        transform=ax.transAxes,
-    )
-
-
 def main() -> int:
     args = parse_args()
     runs_path = args.runs.resolve()
@@ -300,25 +133,13 @@ def main() -> int:
         "ps.fonttype": 42,
     }
     with mpl.rc_context(style):
-        fig = plt.figure(figsize=(16, 10), layout="constrained")
-        grid = fig.add_gridspec(2, 2, height_ratios=(1.0, 1.05), width_ratios=(1.35, 0.65))
-        top = grid[0, :].subgridspec(1, 2, wspace=0.08)
-        draw_performance_table(fig.add_subplot(top[0, 0]), "pems04", values)
-        draw_performance_table(fig.add_subplot(top[0, 1]), "pems08", values)
-        draw_component_table(fig.add_subplot(grid[1, 0]), values)
-        draw_decision_panel(fig.add_subplot(grid[1, 1]))
+        fig, axes = plt.subplots(1, 2, figsize=(16, 5), layout="constrained")
+        draw_performance_table(axes[0], "pems04", values)
+        draw_performance_table(axes[1], "pems08", values)
         fig.suptitle(
             "FDN 消融实验：三种子 MAE 对比",
             fontsize=19,
             fontweight="bold",
-        )
-        fig.text(
-            0.5,
-            0.006,
-            "24 次训练 · 3 个训练种子 · 100 epochs · MAE 越低越好 · ± 表示种子间样本标准差",
-            ha="center",
-            fontsize=9.5,
-            color="#45515C",
         )
         fig.savefig(
             outputs[0],
