@@ -7,10 +7,10 @@ NDR-Net 相关的模型、训练、配置、远程运行脚本、测试、文档
 | 目录 | 内容 | 来源 |
 |---|---|---|
 | `results/` | 四组已核验的 NDR-Net 结果，按协议分开，见其中 README | 由原始产物摘取 |
-| `core/` | 原 NDR-Net 本体：STAEformer 骨干与 `train_staeformer_deseason.py`，NDR-Net 即其中的 `s0g` 变体 | `codex/fdn-benchmark-v1` |
-| `v3_event/` | v3 无泄露事故窗口下 NDR-Net 的训练入口、数据适配、Windows 与 Linux runner、配置和测试，对应 45 行主表 | `codex/fdn-benchmark-v1` |
-| `official_table4/` | IGSTGNN Table 4 官方重叠协议下的 NDR 扩展 30 epoch 三种子与 native-100 对照，含 manifest、runner、合并、报告、远程脚本和测试 | `codex/fdn-benchmark-v1` |
-| `bist_ndr/` | BiST-NDR 插件配对：模型、runner、报告、配置和测试 | `codex/fdn-benchmark-v1` |
+| `core/` | 原 NDR-Net 本体：STAEformer 骨干与 `train_staeformer_deseason.py`，NDR-Net 即其中的 `s0g` 变体 | `fdn-benchmark-v1` |
+| `v3_event/` | v3 无泄露事故窗口下 NDR-Net 的训练入口、数据适配、Windows 与 Linux runner、配置和测试，对应 45 行主表 | `fdn-benchmark-v1` |
+| `official_table4/` | IGSTGNN Table 4 官方重叠协议下的 NDR 扩展 30 epoch 三种子与 native-100 对照，含 manifest、runner、合并、报告、远程脚本和测试 | `fdn-benchmark-v1` |
+| `bist_ndr/` | BiST-NDR 插件配对：模型、runner、报告、配置和测试 | `fdn-benchmark-v1` |
 | `research_211461b/` | NDR 研究线完整代码：`ndr_research/` 包、开发矩阵、Graph、full-window、迁移、强对照、多通道候选等训练与评估脚本、Windows 队列和测试 | `bist-ndr-matched` 提交 `211461b`，原名 `codex/bist-ndr-matched`，未合并、未推送 |
 | `docs/` | NDR 相关审计、阶段报告、论文互审记录和汇报讲稿 | 工作树，另有 6 份只存在于研究分支 |
 
