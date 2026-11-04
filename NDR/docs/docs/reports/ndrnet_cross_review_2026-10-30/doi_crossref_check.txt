@@ -1,0 +1,62 @@
+li2018dcrnn                  NO_DOI  title='Diffusion Convolutional Recurrent Neural Network: Data-Drive' year=2018
+yu2018stgcn                  OK  doi=10.24963/ijcai.2018/505
+    cr: Proceedings of the Twenty-Seventh International Joint Conference on Ar vol= issue=
+wu2019graph                  OK  doi=10.24963/ijcai.2019/264
+    cr: Proceedings of the Twenty-Eighth International Joint Conference on Art vol= issue=
+bai2020agcrn                 NO_DOI  title='Adaptive Graph Convolutional Recurrent Network for Traffic F' year=2020
+guo2019astgcn                OK  doi=10.1609/aaai.v33i01.3301922
+    cr: Proceedings of the AAAI Conference on Artificial Intelligence vol=33 issue=01
+xu2020sttn                   NO_DOI  title='Spatial-Temporal Transformer Networks for Traffic Flow Forec' year=2020
+lan2022dstagnn               NO_DOI  title='{DSTAGNN}: Dynamic Spatial-Temporal Aware Graph Neural Netwo' year=2022
+li2023dgcrn                  OK  doi=10.1145/3532611
+    cr: ACM Transactions on Knowledge Discovery from Data vol=17 issue=1
+shao2022d2stgnn              OK  doi=10.14778/3551793.3551827
+    cr: Proceedings of the VLDB Endowment vol=15 issue=11
+shao2022stid                 OK  doi=10.1145/3511808.3557702
+    cr: Proceedings of the 31st ACM International Conference on Information &a vol= issue=
+liu2023staeformer            OK  doi=10.1145/3583780.3615160
+    cr: Proceedings of the 32nd ACM International Conference on Information an vol= issue=
+ma2025bist                   OK  doi=10.14778/3725688.3725697
+    cr: Proceedings of the VLDB Endowment vol=18 issue=6
+liu2023largest               OK  doi=10.52202/075280-3293
+    cr: Advances in Neural Information Processing Systems 36 vol= issue=
+jiang2022graph               OK  doi=10.1016/j.eswa.2022.117921
+    cr: Expert Systems with Applications vol=207 issue=
+fan2026igstgnn               OK  doi=10.1145/3770854.3780215
+    cr: Proceedings of the 32nd ACM SIGKDD Conference on Knowledge Discovery a vol= issue=
+gou2025traffident            OK  doi=10.52202/085713-2796
+    cr: Advances in Neural Information Processing Systems 38 vol= issue=
+gou2024xtraffic              NO_DOI  title='{XTraffic}: A Dataset Where Traffic Meets Incidents with Exp' year=2024
+pan2013forecasting           OK  doi=10.1109/ICDM.2013.44
+    cr: 2013 IEEE 13th International Conference on Data Mining vol= issue=
+cleveland1990stl             NO_DOI  title='{STL}: A Seasonal-Trend Decomposition Procedure Based on Loe' year=1990
+williams2003seasonal         OK  doi=10.1061/(ASCE)0733-947X(2003)129:6(664)
+    cr: Journal of Transportation Engineering vol=129 issue=6
+wu2021autoformer             NO_DOI  title='Autoformer: Decomposition Transformers with Auto-Correlation' year=2021
+zhou2022fedformer            NO_DOI  title='{FEDformer}: Frequency Enhanced Decomposed Transformer for L' year=2022
+zeng2023dlinear              OK  doi=10.1609/aaai.v37i9.26317
+    cr: Proceedings of the AAAI Conference on Artificial Intelligence vol=37 issue=9
+zhong2024msdmixer            OK  doi=10.14778/3654621.3654637
+    cr: Proceedings of the VLDB Endowment vol=17 issue=7
+kim2022revin                 NO_DOI  title='Reversible Instance Normalization for Accurate Time-Series F' year=2022
+deng2021stnorm               OK  doi=10.1145/3447548.3467330
+    cr: Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery & vol= issue=
+fang2023stwave               OK  doi=10.1109/ICDE55515.2023.00046
+    cr: 2023 IEEE 39th International Conference on Data Engineering (ICDE) vol= issue=
+cao2025stdn                  OK  doi=10.1609/aaai.v39i11.33247
+    cr: Proceedings of the AAAI Conference on Artificial Intelligence vol=39 issue=11
+shao2026hyperd               OK  doi=10.1609/aaai.v40i18.38599
+    cr: Proceedings of the AAAI Conference on Artificial Intelligence vol=40 issue=18
+jacobs1991adaptive           OK  doi=10.1162/neco.1991.3.1.79
+    cr: Neural Computation vol=3 issue=1
+hinton2015distilling         NO_DOI  title='Distilling the Knowledge in a Neural Network' year=2015
+vapnik2009privileged         OK  doi=10.1016/j.neunet.2009.06.042
+    cr: Neural Networks vol=22 issue=5-6
+lopezpaz2016unifying         NO_DOI  title='Unifying Distillation and Privileged Information' year=2016
+kapoor2023leakage            OK  doi=10.1016/j.patter.2023.100804
+    cr: Patterns vol=4 issue=9
+bergmeir2012use              OK  doi=10.1016/j.ins.2011.12.028
+    cr: Information Sciences vol=191 issue=
+cerqueira2020evaluating      OK  doi=10.1007/s10994-020-05910-7
+    cr: Machine Learning vol=109 issue=11
+vaswani2017attention         NO_DOI  title='Attention Is All You Need' year=2017

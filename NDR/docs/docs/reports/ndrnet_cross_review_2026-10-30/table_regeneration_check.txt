@@ -1,0 +1,4 @@
+Regeneration check, 2026-10-30 Asia/Singapore
+Command: python3 scripts/paper/build_ndrnet_paper_assets.py --paper-dir /tmp/ndr_review/paper_regen
+Result: tables/ablation.tex, main_results.tex, official_protocol.tex, paired_tests.tex, params.tex, transfer_bist.tex byte-identical to the committed files in 6aa7d46b74bb397c87e2010f/tables at commit ba2d5c3; asset_report.json identical after key-sorted JSON normalisation.
+Sources read by the script: outputs/protocol_v3_noleak_dedup/event_full42_20260810/verified_table/table.csv, outputs/protocol_v3_noleak_dedup/analysis/{multiseed_summary,paired_seed_level,window_pairs,matrix_45}.csv, outputs/reproduction/igstgnn_table4_official_v1/table4_with_native100_verified_v1/table4_with_native100.csv, outputs/remote_runs/bist_ndr_pair_retrieved_20261020/analysis/{pair_region_summary,pair_horizon_diffs,pair_window_tests}.csv, source summaries under event_full42_20260810/source_host.

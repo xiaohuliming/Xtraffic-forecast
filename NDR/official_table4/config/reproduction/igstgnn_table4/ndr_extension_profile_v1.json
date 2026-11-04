@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "protocol_id": "igstgnn_table4_official_v1",
+  "profile_id": "ndr_net_table4_extension_v1",
+  "method": "ndr_net",
+  "variant": "s0g",
+  "source_id": "xtraffic_ndr_s0g",
+  "effective": {
+    "seeds": [
+      42,
+      1,
+      2
+    ],
+    "batch_size_by_region": {
+      "Alameda": 16,
+      "Contra_Costa": 16,
+      "Orange": 16
+    },
+    "loader_contract": {
+      "training_shuffle": "global_numpy_permutation",
+      "partial_batch": "retain"
+    },
+    "max_epochs": 30,
+    "optimizer": {
+      "name": "Adam",
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001,
+      "gradient_clip": 5.0,
+      "scheduler": {
+        "name": "CosineAnnealingLR",
+        "t_max": "max_epochs_times_training_batches",
+        "eta_min": 0.00001
+      }
+    },
+    "loss": {
+      "primary": "masked_mae",
+      "lambda_gate": 1.0,
+      "lambda_specialization": 0.3
+    },
+    "input_contract": {
+      "input_steps": 12,
+      "output_steps": 12,
+      "stored_features": [
+        "flow",
+        "time_of_day",
+        "day_of_week"
+      ],
+      "target_channel": 0
+    },
+    "baseline": {
+      "fit_split": "train_only",
+      "grouping": "day_of_week_time_of_day_node",
+      "estimator": "median_of_nonzero_flow",
+      "training_positions": [
+        "x",
+        "y"
+      ],
+      "empty_cell_fallback": "zero"
+    },
+    "normalization": {
+      "source_storage": "official_split_normalized_flow",
+      "source_inverse_transform": "bound_incident_stats_mean_and_std_before_model",
+      "flow_mean_std": "raw_nonzero_training_positions",
+      "residual_std": "raw_nonzero_training_positions_against_baseline",
+      "per_node_residual_std": "raw_nonzero_training_positions_against_baseline",
+      "model_and_loss_units": "raw_flow"
+    },
+    "model": {
+      "family": "STAEformerDeseason",
+      "backbone": "STAEformer",
+      "steps_per_day": 288,
+      "input_dim": 1,
+      "output_dim": 2,
+      "deseason": true,
+      "horizon_gate": true,
+      "oracle_gate_distillation": true,
+      "dual_residual_heads": true
+    },
+    "checkpoint_selection": "lowest_validation_masked_mae_across_all_valid_points",
+    "evaluation": {
+      "metric_semantics": "upstream_masked_metrics",
+      "mape_scale": 100.0,
+      "reported_horizons": [
+        3,
+        6,
+        12
+      ],
+      "average": "arithmetic_mean_of_12_per_horizon_metrics"
+    }
+  },
+  "authority": {
+    "model": "xtraffic_protocol_v3_s0g",
+    "hyperparameters": "xtraffic_protocol_v3_s0g",
+    "split_and_metrics": "igstgnn_table4_official_v1",
+    "baseline_adapter": "table4_extension_declared_v1"
+  },
+  "known_limitations": [
+    "the_official_table4_split_retains_known_forecast_origin_overlap",
+    "ndr_net_is_a_project_method_extension_and_not_an_original_igstgnn_table4_row",
+    "the_table4_specific_training_only_climatology_adapter_did_not_exist_in_the_original_ndr_protocol"
+  ],
+  "compatibility_patches": [
+    "verified_split_loader_source_semantics_v2",
+    "training_only_climatology_adapter_v1",
+    "isolated_extension_artifact_paths_v1",
+    "multi_seed_extension_v1"
+  ]
+}

@@ -1,0 +1,137 @@
+{
+  "schema_version": 1,
+  "protocol_id": "igstgnn_table4_official_v1",
+  "profile_id": "bist_ndr_matched_pair_v1",
+  "methods": {
+    "bist_aligned": {
+      "source_id": "bist_dd94adf_matched_adapter_v1",
+      "family": "BiST",
+      "role": "matched_control",
+      "input_transform": "official_normalized_flow",
+      "output_transform": "official_inverse_transform_to_raw_flow"
+    },
+    "bist_ndr": {
+      "source_id": "xtraffic_bist_ndr_v1",
+      "family": "BiSTNDR",
+      "role": "project_method_candidate",
+      "input_transform": "training_only_climatology_residual",
+      "output_transform": "dual_anchor_raw_flow_fusion"
+    }
+  },
+  "effective": {
+    "seeds": [
+      42,
+      1,
+      2
+    ],
+    "batch_size_by_region": {
+      "Alameda": 16,
+      "Contra_Costa": 16,
+      "Orange": 16
+    },
+    "loader_contract": {
+      "training_shuffle": "global_numpy_permutation",
+      "partial_batch": "retain"
+    },
+    "max_epochs": 30,
+    "optimizer": {
+      "name": "Adam",
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001,
+      "gradient_clip": 5.0,
+      "scheduler": {
+        "name": "CosineAnnealingLR",
+        "t_max": "max_epochs_times_training_batches",
+        "eta_min": 0.00001
+      }
+    },
+    "loss": {
+      "primary": "masked_mae_in_raw_flow_units",
+      "lambda_gate": 1.0,
+      "lambda_specialization": 0.3
+    },
+    "input_contract": {
+      "input_steps": 12,
+      "output_steps": 12,
+      "stored_features": [
+        "flow",
+        "time_of_day",
+        "day_of_week"
+      ],
+      "target_channel": 0
+    },
+    "normalization": {
+      "source_storage": "official_split_normalized_flow",
+      "source_inverse_transform": "bound_incident_stats_mean_and_std",
+      "model_and_loss_units": "raw_flow"
+    },
+    "training_only_climatology": {
+      "fit_split": "train_only",
+      "grouping": "day_of_week_time_of_day_node",
+      "estimator": "median_of_nonzero_flow",
+      "training_positions": [
+        "x",
+        "y"
+      ],
+      "empty_cell_fallback": "zero"
+    },
+    "backbone": {
+      "source_id": "bist_dd94adf",
+      "commit": "dd94adf7721fcbb9e3feb5d1b44040305199a4cc",
+      "time_slots_per_day": 96,
+      "core_dim": 128,
+      "kernel_size": 3,
+      "layers": 3,
+      "model_dim": 32,
+      "prompt_dim": 32,
+      "hidden_dim": 256,
+      "residual_propagation_layers": 2,
+      "extra_type": 1,
+      "same": 0,
+      "predefined_adjacency": false,
+      "data_driven_adjacency": false,
+      "adaptive_adjacency": true,
+      "adaptive_adjacency_dim": 10
+    },
+    "bist_ndr": {
+      "horizon_gate": true,
+      "oracle_gate_distillation": true,
+      "dual_residual_heads": true,
+      "normal_anchor": "training_only_weekly_median",
+      "disturbance_anchor": "last_observation_persistence",
+      "head_initialization": "identical_copy_from_bist_native_heads"
+    },
+    "checkpoint_selection": "lowest_validation_masked_mae_across_all_valid_points",
+    "evaluation": {
+      "metric_semantics": "upstream_masked_metrics",
+      "mape_scale": 100.0,
+      "reported_horizons": [
+        3,
+        6,
+        12
+      ],
+      "average": "arithmetic_mean_of_12_per_horizon_metrics",
+      "test_observation_set": "identical_retained_official_split_samples_for_both_methods"
+    }
+  },
+  "authority": {
+    "backbone_architecture": "pinned_bist_public_checkout",
+    "paired_training_contract": "xtraffic_bist_ndr_pair_v1",
+    "split_and_metrics": "igstgnn_table4_official_v1",
+    "ndr_mechanism": "xtraffic_protocol_v3_s0g"
+  },
+  "known_limitations": [
+    "the_official_table4_split_retains_known_forecast_origin_overlap",
+    "the_bist_public_checkout_has_no_repository_license_file",
+    "the_matched_30_epoch_contract_is_not_the_original_bist_500_epoch_training_contract",
+    "bist_ndr_is_a_project_method_candidate_and_not_an_original_igstgnn_table4_row"
+  ],
+  "compatibility_patches": [
+    "verified_split_loader_source_semantics_v2",
+    "retained_partial_batch_matched_evaluation_v1",
+    "training_only_climatology_adapter_v1",
+    "bist_external_dual_head_adapter_v1",
+    "global_validation_masked_mae_v1",
+    "isolated_paired_experiment_artifact_paths_v1"
+  ]
+}

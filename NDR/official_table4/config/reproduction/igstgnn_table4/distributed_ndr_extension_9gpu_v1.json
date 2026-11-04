@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "plan_id": "igstgnn_table4_ndr_extension_9gpu_v1",
+  "protocol_id": "igstgnn_table4_official_v1",
+  "matrix_id": "igstgnn_table4_ndr_extension_9_v1",
+  "manifest_sha256": "2442f1f29b6e3dcef1d3f6999c0ce9dbf474e43644f98cd6f2aec765908db5b4",
+  "base_manifest_sha256": "d0c7fb88e24c6026d670a4a6d571357eb5320393417a83d344adb05151023a78",
+  "gpu_sku": "NVIDIA GeForce RTX 4090 D",
+  "execution_layout": "dual_host_gpu_sku_homogeneous",
+  "hosts": [
+    {
+      "host_id": "table4_4090d4",
+      "gpu_count": 4,
+      "regions": [
+        "Alameda",
+        "Contra_Costa"
+      ]
+    },
+    {
+      "host_id": "table4_4090d5",
+      "gpu_count": 5,
+      "regions": [
+        "Orange"
+      ]
+    }
+  ],
+  "shards": [
+    {
+      "shard_id": "ndr_table4_4090d4_gpu0",
+      "host_id": "table4_4090d4",
+      "gpu_index": 0,
+      "results_root": "shards/ndr_table4_4090d4_gpu0",
+      "task_ids": [
+        "ndr001_alameda_seed42",
+        "ndr005_contra_costa_seed1"
+      ]
+    },
+    {
+      "shard_id": "ndr_table4_4090d4_gpu1",
+      "host_id": "table4_4090d4",
+      "gpu_index": 1,
+      "results_root": "shards/ndr_table4_4090d4_gpu1",
+      "task_ids": [
+        "ndr002_alameda_seed1",
+        "ndr006_contra_costa_seed2"
+      ]
+    },
+    {
+      "shard_id": "ndr_table4_4090d4_gpu2",
+      "host_id": "table4_4090d4",
+      "gpu_index": 2,
+      "results_root": "shards/ndr_table4_4090d4_gpu2",
+      "task_ids": [
+        "ndr003_alameda_seed2"
+      ]
+    },
+    {
+      "shard_id": "ndr_table4_4090d4_gpu3",
+      "host_id": "table4_4090d4",
+      "gpu_index": 3,
+      "results_root": "shards/ndr_table4_4090d4_gpu3",
+      "task_ids": [
+        "ndr004_contra_costa_seed42"
+      ]
+    },
+    {
+      "shard_id": "ndr_table4_4090d5_gpu0",
+      "host_id": "table4_4090d5",
+      "gpu_index": 0,
+      "results_root": "shards/ndr_table4_4090d5_gpu0",
+      "task_ids": [
+        "ndr007_orange_seed42"
+      ]
+    },
+    {
+      "shard_id": "ndr_table4_4090d5_gpu1",
+      "host_id": "table4_4090d5",
+      "gpu_index": 1,
+      "results_root": "shards/ndr_table4_4090d5_gpu1",
+      "task_ids": [
+        "ndr008_orange_seed1"
+      ]
+    },
+    {
+      "shard_id": "ndr_table4_4090d5_gpu2",
+      "host_id": "table4_4090d5",
+      "gpu_index": 2,
+      "results_root": "shards/ndr_table4_4090d5_gpu2",
+      "task_ids": [
+        "ndr009_orange_seed2"
+      ]
+    }
+  ]
+}

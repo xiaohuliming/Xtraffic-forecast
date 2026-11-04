@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "protocol_version": "protocol_v3_noleak_dedup",
+  "profile_id": "protocol_v3_event_bist_ndr_v1",
+  "method": "bist_ndr",
+  "source_id": "xtraffic_bist_ndr_v1",
+  "effective": {
+    "batch_size_by_region": {
+      "Alameda": 16,
+      "Contra_Costa": 16,
+      "Orange": 16
+    },
+    "optimizer": {
+      "name": "Adam",
+      "learning_rate": 0.001,
+      "weight_decay": 0.0001,
+      "gradient_clip": 5.0,
+      "scheduler": {
+        "name": "CosineAnnealingLR",
+        "t_max": "max_epochs_times_training_batches",
+        "eta_min": 0.00001
+      }
+    },
+    "loss": {
+      "primary": "masked_mae_in_raw_flow_units",
+      "lambda_gate": 1.0,
+      "lambda_specialization": 0.3
+    },
+    "training_only_climatology": {
+      "fit_split": "train_only",
+      "fit_positions": "unique_raw_train_timestamps",
+      "grouping": "day_of_week_time_of_day_node",
+      "estimator": "median_of_observed_flow"
+    },
+    "backbone": {
+      "source_id": "bist_dd94adf",
+      "commit": "dd94adf7721fcbb9e3feb5d1b44040305199a4cc",
+      "time_slots_per_day": 96,
+      "core_dim": 128,
+      "kernel_size": 3,
+      "layers": 3,
+      "model_dim": 32,
+      "prompt_dim": 32,
+      "hidden_dim": 256,
+      "residual_propagation_layers": 2,
+      "extra_type": 1,
+      "same": 0,
+      "predefined_adjacency": false,
+      "data_driven_adjacency": false,
+      "adaptive_adjacency": true,
+      "adaptive_adjacency_dim": 10
+    },
+    "bist_ndr": {
+      "horizon_gate": true,
+      "oracle_gate_distillation": true,
+      "dual_residual_heads": true,
+      "normal_anchor": "training_only_weekly_median",
+      "disturbance_anchor": "last_observation_persistence",
+      "head_initialization": "identical_copy_from_bist_native_heads"
+    }
+  },
+  "claim_scope": "same_protocol_project_method_extension",
+  "validity_label": "target_disjoint_event_no_leak"
+}

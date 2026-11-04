@@ -1,0 +1,755 @@
+{
+  "schema_version": "graph_h240_confirmation_runtime_closure_v1",
+  "production_launchable": false,
+  "actual_new_source_prepared": false,
+  "meaning": "Explicit code-only dependencies. Recorded Windows paths are historical provenance, not current source acceptance or a plan.",
+  "separate_roots": {
+    "model_producer_repo": "C:\\XTrafficResearch\\ndr_cost_20261015\\prepared_97440a5_d3cbbfb05a\\repo",
+    "model_producer_git_sha": "3b09dbf199372b356889a21ae9cfa8a95de37ff6",
+    "model_producer_file_count": 43,
+    "new_control_root": null
+  },
+  "new_control_layout": [
+    "scripts/remote/windows/graph_h240_confirmation.py",
+    "scripts/remote/windows/shared_sta_norm_serial_queue.py",
+    "scripts/retrieve_graph_h240_confirmation.py",
+    "scripts/retrieve_shared_sta_norm_stage.py"
+  ],
+  "currently_verified_local_direct_code": {
+    "graph_controller": {
+      "path": "/Users/xhlm/.codex/worktrees/ndr-transfer-training/科研实习/scripts/remote/windows/graph_h240_confirmation.py",
+      "sha256": "1b54c236463e185e1a4d16ba8b5ace0d58ee1900d2eb57ad6455edda34a54340",
+      "bytes": 41666
+    },
+    "graph_collector": {
+      "path": "/Users/xhlm/.codex/worktrees/ndr-transfer-training/科研实习/scripts/retrieve_graph_h240_confirmation.py",
+      "sha256": "4477145ad8893933e702ba799db4c947ffa980cbdaa16c23ffa8df7139b504c9",
+      "bytes": 13672
+    },
+    "serial_engine_library": {
+      "path": "/Users/xhlm/.codex/worktrees/shared-sta-causal-norm-sparse/科研实习/scripts/remote/windows/shared_sta_norm_serial_queue.py",
+      "sha256": "a2e6eceb2c1d1db7696b8daae3abf177fecfdbe6d1f4ed8b075620ff40d920a1",
+      "bytes": 87582
+    },
+    "opaque_collector_library": {
+      "path": "/Users/xhlm/.codex/worktrees/shared-sta-causal-norm-sparse/科研实习/scripts/retrieve_shared_sta_norm_stage.py",
+      "sha256": "f2ad686f65ada30eb707b2da102c773208067060e45aaeaeb81f10825a5ae9c7",
+      "bytes": 41990
+    },
+    "windows_supervisor_primitives": {
+      "path": "/Users/xhlm/.codex/worktrees/ndr-cost-profiling/科研实习/scripts/remote/windows/mage_cost_windows_supervisor.py",
+      "sha256": "5d78666a4053b03231c6a96475021209f55de574fe52704075d808a604d7c7c0",
+      "bytes": 59275
+    },
+    "completed_predecessor_helper": {
+      "path": "/Users/xhlm/.codex/worktrees/ndr-cost-profiling/科研实习/scripts/remote/windows/mage_train_only_cost_admission.py",
+      "sha256": "a81b0db249192f8fa8accd0539f8fb2c74612701555371203f613af98561597a",
+      "bytes": 27224
+    },
+    "successor_adapter_v5": {
+      "path": "/Users/xhlm/Desktop/Study/科研实习/outputs/remote_runs/ndr_generalization_20261013/control/verify_only_cost_strong4_adapter_v5_20261016.py",
+      "sha256": "5f951b3d376f44ef0b78f21c28336470f68cda9ce0ec251750bbfb42ac30d585",
+      "bytes": 53937
+    },
+    "native_pair_original": {
+      "path": "/Users/xhlm/.codex/worktrees/ndr-cost-profiling/科研实习/scripts/remote/windows/ndr_formal_development_queue.py",
+      "sha256": "6363d026700b6fe52a8fa035472cdc4c0b2c1ae8a3e1152550c0b3e74d12763c",
+      "bytes": 32917
+    },
+    "native_pair_stdlib_import": {
+      "path": "/Users/xhlm/.codex/worktrees/ndr-cost-profiling/科研实习/scripts/admit_ndr_transfer_engineering.py",
+      "sha256": "d51b03454051262db15cfc71d4528efda15c38ee92feaaa2e6fd950362ba43b1",
+      "bytes": 45160
+    },
+    "opaque_transport": {
+      "path": "/Users/xhlm/Desktop/Study/科研实习/outputs/remote_runs/ndr_generalization_20261013/control/opaque_chunk_transfer_transport_v2_20261016.py",
+      "sha256": "df3890fd40aa9b5c072f9321771c892cfd94a8ada18fb50c5ef8387da71db64d",
+      "bytes": 17667
+    },
+    "strong4_completed_collector": {
+      "path": "/Users/xhlm/Desktop/Study/科研实习/outputs/remote_runs/ndr_generalization_20261013/control/retrieve_strong4_development_20261015.py",
+      "sha256": "b7ec36398e8b4ec9c83e8f0567386461addf32c84ce11050940c6afe45bd1ca6",
+      "bytes": 36087
+    },
+    "formal_adapter_v4": {
+      "path": "/Users/xhlm/Desktop/Study/科研实习/outputs/remote_runs/ndr_generalization_20261013/control/admit_verify_only_numerical_predecessor_source_v4_20261016.py",
+      "sha256": "9a41e5738681d5428f3f3fc0ca010e7e1995fb073038da7a73a2ad01a41363e3",
+      "bytes": 29147
+    },
+    "numeric_v4": {
+      "path": "/Users/xhlm/Desktop/Study/科研实习/outputs/remote_runs/ndr_generalization_20261013/control/dualcast_numerical_verify_only_v4_20261016.py",
+      "sha256": "61df48d9a7e884b658f4743c99bd3834f005069d44961faa483469941de886fc",
+      "bytes": 47021
+    }
+  },
+  "source43_original_files_sha256": {
+    ".gitattributes": "8fb55cc2e0b1c4edfd5b57b0600835ea5f8e0961e3a642f69151f9d756b6db03",
+    ".gitignore": "82b66c2fb6d865229ae65b13a4316430937d5eb4e544409c7691afa04f59c499",
+    "dist_net/data.py": "6f67016997f565e1f22df59aba9c05095c105aabc51db41df393af9534b8ee0b",
+    "dist_net/metrics.py": "6adcaa43c4098bf5c249c1754df5e020abf09fb3e9ef9580d70320c6104a4051",
+    "dist_net/protocol.py": "a1438786772613792927673e13dbd116dd29ba19e78d56e3b877f044d82ba48d",
+    "dist_net/run_integrity.py": "eb425b99717ddfe68195676e7fb382b997aa5d58bdd678912a6ef886ecfc47c3",
+    "dist_net/training_runtime.py": "9156647e8626304acb0f34ff455e4e79e7a0a59a9448cbbe87beb27e5bf3ea45",
+    "dist_net/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fourier_dual_net/deseason.py": "0ac8248cd22ebb6a9c847cf1c273dcba9eeaf19abaa066952ed4cd07cd3599bd",
+    "fourier_dual_net/rgdn.py": "69318565e1cf3cadfcd6b314beaf23ffcdd7255f9749dc60847692e3689e27f4",
+    "fourier_dual_net/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ndr_research/cost_profile.py": "7168c0977fa06fe1486972ce8ccefd050103df9b8a9cbbc263c1ae1c41a329e8",
+    "ndr_research/data.py": "6a59a212d8f773f26b9bb5a65781928d71fd0508917815fe33c1a0597bf6c938",
+    "ndr_research/graph_indomain.py": "78ff98035cdb6eaa2e928802811007350c1b33fae65efe4fa1d3a1b9bd75f312",
+    "ndr_research/graph_loss.py": "0d45b3ac875fa19c24f2ee7a78ec6d7317f35517884b524bf59a11e3bea590d2",
+    "ndr_research/models.py": "e78b21bb8baf478d30a39b8ce4763637b13f95df69afa51d78a5a5887ddb2622",
+    "ndr_research/routers.py": "aa1ebab95c824a71665b3dced07d77039b2fd45a287b5a22d9f301e429c7e9b2",
+    "ndr_research/shared_graph.py": "5d42899f543add0e54de4d7f79538fd74e3bd7ef5fe3b4a20d41ca649a0ca4ad",
+    "ndr_research/shared_staeformer.py": "8d9d8021e6ebd60fa5a1020f2bfb9a17656c7fe74b75c4afa60ed87be5fd1562",
+    "ndr_research/strong_references.py": "bfb4e7fa0c2a4676a9aa2ed072fbea3c380d1991544ef4944f8e229730edc7a1",
+    "ndr_research/transfer_data.py": "708fbf0c9773268de98acd4d0b747acc37d670d25c5d9171fe155b76ac6b9bae",
+    "scripts/audit_protocol_v3_cache.py": "c271a2dfb7c3f28d867ee78d1df94cf65353b8712061af2674b3ec69e8d85428",
+    "scripts/build_igstgnn_data_from_h5.py": "33ffd1747ddbe95d8d731c23442762817d5ba7535a5c7f5b91efb55bd1464059",
+    "scripts/protocol_v3_event_extension_data.py": "7f718d82643baaee5dc4181ab787beb5992ed7305803cd2cf7853b256b73447c",
+    "scripts/train_ndr_graph_indomain.py": "1e1c2c1cb5155c3c361d21605fe28bc5cd09f796d6c64fb9e05c8090381adb2b",
+    "scripts/train_ndr_research.py": "c4fd70cecc6b8f0f49157583368aab93367553f5a7ab1648c92dad6414e8040e",
+    "scripts/train_ndr_strong_reference.py": "a3ad484e0403264bad0f8eb249868aaf70424eb8f0a0d4a579d21bae6a99186d",
+    "scripts/train_ndr_transfer.py": "64d9f8327d263ab6c4a7f38f1681bdf9c2c056faef4725ee27a2c4995a84ea1d",
+    "scripts/train_shared_staeformer_transfer.py": "8f4cc8a25ed815438fd300f9ac1394a36fa4485cb54717038c01098ef027188c",
+    "scripts/train_staeformer_deseason.py": "c134fed5f7c28403f4a90fccc689e312c502ec08a03a3b6486a332f7d4e7ace7",
+    "scripts/train_staeformer_xtraffic.py": "2702a6ad87486bef8bbc35d30384a5b42929cec8811227f2875d0d0fd13b3400",
+    "scripts/reproduction/__init__.py": "fe177975d7559bf485ac195e8bfa7fc452adabb09130c77ed418b34bdaaeed11",
+    "scripts/reproduction/igstgnn_table4/bist_factory.py": "df19cc612d81112c509ba0c77d83aa334f3a74db9dc6593d189a57ff2421385a",
+    "scripts/reproduction/igstgnn_table4/manifest.py": "f2ec34ba9b75c0b053ceb0ee1a2388e8fb038e8cb846167f235d0b7056e20154",
+    "scripts/reproduction/igstgnn_table4/profiles.py": "6a5a626e7a96b529beb48bde4a8a401ad19de4b3ee6aa17315fac8b49be445d1",
+    "scripts/reproduction/igstgnn_table4/runtime_data.py": "3217fd34b701f008bbdbc0ce7ce5cf13fb6da4bda1b5488e12664701ba4cb463",
+    "scripts/reproduction/igstgnn_table4/secure_io.py": "eaa6eecdc054cffd4e19bcaedea0d614961b773826233d7e67e58c94f78a3e6b",
+    "scripts/reproduction/igstgnn_table4/upstreams.lock.json": "c7b54342e296d64fa205b94c2e147fbe6dd22702f315ac3e9056b01b9e7b1c61",
+    "scripts/reproduction/igstgnn_table4/upstream_lock.py": "72383eb8e48e2ec9faf76e435e3d6f6496aaf47e239479f4be4871a468106f8c",
+    "scripts/reproduction/igstgnn_table4/__init__.py": "104977bd55f10fb8677726db53eb90ef118116d3a366ea5b33457f8444383cb4",
+    "config/reproduction/igstgnn_table4/profiles.public_material_v2.json": "ca1e3a3c5f04cc6d74d01aa6661d3b7b2148970176e8b37fe4ebed002965cbd7",
+    "baselines/GraphWaveNet/model.py": "f4a1692171791746cf103f29e63c74d637b49945f4a4cf082b037d7e42550f86",
+    "baselines/STAEformer/STAEformer.py": "dda7d8fe38f3dc6bad00eb77b2121b189a743507ef41c316767c1459b7b1a503"
+  },
+  "source64_preserved_control_runtime_closure": {
+    "control/admit_verify_only_numerical_predecessor_source_v3_20261016.py": {
+      "sha256": "c8538b4db40e4b4e3994b316e5a2cb6b7ff51f5faaf5d83dc9f9122536a2f974",
+      "bytes": 29152
+    },
+    "control/analyze_formal7_complete30_verify_only_discovery_v2_20261016.py": {
+      "sha256": "135808b03a70c45d40380d29badcb614b5346acb9e7706be164b6863222d5bb4",
+      "bytes": 30314
+    },
+    "control/bridge_formal7_complete30_verify_only_v1_20261016.py": {
+      "sha256": "bd6d66875419e5b69c70fc329b354eacf7c441cc8ba22116bf6f08138e60222e",
+      "bytes": 23083
+    },
+    "control/collect_formal7_complete30_chunk_adapter_v2_20261016.py": {
+      "sha256": "c4dd59c0644e47cce8876a2fcc4e5ae973101348d135a316e62a1232bc04223e",
+      "bytes": 15152
+    },
+    "control/collect_formal7_complete30_verify_only_v1_20261016.py": {
+      "sha256": "8e159a9d749533cb5f01a6b517d792f1f27a18df2c912b562273c4fbde93deb7",
+      "bytes": 61818
+    },
+    "control/dualcast_numerical_verify_only_v3_20261016.py": {
+      "sha256": "488ff7d4957e0740241cd063938fff78fc03758f296a38bd7d1a40c3f08fbf84",
+      "bytes": 47021
+    },
+    "control/launch_dualcast_memory_cost_audited_20261015.py": {
+      "sha256": "cf1e5d38263414a50b054c54955f5c57fbb9091f11e968bb272c62f7ec2fa6cf",
+      "bytes": 8744
+    },
+    "control/opaque_chunk_transfer_transport_v2_20261016.py": {
+      "sha256": "df3890fd40aa9b5c072f9321771c892cfd94a8ada18fb50c5ef8387da71db64d",
+      "bytes": 17667
+    },
+    "control/retrieve_dualcast_memory_cost_20261015.py": {
+      "sha256": "d118a1dbc50005640bd8305ab25caee329dbb3f267d66330769faaa428adab34",
+      "bytes": 38676
+    },
+    "control/retrieve_with_connection_reuse.py": {
+      "sha256": "9e1fb7b5de9b2ecb7c2b11656d0ae85ef059a49270ddc52c2d62634b19dbe32f",
+      "bytes": 658
+    },
+    "project/baselines/GraphWaveNet/model.py": {
+      "sha256": "f4a1692171791746cf103f29e63c74d637b49945f4a4cf082b037d7e42550f86",
+      "bytes": 7730
+    },
+    "project/baselines/STAEformer/STAEformer.py": {
+      "sha256": "dda7d8fe38f3dc6bad00eb77b2121b189a743507ef41c316767c1459b7b1a503",
+      "bytes": 8913
+    },
+    "project/config/reproduction/igstgnn_table4/profiles.public_material_v2.json": {
+      "sha256": "ca1e3a3c5f04cc6d74d01aa6661d3b7b2148970176e8b37fe4ebed002965cbd7",
+      "bytes": 26529
+    },
+    "project/dist_net/__init__.py": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "project/dist_net/data.py": {
+      "sha256": "6f67016997f565e1f22df59aba9c05095c105aabc51db41df393af9534b8ee0b",
+      "bytes": 51691
+    },
+    "project/dist_net/metrics.py": {
+      "sha256": "6adcaa43c4098bf5c249c1754df5e020abf09fb3e9ef9580d70320c6104a4051",
+      "bytes": 3348
+    },
+    "project/dist_net/protocol.py": {
+      "sha256": "a1438786772613792927673e13dbd116dd29ba19e78d56e3b877f044d82ba48d",
+      "bytes": 8571
+    },
+    "project/dist_net/run_integrity.py": {
+      "sha256": "eb425b99717ddfe68195676e7fb382b997aa5d58bdd678912a6ef886ecfc47c3",
+      "bytes": 14863
+    },
+    "project/dist_net/training_runtime.py": {
+      "sha256": "9156647e8626304acb0f34ff455e4e79e7a0a59a9448cbbe87beb27e5bf3ea45",
+      "bytes": 6880
+    },
+    "project/fourier_dual_net/__init__.py": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "project/fourier_dual_net/deseason.py": {
+      "sha256": "0ac8248cd22ebb6a9c847cf1c273dcba9eeaf19abaa066952ed4cd07cd3599bd",
+      "bytes": 1091
+    },
+    "project/fourier_dual_net/rgdn.py": {
+      "sha256": "69318565e1cf3cadfcd6b314beaf23ffcdd7255f9749dc60847692e3689e27f4",
+      "bytes": 8136
+    },
+    "project/ndr_research/cost_profile.py": {
+      "sha256": "7168c0977fa06fe1486972ce8ccefd050103df9b8a9cbbc263c1ae1c41a329e8",
+      "bytes": 8606
+    },
+    "project/ndr_research/data.py": {
+      "sha256": "6a59a212d8f773f26b9bb5a65781928d71fd0508917815fe33c1a0597bf6c938",
+      "bytes": 9815
+    },
+    "project/ndr_research/dualcast_adapter.py": {
+      "sha256": "dfe09ef6a113c46fb0db05f60ef06b4632de0baf5bd588070eb3265df27b83d4",
+      "bytes": 11889
+    },
+    "project/ndr_research/dualcast_memory.py": {
+      "sha256": "cc0160a023d4193733fc38b9774a0e1571781dca6b1e82f8762eecbec9464225",
+      "bytes": 1145
+    },
+    "project/ndr_research/dualcast_training.py": {
+      "sha256": "eb26feedb912e3dc5601b2bb02641f4109eb0967eff85a4140bec78559e9a0a3",
+      "bytes": 16517
+    },
+    "project/ndr_research/graph_indomain.py": {
+      "sha256": "78ff98035cdb6eaa2e928802811007350c1b33fae65efe4fa1d3a1b9bd75f312",
+      "bytes": 2972
+    },
+    "project/ndr_research/graph_loss.py": {
+      "sha256": "0d45b3ac875fa19c24f2ee7a78ec6d7317f35517884b524bf59a11e3bea590d2",
+      "bytes": 7459
+    },
+    "project/ndr_research/models.py": {
+      "sha256": "e78b21bb8baf478d30a39b8ce4763637b13f95df69afa51d78a5a5887ddb2622",
+      "bytes": 15462
+    },
+    "project/ndr_research/routers.py": {
+      "sha256": "aa1ebab95c824a71665b3dced07d77039b2fd45a287b5a22d9f301e429c7e9b2",
+      "bytes": 8534
+    },
+    "project/ndr_research/shared_graph.py": {
+      "sha256": "5d42899f543add0e54de4d7f79538fd74e3bd7ef5fe3b4a20d41ca649a0ca4ad",
+      "bytes": 19141
+    },
+    "project/ndr_research/shared_staeformer.py": {
+      "sha256": "8d9d8021e6ebd60fa5a1020f2bfb9a17656c7fe74b75c4afa60ed87be5fd1562",
+      "bytes": 5552
+    },
+    "project/ndr_research/strong_references.py": {
+      "sha256": "bfb4e7fa0c2a4676a9aa2ed072fbea3c380d1991544ef4944f8e229730edc7a1",
+      "bytes": 12047
+    },
+    "project/ndr_research/transfer_data.py": {
+      "sha256": "708fbf0c9773268de98acd4d0b747acc37d670d25c5d9171fe155b76ac6b9bae",
+      "bytes": 46224
+    },
+    "project/scripts/admit_ndr_transfer_engineering.py": {
+      "sha256": "d51b03454051262db15cfc71d4528efda15c38ee92feaaa2e6fd950362ba43b1",
+      "bytes": 45160
+    },
+    "project/scripts/analyze_ndr_development.py": {
+      "sha256": "c9524fea14202d8b88bb05d22fd99fd32752ab9bc304a401fb06cdd2152dec8f",
+      "bytes": 12100
+    },
+    "project/scripts/analyze_ndr_formal7_development.py": {
+      "sha256": "7eb41ffa29ea38d1d023da9d5d55083b2fc39bc1dd8d5dc9ccebcee0f41582c2",
+      "bytes": 37560
+    },
+    "project/scripts/audit_protocol_v3_cache.py": {
+      "sha256": "c271a2dfb7c3f28d867ee78d1df94cf65353b8712061af2674b3ec69e8d85428",
+      "bytes": 7052
+    },
+    "project/scripts/build_igstgnn_data_from_h5.py": {
+      "sha256": "33ffd1747ddbe95d8d731c23442762817d5ba7535a5c7f5b91efb55bd1464059",
+      "bytes": 18147
+    },
+    "project/scripts/protocol_v3_event_extension_data.py": {
+      "sha256": "7f718d82643baaee5dc4181ab787beb5992ed7305803cd2cf7853b256b73447c",
+      "bytes": 15553
+    },
+    "project/scripts/remote/windows/dualcast_memory_cost_closeout_queue.py": {
+      "sha256": "bdc082283d79c20d8898663a96105bbd4252416d0a0b0ee52227e62d22804e30",
+      "bytes": 53517
+    },
+    "project/scripts/remote/windows/ndr_formal_development_queue.py": {
+      "sha256": "6363d026700b6fe52a8fa035472cdc4c0b2c1ae8a3e1152550c0b3e74d12763c",
+      "bytes": 32917
+    },
+    "project/scripts/remote/windows/ndr_strong4_development_queue.py": {
+      "sha256": "dbbd9e144607effaeeacbf604a10ddea28de5f252fc086d76eb9a76f79b9bd95",
+      "bytes": 39712
+    },
+    "project/scripts/remote/windows/verify_only_cost_strong4_adapter.py": {
+      "sha256": "eec22a844575b95bb3d8874e95061fa207b531f560845c4ee3372001400a196c",
+      "bytes": 47768
+    },
+    "project/scripts/reproduction/__init__.py": {
+      "sha256": "fe177975d7559bf485ac195e8bfa7fc452adabb09130c77ed418b34bdaaeed11",
+      "bytes": 42
+    },
+    "project/scripts/reproduction/igstgnn_table4/__init__.py": {
+      "sha256": "104977bd55f10fb8677726db53eb90ef118116d3a366ea5b33457f8444383cb4",
+      "bytes": 55
+    },
+    "project/scripts/reproduction/igstgnn_table4/bist_factory.py": {
+      "sha256": "df19cc612d81112c509ba0c77d83aa334f3a74db9dc6593d189a57ff2421385a",
+      "bytes": 9790
+    },
+    "project/scripts/reproduction/igstgnn_table4/manifest.py": {
+      "sha256": "f2ec34ba9b75c0b053ceb0ee1a2388e8fb038e8cb846167f235d0b7056e20154",
+      "bytes": 7866
+    },
+    "project/scripts/reproduction/igstgnn_table4/profiles.py": {
+      "sha256": "6a5a626e7a96b529beb48bde4a8a401ad19de4b3ee6aa17315fac8b49be445d1",
+      "bytes": 5038
+    },
+    "project/scripts/reproduction/igstgnn_table4/runtime_data.py": {
+      "sha256": "3217fd34b701f008bbdbc0ce7ce5cf13fb6da4bda1b5488e12664701ba4cb463",
+      "bytes": 8393
+    },
+    "project/scripts/reproduction/igstgnn_table4/secure_io.py": {
+      "sha256": "eaa6eecdc054cffd4e19bcaedea0d614961b773826233d7e67e58c94f78a3e6b",
+      "bytes": 8028
+    },
+    "project/scripts/reproduction/igstgnn_table4/upstream_lock.py": {
+      "sha256": "72383eb8e48e2ec9faf76e435e3d6f6496aaf47e239479f4be4871a468106f8c",
+      "bytes": 5961
+    },
+    "project/scripts/reproduction/igstgnn_table4/upstreams.lock.json": {
+      "sha256": "c7b54342e296d64fa205b94c2e147fbe6dd22702f315ac3e9056b01b9e7b1c61",
+      "bytes": 1460
+    },
+    "project/scripts/retrieve_ndr_development.py": {
+      "sha256": "6902df283b3e6d4c7034cca952f5523f03271bbf7924964f99f8da1dbbc46664",
+      "bytes": 15911
+    },
+    "project/scripts/train_dualcast_v3.py": {
+      "sha256": "a4290a2e81aa9b7cab40a3a45ef4cf99630263d36da17a2838af89c8cfa46c48",
+      "bytes": 35538
+    },
+    "project/scripts/train_ndr_graph_indomain.py": {
+      "sha256": "1e1c2c1cb5155c3c361d21605fe28bc5cd09f796d6c64fb9e05c8090381adb2b",
+      "bytes": 37906
+    },
+    "project/scripts/train_ndr_research.py": {
+      "sha256": "c4fd70cecc6b8f0f49157583368aab93367553f5a7ab1648c92dad6414e8040e",
+      "bytes": 39301
+    },
+    "project/scripts/train_ndr_strong_reference.py": {
+      "sha256": "a3ad484e0403264bad0f8eb249868aaf70424eb8f0a0d4a579d21bae6a99186d",
+      "bytes": 41122
+    },
+    "project/scripts/train_ndr_transfer.py": {
+      "sha256": "64d9f8327d263ab6c4a7f38f1681bdf9c2c056faef4725ee27a2c4995a84ea1d",
+      "bytes": 46407
+    },
+    "project/scripts/train_shared_staeformer_transfer.py": {
+      "sha256": "8f4cc8a25ed815438fd300f9ac1394a36fa4485cb54717038c01098ef027188c",
+      "bytes": 41884
+    },
+    "project/scripts/train_staeformer_deseason.py": {
+      "sha256": "c134fed5f7c28403f4a90fccc689e312c502ec08a03a3b6486a332f7d4e7ace7",
+      "bytes": 32913
+    },
+    "project/scripts/train_staeformer_xtraffic.py": {
+      "sha256": "2702a6ad87486bef8bbc35d30384a5b42929cec8811227f2875d0d0fd13b3400",
+      "bytes": 10379
+    }
+  },
+  "source64_manifest": {
+    "path": "/Users/xhlm/Desktop/Study/科研实习/outputs/remote_runs/ndr_generalization_20261013/control/verify_only_successor_static_source_681e_20261016/package_manifest.json",
+    "sha256": "46c0a890fa14914fc3f6a2dfaf099160e7f487662518a63e046eb63cb8dd4575",
+    "bytes": 48849
+  },
+  "source64_recorded_role_path_map": {
+    "cost": {
+      "path": "C:/XTrafficResearch/verify_only_successor_code_20261016/prepared_681e1cb8_8f3e8c7128/payload/project/scripts/remote/windows/dualcast_memory_cost_closeout_queue.py",
+      "sha256": "bdc082283d79c20d8898663a96105bbd4252416d0a0b0ee52227e62d22804e30"
+    },
+    "strong4": {
+      "path": "C:/XTrafficResearch/verify_only_successor_code_20261016/prepared_681e1cb8_8f3e8c7128/payload/project/scripts/remote/windows/ndr_strong4_development_queue.py",
+      "sha256": "dbbd9e144607effaeeacbf604a10ddea28de5f252fc086d76eb9a76f79b9bd95"
+    },
+    "stdlib": {
+      "path": "C:/XTrafficResearch/verify_only_successor_code_20261016/prepared_681e1cb8_8f3e8c7128/payload/project/scripts/admit_ndr_transfer_engineering.py",
+      "sha256": "d51b03454051262db15cfc71d4528efda15c38ee92feaaa2e6fd950362ba43b1"
+    },
+    "cost_launcher": {
+      "path": "C:/XTrafficResearch/verify_only_successor_code_20261016/prepared_681e1cb8_8f3e8c7128/payload/control/launch_dualcast_memory_cost_audited_20261015.py",
+      "sha256": "cf1e5d38263414a50b054c54955f5c57fbb9091f11e968bb272c62f7ec2fa6cf"
+    },
+    "cost_collector": {
+      "path": "C:/XTrafficResearch/verify_only_successor_code_20261016/prepared_681e1cb8_8f3e8c7128/payload/control/retrieve_dualcast_memory_cost_20261015.py",
+      "sha256": "d118a1dbc50005640bd8305ab25caee329dbb3f267d66330769faaa428adab34"
+    },
+    "formal_adapter": {
+      "path": "C:/XTrafficResearch/verify_only_successor_code_20261016/prepared_681e1cb8_8f3e8c7128/payload/control/admit_verify_only_numerical_predecessor_source_v3_20261016.py",
+      "sha256": "c8538b4db40e4b4e3994b316e5a2cb6b7ff51f5faaf5d83dc9f9122536a2f974"
+    },
+    "numeric": {
+      "path": "C:/XTrafficResearch/verify_only_successor_code_20261016/prepared_681e1cb8_8f3e8c7128/payload/control/dualcast_numerical_verify_only_v3_20261016.py",
+      "sha256": "488ff7d4957e0740241cd063938fff78fc03758f296a38bd7d1a40c3f08fbf84"
+    },
+    "collector": {
+      "path": "C:/XTrafficResearch/verify_only_successor_code_20261016/prepared_681e1cb8_8f3e8c7128/payload/control/collect_formal7_complete30_verify_only_v1_20261016.py",
+      "sha256": "8e159a9d749533cb5f01a6b517d792f1f27a18df2c912b562273c4fbde93deb7"
+    },
+    "bridge": {
+      "path": "C:/XTrafficResearch/verify_only_successor_code_20261016/prepared_681e1cb8_8f3e8c7128/payload/control/bridge_formal7_complete30_verify_only_v1_20261016.py",
+      "sha256": "bd6d66875419e5b69c70fc329b354eacf7c441cc8ba22116bf6f08138e60222e"
+    },
+    "chunk_wrapper": {
+      "path": "C:/XTrafficResearch/verify_only_successor_code_20261016/prepared_681e1cb8_8f3e8c7128/payload/control/collect_formal7_complete30_chunk_adapter_v2_20261016.py",
+      "sha256": "c4dd59c0644e47cce8876a2fcc4e5ae973101348d135a316e62a1232bc04223e"
+    },
+    "chunk_transport": {
+      "path": "C:/XTrafficResearch/verify_only_successor_code_20261016/prepared_681e1cb8_8f3e8c7128/payload/control/opaque_chunk_transfer_transport_v2_20261016.py",
+      "sha256": "df3890fd40aa9b5c072f9321771c892cfd94a8ada18fb50c5ef8387da71db64d"
+    },
+    "consumer": {
+      "path": "C:/XTrafficResearch/verify_only_successor_code_20261016/prepared_681e1cb8_8f3e8c7128/payload/control/analyze_formal7_complete30_verify_only_discovery_v2_20261016.py",
+      "sha256": "135808b03a70c45d40380d29badcb614b5346acb9e7706be164b6863222d5bb4"
+    }
+  },
+  "source63_required_runtime_members": {
+    "project/scripts/remote/windows/mage_cost_windows_supervisor.py": {
+      "sha256": "5d78666a4053b03231c6a96475021209f55de574fe52704075d808a604d7c7c0",
+      "bytes": 59275
+    },
+    "project/scripts/remote/windows/mage_train_only_cost_admission.py": {
+      "sha256": "a81b0db249192f8fa8accd0539f8fb2c74612701555371203f613af98561597a",
+      "bytes": 27224
+    },
+    "control/retrieve_strong4_development_20261015.py": {
+      "sha256": "b7ec36398e8b4ec9c83e8f0567386461addf32c84ce11050940c6afe45bd1ca6",
+      "bytes": 36087
+    }
+  },
+  "external_recorded_source_authorities": [
+    {
+      "role": "windows_supervisor_primitives",
+      "recorded_source_path": "C:/XTrafficResearch/mage_cost_code_20261016/prepared_5e7c281c_684a0c3b8f/payload/project/scripts/remote/windows/mage_cost_windows_supervisor.py",
+      "sha256": "5d78666a4053b03231c6a96475021209f55de574fe52704075d808a604d7c7c0"
+    },
+    {
+      "role": "four_predecessor_component",
+      "recorded_source_path": "C:/XTrafficResearch/mage_cost_code_20261016/prepared_5e7c281c_684a0c3b8f/payload/project/scripts/remote/windows/mage_train_only_cost_admission.py",
+      "sha256": "a81b0db249192f8fa8accd0539f8fb2c74612701555371203f613af98561597a"
+    },
+    {
+      "role": "completed_strong4_original_collector",
+      "recorded_source_path": "C:/XTrafficResearch/mage_cost_code_20261016/prepared_5e7c281c_684a0c3b8f/payload/control/retrieve_strong4_development_20261015.py",
+      "sha256": "b7ec36398e8b4ec9c83e8f0567386461addf32c84ce11050940c6afe45bd1ca6"
+    },
+    {
+      "role": "source64_cost",
+      "recorded_source_path": "C:/XTrafficResearch/verify_only_successor_code_20261016/prepared_681e1cb8_8f3e8c7128/payload/project/scripts/remote/windows/dualcast_memory_cost_closeout_queue.py",
+      "sha256": "bdc082283d79c20d8898663a96105bbd4252416d0a0b0ee52227e62d22804e30"
+    },
+    {
+      "role": "source64_strong4",
+      "recorded_source_path": "C:/XTrafficResearch/verify_only_successor_code_20261016/prepared_681e1cb8_8f3e8c7128/payload/project/scripts/remote/windows/ndr_strong4_development_queue.py",
+      "sha256": "dbbd9e144607effaeeacbf604a10ddea28de5f252fc086d76eb9a76f79b9bd95"
+    },
+    {
+      "role": "source64_stdlib",
+      "recorded_source_path": "C:/XTrafficResearch/verify_only_successor_code_20261016/prepared_681e1cb8_8f3e8c7128/payload/project/scripts/admit_ndr_transfer_engineering.py",
+      "sha256": "d51b03454051262db15cfc71d4528efda15c38ee92feaaa2e6fd950362ba43b1"
+    },
+    {
+      "role": "source64_cost_launcher",
+      "recorded_source_path": "C:/XTrafficResearch/verify_only_successor_code_20261016/prepared_681e1cb8_8f3e8c7128/payload/control/launch_dualcast_memory_cost_audited_20261015.py",
+      "sha256": "cf1e5d38263414a50b054c54955f5c57fbb9091f11e968bb272c62f7ec2fa6cf"
+    },
+    {
+      "role": "source64_cost_collector",
+      "recorded_source_path": "C:/XTrafficResearch/verify_only_successor_code_20261016/prepared_681e1cb8_8f3e8c7128/payload/control/retrieve_dualcast_memory_cost_20261015.py",
+      "sha256": "d118a1dbc50005640bd8305ab25caee329dbb3f267d66330769faaa428adab34"
+    },
+    {
+      "role": "source64_formal_adapter",
+      "recorded_source_path": "C:/XTrafficResearch/verify_only_successor_code_20261016/prepared_681e1cb8_8f3e8c7128/payload/control/admit_verify_only_numerical_predecessor_source_v3_20261016.py",
+      "sha256": "c8538b4db40e4b4e3994b316e5a2cb6b7ff51f5faaf5d83dc9f9122536a2f974"
+    },
+    {
+      "role": "source64_numeric",
+      "recorded_source_path": "C:/XTrafficResearch/verify_only_successor_code_20261016/prepared_681e1cb8_8f3e8c7128/payload/control/dualcast_numerical_verify_only_v3_20261016.py",
+      "sha256": "488ff7d4957e0740241cd063938fff78fc03758f296a38bd7d1a40c3f08fbf84"
+    },
+    {
+      "role": "source64_collector",
+      "recorded_source_path": "C:/XTrafficResearch/verify_only_successor_code_20261016/prepared_681e1cb8_8f3e8c7128/payload/control/collect_formal7_complete30_verify_only_v1_20261016.py",
+      "sha256": "8e159a9d749533cb5f01a6b517d792f1f27a18df2c912b562273c4fbde93deb7"
+    },
+    {
+      "role": "source64_bridge",
+      "recorded_source_path": "C:/XTrafficResearch/verify_only_successor_code_20261016/prepared_681e1cb8_8f3e8c7128/payload/control/bridge_formal7_complete30_verify_only_v1_20261016.py",
+      "sha256": "bd6d66875419e5b69c70fc329b354eacf7c441cc8ba22116bf6f08138e60222e"
+    },
+    {
+      "role": "source64_chunk_wrapper",
+      "recorded_source_path": "C:/XTrafficResearch/verify_only_successor_code_20261016/prepared_681e1cb8_8f3e8c7128/payload/control/collect_formal7_complete30_chunk_adapter_v2_20261016.py",
+      "sha256": "c4dd59c0644e47cce8876a2fcc4e5ae973101348d135a316e62a1232bc04223e"
+    },
+    {
+      "role": "source64_chunk_transport",
+      "recorded_source_path": "C:/XTrafficResearch/verify_only_successor_code_20261016/prepared_681e1cb8_8f3e8c7128/payload/control/opaque_chunk_transfer_transport_v2_20261016.py",
+      "sha256": "df3890fd40aa9b5c072f9321771c892cfd94a8ada18fb50c5ef8387da71db64d",
+      "currently_verified_local_original": {
+        "path": "/Users/xhlm/Desktop/Study/科研实习/outputs/remote_runs/ndr_generalization_20261013/control/opaque_chunk_transfer_transport_v2_20261016.py",
+        "sha256": "df3890fd40aa9b5c072f9321771c892cfd94a8ada18fb50c5ef8387da71db64d",
+        "bytes": 17667
+      }
+    },
+    {
+      "role": "source64_consumer",
+      "recorded_source_path": "C:/XTrafficResearch/verify_only_successor_code_20261016/prepared_681e1cb8_8f3e8c7128/payload/control/analyze_formal7_complete30_verify_only_discovery_v2_20261016.py",
+      "sha256": "135808b03a70c45d40380d29badcb614b5346acb9e7706be164b6863222d5bb4"
+    },
+    {
+      "role": "owned_process_primitives808",
+      "recorded_source_path": "C:/XTrafficResearch/ndr_formal7_recovery_20261016/complete30_verify_only_20261015T190349Z_e42cd36293/control/strict_recovery_runner.py",
+      "sha256": "808abd383d6d40fb5dd5f8b6aa02af9d39f49f3ac1e8b41967d4baab78dd1d60",
+      "currently_verified_local_original": {
+        "path": "/Users/xhlm/Desktop/Study/科研实习/outputs/remote_runs/ndr_generalization_20261013/control/formal7_complete30_verify_only_runner_v3_20261016.py",
+        "sha256": "808abd383d6d40fb5dd5f8b6aa02af9d39f49f3ac1e8b41967d4baab78dd1d60",
+        "bytes": 57974
+      }
+    },
+    {
+      "role": "strict_GPU_idle_provider23c",
+      "recorded_source_path": "C:/XTrafficResearch/ndr_formal_20261015/execution_20261015T050849Z_6b9501f945/control/evidence/strict_original_provider_23c.py",
+      "sha256": "23c999a6e4321da1d3298d6eb9e9682798e112648b5e2f6751a3850a9e052015",
+      "currently_verified_local_original": {
+        "path": "/Users/xhlm/.codex/worktrees/ndr-cost-profiling/科研实习/scripts/remote/windows/ndr_research_recovery.py",
+        "sha256": "23c999a6e4321da1d3298d6eb9e9682798e112648b5e2f6751a3850a9e052015",
+        "bytes": 36741
+      }
+    },
+    {
+      "role": "specific_audited_GUI_implementation",
+      "recorded_source_path": "C:/XTrafficResearch/ndr_formal7_recovery_20261016/complete30_verify_only_20261015T190349Z_e42cd36293/control/specific_gui_probes.py",
+      "sha256": "d59ec43e58fe0b9575ebe8ee9fa8d454aa100cc2931ebe8bd1375b8279dc24ba",
+      "currently_verified_local_original": {
+        "path": "/Users/xhlm/Desktop/Study/科研实习/outputs/remote_runs/ndr_generalization_20261013/control/formal7_specific_gui_probes_v1_20261015.py",
+        "sha256": "d59ec43e58fe0b9575ebe8ee9fa8d454aa100cc2931ebe8bd1375b8279dc24ba",
+        "bytes": 19942
+      }
+    },
+    {
+      "role": "specific_audited_GUI_policy",
+      "recorded_source_path": "C:/XTrafficResearch/ndr_formal7_recovery_20261016/complete30_verify_only_20261015T190349Z_e42cd36293/control/gui_scope_decision.json",
+      "sha256": "d9dcd0c20aadb6cdf39b90fcb9b8963f7251a4f9c7fc100364ceea27648463c9",
+      "currently_verified_local_original": {
+        "path": "/Users/xhlm/Desktop/Study/科研实习/outputs/remote_runs/ndr_generalization_20261013/control/formal7_specific_gui_scope_decision_20261015.json",
+        "sha256": "d9dcd0c20aadb6cdf39b90fcb9b8963f7251a4f9c7fc100364ceea27648463c9",
+        "bytes": 5505
+      }
+    },
+    {
+      "role": "GUI_original_formal7_recovery_desktop_identity_audit",
+      "recorded_source_path": "C:/XTrafficResearch/ndr_formal7_recovery_20261016/complete30_verify_only_20261015T190349Z_e42cd36293/control/formal7_recovery_desktop_identity_audit_20261015.json",
+      "sha256": "24bcc3f2ee32639bc03c248bf9cd9d4f9ce93e20aee3ddc53999946db1880439",
+      "currently_verified_local_original": {
+        "path": "/Users/xhlm/Desktop/Study/科研实习/outputs/remote_runs/ndr_generalization_20261013/control/formal7_recovery_desktop_identity_audit_20261015.json",
+        "sha256": "24bcc3f2ee32639bc03c248bf9cd9d4f9ce93e20aee3ddc53999946db1880439",
+        "bytes": 9326
+      }
+    },
+    {
+      "role": "GUI_original_formal7_recovery_desktop_identity_raw",
+      "recorded_source_path": "C:/XTrafficResearch/ndr_formal7_recovery_20261016/complete30_verify_only_20261015T190349Z_e42cd36293/control/formal7_recovery_desktop_identity_raw_20261015.json",
+      "sha256": "ceaa9522253ff845167759c839e4252a3181526d38f32e9e1d5f40c4f4221861",
+      "currently_verified_local_original": {
+        "path": "/Users/xhlm/Desktop/Study/科研实习/outputs/remote_runs/ndr_generalization_20261013/control/formal7_recovery_desktop_identity_raw_20261015.json",
+        "sha256": "ceaa9522253ff845167759c839e4252a3181526d38f32e9e1d5f40c4f4221861",
+        "bytes": 7072
+      }
+    }
+  ],
+  "approved_predecessor_namespace_override": {
+    "module_sha256": "a81b0db249192f8fa8accd0539f8fb2c74612701555371203f613af98561597a",
+    "global": "SUCCESSOR_SHA",
+    "from": "eec22a844575b95bb3d8874e95061fa207b531f560845c4ee3372001400a196c",
+    "to": "5f951b3d376f44ef0b78f21c28336470f68cda9ce0ec251750bbfb42ac30d585",
+    "functions": [
+      "predecessor_admission",
+      "strong4_completed_admission"
+    ],
+    "fresh_admit_called": false,
+    "model_worker_or_cost_prerequisite_from_MAGE": false,
+    "mechanism": "private_FunctionType_shared_globals_original_module_unchanged",
+    "changed_namespace_keys": [
+      "SUCCESSOR_SHA",
+      "predecessor_admission",
+      "strong4_completed_admission"
+    ],
+    "original_function_code_defaults_and_closure_preserved": true
+  },
+  "Mac_runtime": {
+    "stdlib_only": true,
+    "model_or_Torch_deserialization": false,
+    "fixed_opaque_transport_sha256": "df3890fd40aa9b5c072f9321771c892cfd94a8ada18fb50c5ef8387da71db64d"
+  },
+  "CPU_only_dependencies": {
+    "serial_copy": {
+      "path": "/Users/xhlm/.codex/worktrees/ndr-transfer-training/科研实习/outputs/confirmation_cpu_dependencies/serial_engine.py",
+      "sha256": "a2e6eceb2c1d1db7696b8daae3abf177fecfdbe6d1f4ed8b075620ff40d920a1",
+      "bytes": 87582
+    },
+    "opaque_copy": {
+      "path": "/Users/xhlm/.codex/worktrees/ndr-transfer-training/科研实习/outputs/confirmation_cpu_dependencies/opaque_collector.py",
+      "sha256": "f2ad686f65ada30eb707b2da102c773208067060e45aaeaeb81f10825a5ae9c7",
+      "bytes": 41990
+    }
+  },
+  "open_acceptance_requirements": [
+    "No real cost or strong4 terminal yet",
+    "No new Graph control package on source",
+    "No explicit frozen Graph budget or future UTC deadline",
+    "No Windows CPU dispatch/Job smoke for the Graph eight-child schedule",
+    "No actual seeds1/2 native pair or full Mac preservation",
+    "No final family6 scientific result"
+  ],
+  "local_preexisting_source43_differences": {
+    "missing": [
+      "ndr_research/cost_profile.py"
+    ],
+    "different": [
+      "scripts/train_ndr_graph_indomain.py",
+      "scripts/train_ndr_strong_reference.py",
+      "scripts/train_shared_staeformer_transfer.py"
+    ],
+    "unchanged_by_this_task": true
+  },
+  "CPU_validation": {
+    "graph_targeted": {
+      "passed": 37,
+      "command": "python -B -m pytest -q tests/ndr_research/test_graph_h240_confirmation.py --disable-warnings"
+    },
+    "original_completed_strong4": {
+      "passed": 12,
+      "command": "python -m pytest -q tests/ndr_research/test_mage_train_only_cost_admission.py -k completed_strong4 --disable-warnings",
+      "cwd": "/Users/xhlm/.codex/worktrees/ndr-cost-profiling/科研实习"
+    },
+    "real_Windows_GPU_or_native_source_result_proven": false,
+    "private_archive_absence": {
+      "passed": 7,
+      "skipped": 30,
+      "command": "XTRAFFIC_GRAPH_AUTHORITY_ROOT=/nonexistent/private/B XTRAFFIC_GRAPH_COST_WORKTREE=/nonexistent/private/COST XTRAFFIC_GRAPH_N8_WORKTREE=/nonexistent/private/N8 python -B -m pytest -q tests/ndr_research/test_graph_h240_confirmation.py --disable-warnings",
+      "meaning": "Private archive tests explicitly skip while stdlib import/readiness and pure arithmetic still execute"
+    }
+  },
+  "v5_actual_dynamic_v4_dependencies": {
+    "formal_adapter": {
+      "source_record": {
+        "path": "C:/XTrafficResearch/verify_only_numeric_v3_20261016/draft_7ce6cde17d2e460f94957f65876d8636/control/admit_verify_only_numerical_predecessor_source_v4_20261016.py",
+        "sha256": "9a41e5738681d5428f3f3fc0ca010e7e1995fb073038da7a73a2ad01a41363e3"
+      },
+      "currently_verified_local_code": {
+        "path": "/Users/xhlm/Desktop/Study/科研实习/outputs/remote_runs/ndr_generalization_20261013/control/admit_verify_only_numerical_predecessor_source_v4_20261016.py",
+        "sha256": "9a41e5738681d5428f3f3fc0ca010e7e1995fb073038da7a73a2ad01a41363e3",
+        "bytes": 29147
+      },
+      "original_source24_authority": {
+        "path": "/Users/xhlm/Desktop/Study/科研实习/outputs/remote_runs/ndr_generalization_20261013/control/numeric_v3_execution_draft_20261016_7ce6cde17d2e460f94957f65876d8636/v4_review/Root_source_readback_20261016T102856Z/Root_readback.json",
+        "sha256": "73cea5cf9781c6fe0e37fba472e1eacd85007f13027bba85245fa0941b763536",
+        "bytes": 5856
+      }
+    },
+    "numeric": {
+      "source_record": {
+        "path": "C:/XTrafficResearch/verify_only_numeric_v3_20261016/draft_7ce6cde17d2e460f94957f65876d8636/control/dualcast_numerical_verify_only_v4_20261016.py",
+        "sha256": "61df48d9a7e884b658f4743c99bd3834f005069d44961faa483469941de886fc"
+      },
+      "currently_verified_local_code": {
+        "path": "/Users/xhlm/Desktop/Study/科研实习/outputs/remote_runs/ndr_generalization_20261013/control/dualcast_numerical_verify_only_v4_20261016.py",
+        "sha256": "61df48d9a7e884b658f4743c99bd3834f005069d44961faa483469941de886fc",
+        "bytes": 47021
+      },
+      "original_source24_authority": {
+        "path": "/Users/xhlm/Desktop/Study/科研实习/outputs/remote_runs/ndr_generalization_20261013/control/numeric_v3_execution_draft_20261016_7ce6cde17d2e460f94957f65876d8636/v4_review/Root_source_readback_20261016T102856Z/Root_readback.json",
+        "sha256": "73cea5cf9781c6fe0e37fba472e1eacd85007f13027bba85245fa0941b763536",
+        "bytes": 5856
+      }
+    }
+  },
+  "Root_existing_actual_Windows_v5_metadata_admission_evidence": {
+    "closeout": {
+      "path": "/Users/xhlm/Desktop/Study/科研实习/outputs/remote_runs/ndr_generalization_20261013/control/Root_cost_v5_static37_readback_20261016T113525Z_0f83858c5ee94727a83b4bf18a8509a5/Root_closeout.json",
+      "sha256": "b2a2cd1a9d4810e2781b0f3caa5abc76112f58bdb2d7ed4beb87347e400e9e43",
+      "bytes": 1158
+    },
+    "source_query": {
+      "path": "/Users/xhlm/Desktop/Study/科研实习/outputs/remote_runs/ndr_generalization_20261013/control/Root_cost_v5_static37_readback_20261016T113525Z_0f83858c5ee94727a83b4bf18a8509a5/02_actual_predecessor_metadata.py",
+      "sha256": "96479c1c313cb07ae8686ebf05477b3db5ea4189e9f0a9c431399ef03f96c974",
+      "bytes": 9221
+    },
+    "source_stdout": {
+      "path": "/Users/xhlm/Desktop/Study/科研实习/outputs/remote_runs/ndr_generalization_20261013/control/Root_cost_v5_static37_readback_20261016T113525Z_0f83858c5ee94727a83b4bf18a8509a5/02_actual_predecessor_metadata.stdout.json",
+      "sha256": "3ce957e6cab723285b8e789ac97845d508906a07e21cdc533c35bbd835928305",
+      "bytes": 1418
+    },
+    "observed_result": {
+      "schema_version": "Root_actual_Windows_v5_predecessor_metadata_admission_v1",
+      "status": "actual_unstubbed_metadata_and_numeric_admission_passed",
+      "formal_raw_record_count": 47,
+      "numeric_result": {
+        "schema_version": "dualcast_verify_only_numeric_prerequisite_admission_v2",
+        "status": "admitted_preserved_cuda_small_model_verify_only_numerical_prerequisite",
+        "plan_sha256": "7c2e6b906c91f53b80a84f5cd73ebb0820e4a5a4930c7b3ca41255df3ed77b66",
+        "plan_digest": "4501be6bad2000300839f01fe8cc5c0ceacbeb716684ba5753b265ebe0c38ea9",
+        "report_sha256": "5d33cf27ed1d182e50303914a37a228f4dc111281bd3faa28fae8b1eb2a52a38",
+        "formal_model_worker_attempts": 15,
+        "formal_direct_successful_waits": 13,
+        "original_reboot_exit_code": null,
+        "completed30_producer_wait_returncode": null,
+        "local_inference_repeated": false,
+        "full_N521_measured": false,
+        "legacy9007_cf1e_d118_compatible": false,
+        "tensor_comparisons": 2616,
+        "cuda_rng_tensor_comparisons": 4
+      },
+      "bound_file_count": 55,
+      "source_root": "C:/XTrafficResearch/dualcast_full_cost_v5_20261016/draft_59d62f3688ba4f74862d44429f0c0877",
+      "source_process_terminal_checks": true,
+      "metadata_functions_unmodified": true,
+      "execution_and_full_source_admission_called": false,
+      "new_plan_uploaded": false,
+      "cost_budget_frozen": false,
+      "result_root_exists": false,
+      "cost_execution_plan_exists": false,
+      "Torch_loaded": false,
+      "HDF5_loaded": false,
+      "GPU_started": false,
+      "production_launchable": false
+    },
+    "new_source_query_by_this_task": false
+  },
+  "source64_old_formal_numeric_roles_preserved_unchanged": true
+}

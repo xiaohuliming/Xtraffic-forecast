@@ -1,0 +1,147 @@
+{
+  "filepath": "cas-refs.bib",
+  "total_entries": 37,
+  "valid_entries": 37,
+  "errors": [],
+  "warnings": [
+    {
+      "type": "missing_recommended_field",
+      "field": "pages",
+      "severity": "medium",
+      "message": "Entry li2018dcrnn: Missing recommended field \"pages\"",
+      "entry": "li2018dcrnn"
+    },
+    {
+      "type": "missing_recommended_field",
+      "field": "volume",
+      "severity": "medium",
+      "message": "Entry xu2020sttn: Missing recommended field \"volume\"",
+      "entry": "xu2020sttn"
+    },
+    {
+      "type": "missing_recommended_field",
+      "field": "pages",
+      "severity": "medium",
+      "message": "Entry xu2020sttn: Missing recommended field \"pages\"",
+      "entry": "xu2020sttn"
+    },
+    {
+      "type": "missing_recommended_field",
+      "field": "doi",
+      "severity": "medium",
+      "message": "Entry xu2020sttn: Missing recommended field \"doi\"",
+      "entry": "xu2020sttn"
+    },
+    {
+      "type": "missing_recommended_field",
+      "field": "volume",
+      "severity": "medium",
+      "message": "Entry gou2024xtraffic: Missing recommended field \"volume\"",
+      "entry": "gou2024xtraffic"
+    },
+    {
+      "type": "missing_recommended_field",
+      "field": "pages",
+      "severity": "medium",
+      "message": "Entry gou2024xtraffic: Missing recommended field \"pages\"",
+      "entry": "gou2024xtraffic"
+    },
+    {
+      "type": "missing_recommended_field",
+      "field": "doi",
+      "severity": "medium",
+      "message": "Entry gou2024xtraffic: Missing recommended field \"doi\"",
+      "entry": "gou2024xtraffic"
+    },
+    {
+      "type": "missing_recommended_field",
+      "field": "doi",
+      "severity": "medium",
+      "message": "Entry cleveland1990stl: Missing recommended field \"doi\"",
+      "entry": "cleveland1990stl"
+    },
+    {
+      "type": "missing_recommended_field",
+      "field": "pages",
+      "severity": "medium",
+      "message": "Entry kim2022revin: Missing recommended field \"pages\"",
+      "entry": "kim2022revin"
+    },
+    {
+      "type": "missing_recommended_field",
+      "field": "volume",
+      "severity": "medium",
+      "message": "Entry hinton2015distilling: Missing recommended field \"volume\"",
+      "entry": "hinton2015distilling"
+    },
+    {
+      "type": "missing_recommended_field",
+      "field": "pages",
+      "severity": "medium",
+      "message": "Entry hinton2015distilling: Missing recommended field \"pages\"",
+      "entry": "hinton2015distilling"
+    },
+    {
+      "type": "missing_recommended_field",
+      "field": "doi",
+      "severity": "medium",
+      "message": "Entry hinton2015distilling: Missing recommended field \"doi\"",
+      "entry": "hinton2015distilling"
+    },
+    {
+      "type": "missing_recommended_field",
+      "field": "pages",
+      "severity": "medium",
+      "message": "Entry lopezpaz2016unifying: Missing recommended field \"pages\"",
+      "entry": "lopezpaz2016unifying"
+    }
+  ],
+  "duplicates": [],
+  "venue_standard_checked": null,
+  "min_count_checked": null,
+  "manuscript_results": {
+    "checked": true,
+    "manuscript_filepath": "/tmp/ndr_review/all_manuscript.tex",
+    "cited_keys": [
+      "ma2025bist",
+      "zeng2023dlinear",
+      "kapoor2023leakage",
+      "shao2022d2stgnn",
+      "gou2024xtraffic",
+      "bergmeir2012use",
+      "kim2022revin",
+      "jiang2022graph",
+      "deng2021stnorm",
+      "gou2025traffident",
+      "williams2003seasonal",
+      "zhong2024msdmixer",
+      "lopezpaz2016unifying",
+      "xu2020sttn",
+      "liu2023largest",
+      "pan2013forecasting",
+      "jacobs1991adaptive",
+      "liu2023staeformer",
+      "fan2026igstgnn",
+      "yu2018stgcn",
+      "shao2026hyperd",
+      "cerqueira2020evaluating",
+      "cleveland1990stl",
+      "lan2022dstagnn",
+      "li2023dgcrn",
+      "bai2020agcrn",
+      "guo2019astgcn",
+      "zhou2022fedformer",
+      "cao2025stdn",
+      "wu2021autoformer",
+      "shao2022stid",
+      "li2018dcrnn",
+      "hinton2015distilling",
+      "fang2023stwave",
+      "wu2019graph",
+      "vaswani2017attention",
+      "vapnik2009privileged"
+    ],
+    "missing_keys": [],
+    "unused_keys": []
+  }
+}

@@ -1,0 +1,397 @@
+{
+  "filepath": "cas-refs.bib",
+  "total_entries": 38,
+  "valid_entries": 38,
+  "errors": [],
+  "warnings": [
+    {
+      "type": "missing_recommended_field",
+      "field": "pages",
+      "severity": "medium",
+      "message": "Entry li2018dcrnn: Missing recommended field \"pages\"",
+      "entry": "li2018dcrnn"
+    },
+    {
+      "type": "missing_recommended_field",
+      "field": "volume",
+      "severity": "medium",
+      "message": "Entry xu2020sttn: Missing recommended field \"volume\"",
+      "entry": "xu2020sttn"
+    },
+    {
+      "type": "missing_recommended_field",
+      "field": "pages",
+      "severity": "medium",
+      "message": "Entry xu2020sttn: Missing recommended field \"pages\"",
+      "entry": "xu2020sttn"
+    },
+    {
+      "type": "missing_recommended_field",
+      "field": "doi",
+      "severity": "medium",
+      "message": "Entry xu2020sttn: Missing recommended field \"doi\"",
+      "entry": "xu2020sttn"
+    },
+    {
+      "type": "missing_recommended_field",
+      "field": "pages",
+      "severity": "medium",
+      "message": "Entry liu2023largest: Missing recommended field \"pages\"",
+      "entry": "liu2023largest"
+    },
+    {
+      "type": "missing_recommended_field",
+      "field": "pages",
+      "severity": "medium",
+      "message": "Entry gou2025traffident: Missing recommended field \"pages\"",
+      "entry": "gou2025traffident"
+    },
+    {
+      "type": "missing_recommended_field",
+      "field": "volume",
+      "severity": "medium",
+      "message": "Entry gou2024xtraffic: Missing recommended field \"volume\"",
+      "entry": "gou2024xtraffic"
+    },
+    {
+      "type": "missing_recommended_field",
+      "field": "pages",
+      "severity": "medium",
+      "message": "Entry gou2024xtraffic: Missing recommended field \"pages\"",
+      "entry": "gou2024xtraffic"
+    },
+    {
+      "type": "missing_recommended_field",
+      "field": "doi",
+      "severity": "medium",
+      "message": "Entry gou2024xtraffic: Missing recommended field \"doi\"",
+      "entry": "gou2024xtraffic"
+    },
+    {
+      "type": "missing_recommended_field",
+      "field": "doi",
+      "severity": "medium",
+      "message": "Entry cleveland1990stl: Missing recommended field \"doi\"",
+      "entry": "cleveland1990stl"
+    },
+    {
+      "type": "missing_recommended_field",
+      "field": "pages",
+      "severity": "medium",
+      "message": "Entry kim2022revin: Missing recommended field \"pages\"",
+      "entry": "kim2022revin"
+    },
+    {
+      "type": "missing_recommended_field",
+      "field": "pages",
+      "severity": "medium",
+      "message": "Entry huang2026adnet: Missing recommended field \"pages\"",
+      "entry": "huang2026adnet"
+    },
+    {
+      "type": "missing_recommended_field",
+      "field": "volume",
+      "severity": "medium",
+      "message": "Entry hinton2015distilling: Missing recommended field \"volume\"",
+      "entry": "hinton2015distilling"
+    },
+    {
+      "type": "missing_recommended_field",
+      "field": "pages",
+      "severity": "medium",
+      "message": "Entry hinton2015distilling: Missing recommended field \"pages\"",
+      "entry": "hinton2015distilling"
+    },
+    {
+      "type": "missing_recommended_field",
+      "field": "doi",
+      "severity": "medium",
+      "message": "Entry hinton2015distilling: Missing recommended field \"doi\"",
+      "entry": "hinton2015distilling"
+    },
+    {
+      "type": "missing_recommended_field",
+      "field": "pages",
+      "severity": "medium",
+      "message": "Entry lopezpaz2016unifying: Missing recommended field \"pages\"",
+      "entry": "lopezpaz2016unifying"
+    },
+    {
+      "type": "unused_citation",
+      "entry": "shao2026hyperd",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"shao2026hyperd\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "shao2022d2stgnn",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"shao2022d2stgnn\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "bergmeir2012use",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"bergmeir2012use\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "liu2023staeformer",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"liu2023staeformer\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "guo2019astgcn",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"guo2019astgcn\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "yu2018stgcn",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"yu2018stgcn\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "hinton2015distilling",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"hinton2015distilling\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "cleveland1990stl",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"cleveland1990stl\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "ma2025bist",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"ma2025bist\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "fan2026igstgnn",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"fan2026igstgnn\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "wu2019graph",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"wu2019graph\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "zeng2023dlinear",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"zeng2023dlinear\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "zhong2024msdmixer",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"zhong2024msdmixer\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "vapnik2009privileged",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"vapnik2009privileged\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "gou2025traffident",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"gou2025traffident\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "shao2022stid",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"shao2022stid\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "li2018dcrnn",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"li2018dcrnn\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "gou2024xtraffic",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"gou2024xtraffic\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "pan2013forecasting",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"pan2013forecasting\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "kapoor2023leakage",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"kapoor2023leakage\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "kim2022revin",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"kim2022revin\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "bai2020agcrn",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"bai2020agcrn\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "li2023dgcrn",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"li2023dgcrn\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "huang2026adnet",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"huang2026adnet\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "jacobs1991adaptive",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"jacobs1991adaptive\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "cao2025stdn",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"cao2025stdn\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "lan2022dstagnn",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"lan2022dstagnn\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "zhou2022fedformer",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"zhou2022fedformer\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "wu2021autoformer",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"wu2021autoformer\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "cerqueira2020evaluating",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"cerqueira2020evaluating\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "xu2020sttn",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"xu2020sttn\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "jiang2022graph",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"jiang2022graph\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "williams2003seasonal",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"williams2003seasonal\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "lopezpaz2016unifying",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"lopezpaz2016unifying\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "fang2023stwave",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"fang2023stwave\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "deng2021stnorm",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"deng2021stnorm\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "liu2023largest",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"liu2023largest\" is defined in the BibTeX file but not cited in the manuscript."
+    },
+    {
+      "type": "unused_citation",
+      "entry": "vaswani2017attention",
+      "severity": "medium",
+      "message": "Unused citation: Reference \"vaswani2017attention\" is defined in the BibTeX file but not cited in the manuscript."
+    }
+  ],
+  "duplicates": [],
+  "venue_standard_checked": null,
+  "min_count_checked": null,
+  "manuscript_results": {
+    "checked": true,
+    "manuscript_filepath": "main.tex",
+    "cited_keys": [],
+    "missing_keys": [],
+    "unused_keys": [
+      "shao2026hyperd",
+      "shao2022d2stgnn",
+      "bergmeir2012use",
+      "liu2023staeformer",
+      "guo2019astgcn",
+      "yu2018stgcn",
+      "hinton2015distilling",
+      "cleveland1990stl",
+      "ma2025bist",
+      "fan2026igstgnn",
+      "wu2019graph",
+      "zeng2023dlinear",
+      "zhong2024msdmixer",
+      "vapnik2009privileged",
+      "gou2025traffident",
+      "shao2022stid",
+      "li2018dcrnn",
+      "gou2024xtraffic",
+      "pan2013forecasting",
+      "kapoor2023leakage",
+      "kim2022revin",
+      "bai2020agcrn",
+      "li2023dgcrn",
+      "huang2026adnet",
+      "jacobs1991adaptive",
+      "cao2025stdn",
+      "lan2022dstagnn",
+      "zhou2022fedformer",
+      "wu2021autoformer",
+      "cerqueira2020evaluating",
+      "xu2020sttn",
+      "jiang2022graph",
+      "williams2003seasonal",
+      "lopezpaz2016unifying",
+      "fang2023stwave",
+      "deng2021stnorm",
+      "liu2023largest",
+      "vaswani2017attention"
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "schema_version": "2.0",
+  "review_id": "REVIEW-NDRNET-CROSS-20261030",
+  "material": {"status": "unpublished_confidential", "contains_personal_or_sensitive_data": false},
+  "authorization": {"basis": "author_request", "documented": true, "local_processing_authorized": true, "external_processing_authorized": true},
+  "reviewer": {"capacity": "author_requested_reader", "human_accountable": true,
+    "competence_areas": ["traffic_forecasting", "spatiotemporal_deep_learning", "ml_evaluation_protocols", "paired_statistics"],
+    "competence_limits": ["no_retraining_or_reproduction_executed", "transportation_operations_domain_impact"],
+    "conflict_status": "none_identified", "conflicts": []},
+  "venue_policy": {"checked": true, "peer_review_model": "single_anonymized", "confidential_editor_notes_supported": true},
+  "ai_use": {"policy": "permitted_with_disclosure", "planned": "approved_ai_assistance", "permission_confirmed": true, "disclosure_planned": true},
+  "handling": {"local_only": true, "external_service_use": false, "data_reuse_permitted": false, "retention_rule": "retain_per_venue_policy", "deletion_or_retention_record_planned": true},
+  "scope": {"manuscript_type": "ml_method_and_benchmark_study", "requested_focus": ["cross_check_numbers_against_verified_artifacts", "claims", "methods", "statistics", "reporting", "figures_tables", "citations"], "out_of_scope": ["editorial_decision", "re-running_experiments"], "specialist_review_needed": []}
+}

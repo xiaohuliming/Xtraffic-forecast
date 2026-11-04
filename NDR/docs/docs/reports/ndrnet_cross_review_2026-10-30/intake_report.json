@@ -1,0 +1,49 @@
+{
+  "errors": [],
+  "handling_assertions": {
+    "author_and_editor_channels_must_remain_separate": true,
+    "bundled_tools_are_local_only": true,
+    "data_reuse_authorized": false,
+    "external_service_use_authorized_by_this_report": false
+  },
+  "normalized_scope": {
+    "ai_plan": "approved_ai_assistance",
+    "capacity": "author_requested_reader",
+    "competence_areas": [
+      "traffic_forecasting",
+      "spatiotemporal_deep_learning",
+      "ml_evaluation_protocols",
+      "paired_statistics"
+    ],
+    "manuscript_type": "ml_method_and_benchmark_study",
+    "out_of_scope": [
+      "editorial_decision",
+      "re-running_experiments"
+    ],
+    "peer_review_model": "single_anonymized",
+    "requested_focus": [
+      "cross_check_numbers_against_verified_artifacts",
+      "claims",
+      "methods",
+      "statistics",
+      "reporting",
+      "figures_tables",
+      "citations"
+    ]
+  },
+  "notice": "This validates declared process controls only. It does not establish reviewer competence, resolve conflicts, authorize external processing, or assess manuscript quality.",
+  "review_id": "REVIEW-NDRNET-CROSS-20261030",
+  "schema_version": "2.0",
+  "status": "READY_FOR_LOCAL_REVIEW",
+  "valid": true,
+  "warnings": [
+    {
+      "code": "EXTERNAL_AUTHORIZATION_NOT_USED",
+      "field": "authorization.external_processing_authorized"
+    },
+    {
+      "code": "COMPETENCE_LIMITS_MUST_BE_DISCLOSED",
+      "field": "reviewer.competence_limits"
+    }
+  ]
+}

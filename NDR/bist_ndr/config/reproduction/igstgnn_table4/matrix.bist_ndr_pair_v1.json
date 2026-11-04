@@ -1,0 +1,217 @@
+{
+  "schema_version": 1,
+  "status": "planned_matched_project_method_experiment",
+  "protocol_id": "igstgnn_table4_official_v1",
+  "matrix_id": "igstgnn_table4_bist_ndr_pair_18_v1",
+  "base_matrix_id": "igstgnn_table4_public_repro_39_v2",
+  "base_manifest_sha256": "d0c7fb88e24c6026d670a4a6d571357eb5320393417a83d344adb05151023a78",
+  "validity_label": "official_protocol_with_known_overlap",
+  "claim_scope": "same_protocol_project_method_extension",
+  "profile_path": "bist_ndr_pair_profile_v1.json",
+  "profile_sha256": "b763fb35b392e265a410325efa0ef34afa3b0d16c7c2e56c71bc3243844e8764",
+  "split_bundle_manifest_sha256": {
+    "Alameda": "d7bb23775ed9b7cab7c869c84f1dd59774d4b2222bc33ec1b44618efd683d129",
+    "Contra_Costa": "0f0fa14f41202288c572d996b8e457010c6ab339f39369e5db71ca04f62e7da1",
+    "Orange": "c37b78f19766fec9ac57d28d6a7becd8a3b334261cef4e7863f29b0bbcc7b019"
+  },
+  "tasks": [
+    {
+      "task_id": "pair001_bist_aligned_alameda_seed42",
+      "method": "bist_aligned",
+      "region": "Alameda",
+      "seed": 42,
+      "source_id": "bist_dd94adf_matched_adapter_v1",
+      "profile_id": "bist_ndr_matched_pair_v1",
+      "config_sha256": "b763fb35b392e265a410325efa0ef34afa3b0d16c7c2e56c71bc3243844e8764",
+      "split_bundle_manifest_sha256": "d7bb23775ed9b7cab7c869c84f1dd59774d4b2222bc33ec1b44618efd683d129",
+      "output_dir": "tasks/pair001_bist_aligned_alameda_seed42"
+    },
+    {
+      "task_id": "pair002_bist_aligned_alameda_seed1",
+      "method": "bist_aligned",
+      "region": "Alameda",
+      "seed": 1,
+      "source_id": "bist_dd94adf_matched_adapter_v1",
+      "profile_id": "bist_ndr_matched_pair_v1",
+      "config_sha256": "b763fb35b392e265a410325efa0ef34afa3b0d16c7c2e56c71bc3243844e8764",
+      "split_bundle_manifest_sha256": "d7bb23775ed9b7cab7c869c84f1dd59774d4b2222bc33ec1b44618efd683d129",
+      "output_dir": "tasks/pair002_bist_aligned_alameda_seed1"
+    },
+    {
+      "task_id": "pair003_bist_aligned_alameda_seed2",
+      "method": "bist_aligned",
+      "region": "Alameda",
+      "seed": 2,
+      "source_id": "bist_dd94adf_matched_adapter_v1",
+      "profile_id": "bist_ndr_matched_pair_v1",
+      "config_sha256": "b763fb35b392e265a410325efa0ef34afa3b0d16c7c2e56c71bc3243844e8764",
+      "split_bundle_manifest_sha256": "d7bb23775ed9b7cab7c869c84f1dd59774d4b2222bc33ec1b44618efd683d129",
+      "output_dir": "tasks/pair003_bist_aligned_alameda_seed2"
+    },
+    {
+      "task_id": "pair004_bist_aligned_contra_costa_seed42",
+      "method": "bist_aligned",
+      "region": "Contra_Costa",
+      "seed": 42,
+      "source_id": "bist_dd94adf_matched_adapter_v1",
+      "profile_id": "bist_ndr_matched_pair_v1",
+      "config_sha256": "b763fb35b392e265a410325efa0ef34afa3b0d16c7c2e56c71bc3243844e8764",
+      "split_bundle_manifest_sha256": "0f0fa14f41202288c572d996b8e457010c6ab339f39369e5db71ca04f62e7da1",
+      "output_dir": "tasks/pair004_bist_aligned_contra_costa_seed42"
+    },
+    {
+      "task_id": "pair005_bist_aligned_contra_costa_seed1",
+      "method": "bist_aligned",
+      "region": "Contra_Costa",
+      "seed": 1,
+      "source_id": "bist_dd94adf_matched_adapter_v1",
+      "profile_id": "bist_ndr_matched_pair_v1",
+      "config_sha256": "b763fb35b392e265a410325efa0ef34afa3b0d16c7c2e56c71bc3243844e8764",
+      "split_bundle_manifest_sha256": "0f0fa14f41202288c572d996b8e457010c6ab339f39369e5db71ca04f62e7da1",
+      "output_dir": "tasks/pair005_bist_aligned_contra_costa_seed1"
+    },
+    {
+      "task_id": "pair006_bist_aligned_contra_costa_seed2",
+      "method": "bist_aligned",
+      "region": "Contra_Costa",
+      "seed": 2,
+      "source_id": "bist_dd94adf_matched_adapter_v1",
+      "profile_id": "bist_ndr_matched_pair_v1",
+      "config_sha256": "b763fb35b392e265a410325efa0ef34afa3b0d16c7c2e56c71bc3243844e8764",
+      "split_bundle_manifest_sha256": "0f0fa14f41202288c572d996b8e457010c6ab339f39369e5db71ca04f62e7da1",
+      "output_dir": "tasks/pair006_bist_aligned_contra_costa_seed2"
+    },
+    {
+      "task_id": "pair007_bist_aligned_orange_seed42",
+      "method": "bist_aligned",
+      "region": "Orange",
+      "seed": 42,
+      "source_id": "bist_dd94adf_matched_adapter_v1",
+      "profile_id": "bist_ndr_matched_pair_v1",
+      "config_sha256": "b763fb35b392e265a410325efa0ef34afa3b0d16c7c2e56c71bc3243844e8764",
+      "split_bundle_manifest_sha256": "c37b78f19766fec9ac57d28d6a7becd8a3b334261cef4e7863f29b0bbcc7b019",
+      "output_dir": "tasks/pair007_bist_aligned_orange_seed42"
+    },
+    {
+      "task_id": "pair008_bist_aligned_orange_seed1",
+      "method": "bist_aligned",
+      "region": "Orange",
+      "seed": 1,
+      "source_id": "bist_dd94adf_matched_adapter_v1",
+      "profile_id": "bist_ndr_matched_pair_v1",
+      "config_sha256": "b763fb35b392e265a410325efa0ef34afa3b0d16c7c2e56c71bc3243844e8764",
+      "split_bundle_manifest_sha256": "c37b78f19766fec9ac57d28d6a7becd8a3b334261cef4e7863f29b0bbcc7b019",
+      "output_dir": "tasks/pair008_bist_aligned_orange_seed1"
+    },
+    {
+      "task_id": "pair009_bist_aligned_orange_seed2",
+      "method": "bist_aligned",
+      "region": "Orange",
+      "seed": 2,
+      "source_id": "bist_dd94adf_matched_adapter_v1",
+      "profile_id": "bist_ndr_matched_pair_v1",
+      "config_sha256": "b763fb35b392e265a410325efa0ef34afa3b0d16c7c2e56c71bc3243844e8764",
+      "split_bundle_manifest_sha256": "c37b78f19766fec9ac57d28d6a7becd8a3b334261cef4e7863f29b0bbcc7b019",
+      "output_dir": "tasks/pair009_bist_aligned_orange_seed2"
+    },
+    {
+      "task_id": "pair010_bist_ndr_alameda_seed42",
+      "method": "bist_ndr",
+      "region": "Alameda",
+      "seed": 42,
+      "source_id": "xtraffic_bist_ndr_v1",
+      "profile_id": "bist_ndr_matched_pair_v1",
+      "config_sha256": "b763fb35b392e265a410325efa0ef34afa3b0d16c7c2e56c71bc3243844e8764",
+      "split_bundle_manifest_sha256": "d7bb23775ed9b7cab7c869c84f1dd59774d4b2222bc33ec1b44618efd683d129",
+      "output_dir": "tasks/pair010_bist_ndr_alameda_seed42"
+    },
+    {
+      "task_id": "pair011_bist_ndr_alameda_seed1",
+      "method": "bist_ndr",
+      "region": "Alameda",
+      "seed": 1,
+      "source_id": "xtraffic_bist_ndr_v1",
+      "profile_id": "bist_ndr_matched_pair_v1",
+      "config_sha256": "b763fb35b392e265a410325efa0ef34afa3b0d16c7c2e56c71bc3243844e8764",
+      "split_bundle_manifest_sha256": "d7bb23775ed9b7cab7c869c84f1dd59774d4b2222bc33ec1b44618efd683d129",
+      "output_dir": "tasks/pair011_bist_ndr_alameda_seed1"
+    },
+    {
+      "task_id": "pair012_bist_ndr_alameda_seed2",
+      "method": "bist_ndr",
+      "region": "Alameda",
+      "seed": 2,
+      "source_id": "xtraffic_bist_ndr_v1",
+      "profile_id": "bist_ndr_matched_pair_v1",
+      "config_sha256": "b763fb35b392e265a410325efa0ef34afa3b0d16c7c2e56c71bc3243844e8764",
+      "split_bundle_manifest_sha256": "d7bb23775ed9b7cab7c869c84f1dd59774d4b2222bc33ec1b44618efd683d129",
+      "output_dir": "tasks/pair012_bist_ndr_alameda_seed2"
+    },
+    {
+      "task_id": "pair013_bist_ndr_contra_costa_seed42",
+      "method": "bist_ndr",
+      "region": "Contra_Costa",
+      "seed": 42,
+      "source_id": "xtraffic_bist_ndr_v1",
+      "profile_id": "bist_ndr_matched_pair_v1",
+      "config_sha256": "b763fb35b392e265a410325efa0ef34afa3b0d16c7c2e56c71bc3243844e8764",
+      "split_bundle_manifest_sha256": "0f0fa14f41202288c572d996b8e457010c6ab339f39369e5db71ca04f62e7da1",
+      "output_dir": "tasks/pair013_bist_ndr_contra_costa_seed42"
+    },
+    {
+      "task_id": "pair014_bist_ndr_contra_costa_seed1",
+      "method": "bist_ndr",
+      "region": "Contra_Costa",
+      "seed": 1,
+      "source_id": "xtraffic_bist_ndr_v1",
+      "profile_id": "bist_ndr_matched_pair_v1",
+      "config_sha256": "b763fb35b392e265a410325efa0ef34afa3b0d16c7c2e56c71bc3243844e8764",
+      "split_bundle_manifest_sha256": "0f0fa14f41202288c572d996b8e457010c6ab339f39369e5db71ca04f62e7da1",
+      "output_dir": "tasks/pair014_bist_ndr_contra_costa_seed1"
+    },
+    {
+      "task_id": "pair015_bist_ndr_contra_costa_seed2",
+      "method": "bist_ndr",
+      "region": "Contra_Costa",
+      "seed": 2,
+      "source_id": "xtraffic_bist_ndr_v1",
+      "profile_id": "bist_ndr_matched_pair_v1",
+      "config_sha256": "b763fb35b392e265a410325efa0ef34afa3b0d16c7c2e56c71bc3243844e8764",
+      "split_bundle_manifest_sha256": "0f0fa14f41202288c572d996b8e457010c6ab339f39369e5db71ca04f62e7da1",
+      "output_dir": "tasks/pair015_bist_ndr_contra_costa_seed2"
+    },
+    {
+      "task_id": "pair016_bist_ndr_orange_seed42",
+      "method": "bist_ndr",
+      "region": "Orange",
+      "seed": 42,
+      "source_id": "xtraffic_bist_ndr_v1",
+      "profile_id": "bist_ndr_matched_pair_v1",
+      "config_sha256": "b763fb35b392e265a410325efa0ef34afa3b0d16c7c2e56c71bc3243844e8764",
+      "split_bundle_manifest_sha256": "c37b78f19766fec9ac57d28d6a7becd8a3b334261cef4e7863f29b0bbcc7b019",
+      "output_dir": "tasks/pair016_bist_ndr_orange_seed42"
+    },
+    {
+      "task_id": "pair017_bist_ndr_orange_seed1",
+      "method": "bist_ndr",
+      "region": "Orange",
+      "seed": 1,
+      "source_id": "xtraffic_bist_ndr_v1",
+      "profile_id": "bist_ndr_matched_pair_v1",
+      "config_sha256": "b763fb35b392e265a410325efa0ef34afa3b0d16c7c2e56c71bc3243844e8764",
+      "split_bundle_manifest_sha256": "c37b78f19766fec9ac57d28d6a7becd8a3b334261cef4e7863f29b0bbcc7b019",
+      "output_dir": "tasks/pair017_bist_ndr_orange_seed1"
+    },
+    {
+      "task_id": "pair018_bist_ndr_orange_seed2",
+      "method": "bist_ndr",
+      "region": "Orange",
+      "seed": 2,
+      "source_id": "xtraffic_bist_ndr_v1",
+      "profile_id": "bist_ndr_matched_pair_v1",
+      "config_sha256": "b763fb35b392e265a410325efa0ef34afa3b0d16c7c2e56c71bc3243844e8764",
+      "split_bundle_manifest_sha256": "c37b78f19766fec9ac57d28d6a7becd8a3b334261cef4e7863f29b0bbcc7b019",
+      "output_dir": "tasks/pair018_bist_ndr_orange_seed2"
+    }
+  ]
+}
